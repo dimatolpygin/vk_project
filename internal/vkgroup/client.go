@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"golang.org/x/net/proxy"
 )
 
 const apiBase = "https://api.vk.com/method"
@@ -24,32 +22,10 @@ type Client struct {
 }
 
 func New(token string, groupID int64) *Client {
-	return NewWithProxy(token, groupID, "")
-}
-
-func NewWithProxy(token string, groupID int64, proxyURL string) *Client {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if proxyURL != "" {
-		u, err := url.Parse(proxyURL)
-		if err == nil && (u.Scheme == "socks5" || u.Scheme == "socks5h") {
-			auth := (*proxy.Auth)(nil)
-			if u.User != nil {
-				pass, _ := u.User.Password()
-				auth = &proxy.Auth{User: u.User.Username(), Password: pass}
-			}
-			dialer, err := proxy.SOCKS5("tcp", u.Host, auth, proxy.Direct)
-			if err == nil {
-				transport.DialContext = nil
-				transport.Dial = dialer.Dial
-			}
-		} else if err == nil {
-			transport.Proxy = http.ProxyURL(u)
-		}
-	}
 	return &Client{
 		token:   token,
 		groupID: groupID,
-		http:    &http.Client{Timeout: 10 * time.Second, Transport: transport},
+		http:    &http.Client{Timeout: 10 * time.Second},
 	}
 }
 

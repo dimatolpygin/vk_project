@@ -72,7 +72,7 @@ func main() {
 	statsRepo := repository.NewStatsRepo(pool)
 
 	// External clients
-	vkClient := vkgroup.NewWithProxy(cfg.VKGroupToken, cfg.VKGroupID, cfg.VKProxy)
+	vkClient := vkgroup.New(cfg.VKGroupToken, cfg.VKGroupID)
 	wsClient := wavespeed.New(cfg.WavespeedAPIKey)
 	ykClient := yukassa.New(cfg.YukassaShopID, cfg.YukassaSecretKey, cfg.YukassaWebhookSecret)
 	_, _ = s3.New(cfg.S3Endpoint, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Region)

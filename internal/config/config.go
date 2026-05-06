@@ -48,7 +48,6 @@ type Config struct {
 	// General
 	BotWebhookURL string
 	LogLevel      string
-	VKProxy       string
 }
 
 func Load() *Config {
@@ -86,7 +85,6 @@ func Load() *Config {
 
 		BotWebhookURL: getEnv("BOT_WEBHOOK_URL", ""),
 		LogLevel:      getEnv("LOG_LEVEL", "info"),
-		VKProxy:       getEnv("VK_PROXY", ""),
 	}
 	return cfg
 }
