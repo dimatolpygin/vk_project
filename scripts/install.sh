@@ -23,16 +23,7 @@ if ! docker compose version &> /dev/null; then
     apt-get install -y docker-compose-plugin
 fi
 
-# Установка goose
-if ! command -v goose &> /dev/null; then
-    echo "Устанавливаю goose..."
-    GOOSE_VERSION="v3.20.0"
-    curl -fsSL "https://github.com/pressly/goose/releases/download/${GOOSE_VERSION}/goose_linux_x86_64" \
-        -o /usr/local/bin/goose
-    chmod +x /usr/local/bin/goose
-fi
-
-# ── Директория проекта ───────────────────────────────────────────────────────
+#── Директория проекта ───────────────────────────────────────────────────────
 PROJECT_DIR="/opt/vk_neuro_bot"
 mkdir -p "$PROJECT_DIR"
 cd "$PROJECT_DIR"
@@ -131,9 +122,6 @@ docker compose up -d postgres redis
 
 echo "Ожидание запуска PostgreSQL (10 сек)..."
 sleep 10
-
-echo "Применяю миграции..."
-goose -dir migrations postgres "$DB_URL" up
 
 echo "Запускаю бот и воркер..."
 docker compose up -d
