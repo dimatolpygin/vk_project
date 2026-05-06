@@ -46,13 +46,9 @@ jobs:
 
       - name: Download dependencies
         run: go mod download
-        env:
-          GOTOOLCHAIN: local
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.64.8
+          version: latest
           args: --timeout=5m ./...
-        env:
-          GOTOOLCHAIN: local
