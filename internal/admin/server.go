@@ -35,12 +35,8 @@ func NewServer(
 	ch := handlers.NewCategoriesHandler(cats, prompts)
 	sh := handlers.NewStatsHandler(stats)
 
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/admin/stats", http.StatusFound)
-	})
-	r.Get("/admin", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/admin/stats", http.StatusFound)
-	})
+	r.Get("/", sh.GetStats)
+	r.Get("/admin", sh.GetStats)
 
 	r.Route("/admin", func(r chi.Router) {
 		r.Get("/stats", sh.GetStats)
