@@ -94,11 +94,8 @@ server {
         proxy_read_timeout 30s;
     }
 
-    # Админ-панель — доступна только с разрешённых IP
-    # (замените 0.0.0.0/0 на ваш IP для безопасности)
+    # Админ-панель (защищена Basic Auth на уровне приложения)
     location /admin {
-        allow  0.0.0.0/0;
-        deny   all;
         proxy_pass         http://127.0.0.1:${ADMIN_PORT:-8081};
         proxy_http_version 1.1;
         proxy_set_header   Host              \$host;
