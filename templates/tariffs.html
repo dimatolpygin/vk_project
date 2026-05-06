@@ -1,0 +1,144 @@
+{{define "content"}}
+<div class="d-flex justify-content-end mb-3">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#tariffModal" onclick="resetForm()">
+        + Новый тариф
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="tariffsTable">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Название</th>
+                    <th>Описание</th>
+                    <th>Цена</th>
+                    <th>Генераций</th>
+                    <th>Порядок</th>
+                    <th>Активен</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Tariffs}}
+                <tr>
+                    <td>{{.ID}}</td>
+                    <td>{{.Name}}</td>
+                    <td>{{.Description}}</td>
+                    <td>{{printf "%.0f" .Price}} ₽</td>
+                    <td>{{.GensCount}}</td>
+                    <td>{{.SortOrder}}</td>
+                    <td>
+                        {{if .IsActive}}<span class="badge bg-success">Да</span>
+                        {{else}}<span class="badge bg-secondary">Нет</span>{{end}}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary"
+                            onclick='editTariff({{.ID}}, {{.Name | js}}, {{.Description | js}}, {{.Price}}, {{.GensCount}}, {{.SortOrder}}, {{.IsActive}})'>
+                            ✏️
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger"
+                            onclick="deleteTariff({{.ID}})">🗑</button>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="tariffModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Тариф</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="tariffId">
+                <div class="mb-3">
+                    <label class="form-label">Название</label>
+                    <input type="text" class="form-control" id="tariffName">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Описание</label>
+                    <input type="text" class="form-control" id="tariffDesc">
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Цена (₽)</label>
+                        <input type="number" class="form-control" id="tariffPrice">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Генераций</label>
+                        <input type="number" class="form-control" id="tariffGens">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Порядок</label>
+                        <input type="number" class="form-control" id="tariffSort" value="0">
+                    </div>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="tariffActive" checked>
+                    <label class="form-check-label">Активен</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveTariff()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function resetForm() {
+    document.getElementById('tariffId').value = '';
+    document.getElementById('modalTitle').textContent = 'Новый тариф';
+    document.getElementById('tariffName').value = '';
+    document.getElementById('tariffDesc').value = '';
+    document.getElementById('tariffPrice').value = '';
+    document.getElementById('tariffGens').value = '';
+    document.getElementById('tariffSort').value = '0';
+    document.getElementById('tariffActive').checked = true;
+}
+
+function editTariff(id, name, desc, price, gens, sort, active) {
+    document.getElementById('tariffId').value = id;
+    document.getElementById('modalTitle').textContent = 'Редактировать тариф';
+    document.getElementById('tariffName').value = name;
+    document.getElementById('tariffDesc').value = desc;
+    document.getElementById('tariffPrice').value = price;
+    document.getElementById('tariffGens').value = gens;
+    document.getElementById('tariffSort').value = sort;
+    document.getElementById('tariffActive').checked = active;
+    new bootstrap.Modal(document.getElementById('tariffModal')).show();
+}
+
+async function saveTariff() {
+    const id = document.getElementById('tariffId').value;
+    const body = {
+        name: document.getElementById('tariffName').value,
+        description: document.getElementById('tariffDesc').value,
+        price: parseFloat(document.getElementById('tariffPrice').value),
+        gens_count: parseInt(document.getElementById('tariffGens').value),
+        sort_order: parseInt(document.getElementById('tariffSort').value),
+        is_active: document.getElementById('tariffActive').checked,
+    };
+    const url = id ? `/admin/tariffs/${id}` : '/admin/tariffs';
+    const method = id ? 'PUT' : 'POST';
+    const resp = await fetch(url, {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    if (resp.ok) location.reload();
+    else alert('Ошибка сохранения');
+}
+
+async function deleteTariff(id) {
+    if (!confirm('Удалить тариф?')) return;
+    const resp = await fetch(`/admin/tariffs/${id}`, {method: 'DELETE'});
+    if (resp.ok) location.reload();
+    else alert('Ошибка удаления');
+}
+</script>
+{{end}}

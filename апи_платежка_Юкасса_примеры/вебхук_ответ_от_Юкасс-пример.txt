@@ -1,0 +1,71 @@
+[
+  {
+    "headers": {
+      "host": "photobarn1.store",
+      "user-agent": "AHC/2.1",
+      "content-length": "1201",
+      "accept": "*/*",
+      "content-type": "application/json",
+      "signature": "v1 30fea229 1 MGQCMCpD5iQnePYHoZGE1KaPpfCQj8LQzbOXQv5rDWL/rX4DvVN3RPoBsHw+EKbZ2+cPWAIwT3dlRiKh6jcsIfM9GrMv+eD9nnC0qVk85XyzXNXX69jtNmG+hrZUeSucF/np59bP",
+      "x-forwarded-for": "77.75.153.78",
+      "x-forwarded-host": "photobarn1.store",
+      "x-forwarded-port": "443",
+      "x-forwarded-proto": "https",
+      "x-forwarded-server": "776082e47258",
+      "x-real-ip": "77.75.153.78",
+      "accept-encoding": "gzip"
+    },
+    "params": {},
+    "query": {},
+    "body": {
+      "type": "notification",
+      "event": "payment.succeeded",
+      "object": {
+        "id": "30fea204-000f-5001-8000-1c177465a64b",
+        "status": "succeeded",
+        "amount": {
+          "value": "10.00",
+          "currency": "RUB"
+        },
+        "income_amount": {
+          "value": "9.95",
+          "currency": "RUB"
+        },
+        "description": "Заказ №1768721987765",
+        "recipient": {
+          "account_id": "1237628",
+          "gateway_id": "2604606"
+        },
+        "payment_method": {
+          "type": "sbp",
+          "id": "30fea204-000f-5001-8000-1c177465a64b",
+          "saved": false,
+          "status": "inactive",
+          "sbp_operation_id": "A60180740235680S0000030011680301",
+          "payer_bank_details": {
+            "bank_id": "100000000273",
+            "bic": "044525068"
+          }
+        },
+        "captured_at": "2026-01-18T07:40:25.204Z",
+        "created_at": "2026-01-18T07:39:48.205Z",
+        "test": false,
+        "refunded_amount": {
+          "value": "0.00",
+          "currency": "RUB"
+        },
+        "paid": true,
+        "refundable": true,
+        "metadata": {
+          "tariff_id": "2",
+          "order_id": "1768721987765",
+          "email": "hrnf@mail.ru",
+          "user_name": "l_70ve",
+          "chat_id": "1329835537"
+        }
+      }
+    },
+    "webhookUrl": "https://photobarn1.store/webhook/836909fa-7328-4g82-6ya0-26f8j9462fb2",
+    "executionMode": "production"
+  }
+]

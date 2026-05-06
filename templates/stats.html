@@ -1,0 +1,57 @@
+{{define "content"}}
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card primary p-3">
+            <div class="text-muted small">Всего пользователей</div>
+            <div class="fs-3 fw-bold">{{.Stats.TotalUsers}}</div>
+            <div class="text-success small">+{{.Stats.TodayUsers}} сегодня</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card success p-3">
+            <div class="text-muted small">Генераций всего</div>
+            <div class="fs-3 fw-bold">{{.Stats.TotalGens}}</div>
+            <div class="text-success small">+{{.Stats.TodayGens}} сегодня</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning p-3">
+            <div class="text-muted small">Выручка всего</div>
+            <div class="fs-3 fw-bold">{{printf "%.0f" .Stats.TotalRevenue}} ₽</div>
+            <div class="text-success small">+{{printf "%.0f" .Stats.TodayRevenue}} ₽ сегодня</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card info p-3">
+            <div class="text-muted small">Рефералов</div>
+            <div class="fs-3 fw-bold">{{.Stats.TotalReferrals}}</div>
+        </div>
+    </div>
+</div>
+
+{{if .TopButtons}}
+<div class="card">
+    <div class="card-header fw-semibold">Топ кнопок / разделов</div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>#</th>
+                    <th>Payload</th>
+                    <th>Нажатий</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range $i, $b := .TopButtons}}
+                <tr>
+                    <td class="text-muted">{{inc $i}}</td>
+                    <td><code>{{$b.Payload}}</code></td>
+                    <td><span class="badge bg-primary">{{$b.Count}}</span></td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{end}}
+{{end}}

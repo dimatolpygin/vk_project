@@ -1,0 +1,106 @@
+package flows
+
+import (
+	"context"
+
+	"github.com/hibiken/asynq"
+	"vk_neuro_bot/internal/repository"
+	"vk_neuro_bot/internal/wavespeed"
+	"vk_neuro_bot/internal/yukassa"
+	"vk_neuro_bot/internal/vkgroup"
+)
+
+// ─── Shared types ────────────────────────────────────────────────────────────
+
+const (
+	StepWelcome           = "welcome"
+	StepFreeGenStart      = "free_gen_start"
+	StepAwaitingGender    = "awaiting_gender"
+	StepAwaitingPhoto     = "awaiting_photo"
+	StepAwaitingPrompt    = "awaiting_prompt"
+	StepAwaitingPhotoEdit = "awaiting_photo_edit"
+	StepMainMenu          = "main_menu"
+)
+
+type User struct {
+	VKID          int64
+	Gender        string
+	FreeGens      int
+	PaidGens      int
+	Status        string
+	ReferralCode  string
+	SavedPhotoURL *string
+}
+
+func (u *User) HasGens() bool { return u.FreeGens > 0 || u.PaidGens > 0 }
+
+type State struct {
+	Step         string `json:"step"`
+	PromptType   string `json:"prompt_type,omitempty"`
+	TemplateID   int    `json:"template_id,omitempty"`
+	CategoryID   int    `json:"category_id,omitempty"`
+	GenerationID int64  `json:"generation_id,omitempty"`
+	Model        string `json:"model,omitempty"`
+	PhotoURL     string `json:"photo_url,omitempty"`
+}
+
+type InMessage struct {
+	Text   string
+	Photos []string
+}
+
+type CallbackData struct {
+	Type       string
+	EventID    string
+	TariffID   int
+	CategoryID int
+	PromptID   int
+}
+
+type Context struct {
+	VkID     int64
+	User     *User
+	State    *State
+	Message  *InMessage
+	Callback *CallbackData
+}
+
+// ─── Interfaces ───────────────────────────────────────────────────────────────
+
+// Sender — интерфейс отправки сообщений (реализует bot.Sender).
+type Sender interface {
+	SendMsg(ctx context.Context, vkID int64, key string, kbJSON string) error
+	SendText(ctx context.Context, vkID int64, text string, kbJSON string) error
+	SendPhoto(ctx context.Context, vkID int64, photoURL, caption, kbJSON string) error
+}
+
+// StateMgr — интерфейс управления состоянием (реализует bot.StateManager).
+type StateMgr interface {
+	Get(ctx context.Context, vkID int64) (*State, error)
+	Set(ctx context.Context, vkID int64, st *State) error
+	SetStep(ctx context.Context, vkID int64, step string) error
+	Reset(ctx context.Context, vkID int64) error
+}
+
+// ─── Deps ────────────────────────────────────────────────────────────────────
+
+type Deps struct {
+	Sender       Sender
+	State        StateMgr
+	UserRepo     *repository.UserRepo
+	GenRepo      *repository.GenerationRepo
+	TariffRepo   *repository.TariffRepo
+	OrderRepo    *repository.OrderRepo
+	MsgRepo      *repository.MessageRepo
+	CatRepo      *repository.CategoryRepo
+	PromptRepo   *repository.PromptRepo
+	RefRepo      *repository.ReferralRepo
+	StatsRepo    *repository.StatsRepo
+	AsynqClient  *asynq.Client
+	WaveSpeed    *wavespeed.Client
+	Yukassa      *yukassa.Client
+	VKClient     *vkgroup.Client
+	VKGroupURL   string
+	DefaultModel string
+	BotWebhookURL string
+}
