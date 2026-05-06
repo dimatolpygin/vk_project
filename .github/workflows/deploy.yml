@@ -48,7 +48,6 @@ jobs:
     name: SSH Deploy
     runs-on: ubuntu-latest
     needs: build-and-push
-    environment: production
 
     steps:
       - name: Deploy via SSH
