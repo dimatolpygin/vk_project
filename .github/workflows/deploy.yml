@@ -60,7 +60,6 @@ jobs:
           script: |
             cd /opt/vk_neuro_bot
             git pull origin main
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
             docker compose pull
             docker compose up -d --remove-orphans
             docker system prune -f
