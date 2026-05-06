@@ -59,7 +59,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Redis не отвечает на ping")
 	}
 	log.Info().Msg("Redis подключён")
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	// Repositories
 	userRepo := repository.NewUserRepo(pool)
@@ -83,7 +83,7 @@ func main() {
 		Addr:     cfg.RedisAddr,
 		Password: cfg.RedisPassword,
 	})
-	defer asynqClient.Close()
+	defer func() { _ = asynqClient.Close() }()
 
 	// Bot deps
 	stateMgr := bot.NewStateManager(rdb)
@@ -166,7 +166,7 @@ func runMigrations(dsn string) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("не удалось открыть соединение для миграций")
 	}
-	defer sqlDB.Close()
+	defer func() { _ = sqlDB.Close() }()
 
 	if err := goose.SetDialect("postgres"); err != nil {
 		log.Fatal().Err(err).Msg("ошибка установки диалекта goose")

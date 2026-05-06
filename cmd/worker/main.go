@@ -44,7 +44,7 @@ func main() {
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		log.Fatal().Err(err).Msg("Redis не отвечает на ping")
 	}
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	genRepo := repository.NewGenerationRepo(pool)
 	msgRepo := repository.NewMessageRepo(pool)

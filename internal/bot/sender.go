@@ -122,7 +122,7 @@ func (s *Sender) uploadPhotoFromURL(ctx context.Context, peerID int64, photoURL 
 	if _, err := fw.Write(photoData); err != nil {
 		return "", err
 	}
-	w.Close()
+	_ = w.Close()
 
 	uploadResp, err := s.http.Post(uploadURL, w.FormDataContentType(), &buf)
 	if err != nil {
