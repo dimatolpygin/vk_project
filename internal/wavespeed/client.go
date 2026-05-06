@@ -57,7 +57,7 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) 
 		return "", err
 	}
 
-	endpoint := fmt.Sprintf("%s/%s/predictions", baseURL, req.Model)
+	endpoint := fmt.Sprintf("%s/%s/edit", baseURL, req.Model)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return "", err
@@ -88,7 +88,7 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) 
 }
 
 func (c *Client) Poll(ctx context.Context, taskID string) (*PredictionStatus, error) {
-	endpoint := fmt.Sprintf("%s/predictions/%s/fetch", baseURL, taskID)
+	endpoint := fmt.Sprintf("%s/predictions/%s", baseURL, taskID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
