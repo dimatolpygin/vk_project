@@ -71,6 +71,27 @@
         </div>
     </div>
 </div>
+<div class="card mt-3">
+    <div class="card-header fw-semibold">Начислить генерации</div>
+    <div class="card-body">
+        <form method="POST" action="/admin/users/{{.User.VKID}}/add-gens" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small text-muted mb-1">Количество</label>
+                <input type="number" name="count" min="1" max="9999" class="form-control form-control-sm" style="width:90px" required>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small text-muted mb-1">Тип</label>
+                <select name="type" class="form-select form-select-sm">
+                    <option value="free">Бесплатные</option>
+                    <option value="paid">Платные</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary">Начислить</button>
+            </div>
+        </form>
+    </div>
+</div>
 {{else}}
 {{/* ── Список пользователей ── */}}
 <div class="d-flex justify-content-between align-items-center mb-3">

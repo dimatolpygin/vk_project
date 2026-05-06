@@ -53,6 +53,40 @@ func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *UsersHandler) AddGens(w http.ResponseWriter, r *http.Request) {
+	vkIDStr := chi.URLParam(r, "id")
+	vkID, err := strconv.ParseInt(vkIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "bad id", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+
+	count, err := strconv.Atoi(r.FormValue("count"))
+	if err != nil || count <= 0 {
+		http.Redirect(w, r, "/admin/users/"+vkIDStr, http.StatusSeeOther)
+		return
+	}
+
+	genType := r.FormValue("type")
+	if genType == "paid" {
+		err = h.users.AddPaidGens(r.Context(), vkID, count)
+	} else {
+		err = h.users.AddFreeGens(r.Context(), vkID, count)
+	}
+	if err != nil {
+		log.Error().Err(err).Msg("ошибка начисления генераций")
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/admin/users/"+vkIDStr, http.StatusSeeOther)
+}
+
 func (h *UsersHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	vkIDStr := chi.URLParam(r, "id")
 	vkID, err := strconv.ParseInt(vkIDStr, 10, 64)

@@ -43,6 +43,7 @@ func NewServer(
 
 		r.Get("/users", uh.List)
 		r.Get("/users/{id}", uh.Detail)
+		r.Post("/users/{id}/add-gens", uh.AddGens)
 
 		r.Get("/tariffs", th.List)
 		r.Post("/tariffs", th.Create)
