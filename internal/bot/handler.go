@@ -141,13 +141,15 @@ func (h *Handler) handleCallback(ctx context.Context, raw json.RawMessage) {
 		return
 	}
 
+	h.answerCallbackEvent(ctx, &obj)
+
 	var cbPayload CallbackPayload
-	if err := json.Unmarshal(obj.Payload, &cbPayload); err != nil {
-		log.Error().Err(err).Msg("failed to parse callback payload")
+	if err := json.Unmarshal(obj.Payload, &cbPayload); err != nil || cbPayload.Type == "" {
+		if err != nil {
+			log.Error().Err(err).Msg("failed to parse callback payload")
+		}
 		return
 	}
-
-	h.answerCallbackEvent(ctx, &obj, &cbPayload)
 
 	vkID := obj.UserID
 	user := h.ensureUser(ctx, vkID, "", "")
@@ -209,18 +211,13 @@ func (h *Handler) handleMessagePayload(ctx context.Context, msg VKMessage, user 
 	return true
 }
 
-func (h *Handler) answerCallbackEvent(ctx context.Context, obj *MessageEventObject, cbPayload *CallbackPayload) {
-	if obj == nil || cbPayload == nil || obj.EventID == "" || !needsCallbackAnswer(cbPayload.Type) {
+func (h *Handler) answerCallbackEvent(ctx context.Context, obj *MessageEventObject) {
+	if obj == nil || obj.EventID == "" {
 		return
 	}
-
-	if err := h.sender.vk.SendEventAnswer(ctx, obj.EventID, obj.UserID, obj.PeerID, "Открываю..."); err != nil {
-		log.Warn().Err(err).Int64("vk_id", obj.UserID).Str("type", cbPayload.Type).Msg("failed to acknowledge callback event")
+	if err := h.sender.vk.SendEventAnswer(ctx, obj.EventID, obj.UserID, obj.PeerID); err != nil {
+		log.Warn().Err(err).Int64("vk_id", obj.UserID).Msg("failed to acknowledge callback event")
 	}
-}
-
-func needsCallbackAnswer(_ string) bool {
-	return true
 }
 
 func (h *Handler) ensureUser(ctx context.Context, vkID int64, username, firstName string) *repository.User {
