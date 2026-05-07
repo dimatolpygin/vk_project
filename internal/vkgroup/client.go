@@ -109,10 +109,9 @@ func (c *Client) SendMessage(ctx context.Context, p SendMessageParams) error {
 
 func (c *Client) SendEventAnswer(ctx context.Context, eventID string, userID, peerID int64) error {
 	params := url.Values{
-		"event_id":   {eventID},
-		"user_id":    {strconv.FormatInt(userID, 10)},
-		"peer_id":    {strconv.FormatInt(peerID, 10)},
-		"event_data": {"{}"},
+		"event_id": {eventID},
+		"user_id":  {strconv.FormatInt(userID, 10)},
+		"peer_id":  {strconv.FormatInt(peerID, 10)},
 	}
 	_, err := c.call(ctx, "messages.sendMessageEventAnswer", params)
 	return err
