@@ -19,6 +19,8 @@ func (r *Registry) HandleMessage(ctx context.Context, fc *Context) {
 	step := fc.State.Step
 
 	switch step {
+	case StepWelcome, "":
+		HandleWelcome(ctx, fc, r.d)
 	case StepAwaitingPhoto:
 		HandleAwaitingPhoto(ctx, fc, r.d)
 	case StepAwaitingPrompt:
