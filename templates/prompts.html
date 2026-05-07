@@ -8,24 +8,22 @@
                 <button class="btn btn-sm btn-primary" onclick="showCatForm()">+ Добавить</button>
             </div>
             <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr><th>ID</th><th>Название</th><th>Пол</th><th>Акт.</th><th></th></tr>
-                    </thead>
-                    <tbody>
-                        {{range .Categories}}
-                        <tr class="cat-row" data-id="{{.ID}}" onclick="loadPrompts({{.ID}}, '{{.Name}}')" style="cursor:pointer">
-                            <td>{{.ID}}</td>
-                            <td>{{.Name}}</td>
-                            <td>{{.Gender}}</td>
-                            <td>{{if .IsActive}}✓{{else}}—{{end}}</td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();deleteCategory({{.ID}})">🗑</button>
-                            </td>
-                        </tr>
-                        {{end}}
-                    </tbody>
-                </table>
+                <div class="list-group list-group-flush" id="catList">
+                    {{range .Categories}}
+                    <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2 px-3 cat-row"
+                            data-id="{{.ID}}" onclick="loadPrompts({{.ID}}, '{{.Name}}')">
+                        <div>
+                            <span class="fw-semibold">{{.Name}}</span>
+                            <span class="badge bg-secondary ms-2 fw-normal" style="font-size:.7rem">{{.Gender}}</span>
+                            {{if not .IsActive}}<span class="badge bg-warning text-dark ms-1 fw-normal" style="font-size:.7rem">неакт.</span>{{end}}
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger border-0 p-1"
+                                onclick="event.stopPropagation();deleteCategory({{.ID}})" title="Удалить">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    </button>
+                    {{end}}
+                </div>
             </div>
         </div>
     </div>
@@ -37,8 +35,8 @@
                 <span class="fw-semibold" id="promptsTitle">Промты</span>
                 <button class="btn btn-sm btn-primary" id="addPromptBtn" style="display:none" onclick="showPromptForm()">+ Добавить</button>
             </div>
-            <div class="card-body" id="promptsBody">
-                <p class="text-muted">Выберите категорию для просмотра промтов</p>
+            <div class="card-body p-0" id="promptsBody">
+                <p class="text-muted px-3 py-3 mb-0">Выберите категорию для просмотра промтов</p>
             </div>
         </div>
     </div>
@@ -121,6 +119,11 @@
 
 <script>
 let currentCatId = null;
+let allPrompts = [];
+
+function genderBadge(g) {
+    return {any:'bg-secondary', male:'bg-primary', female:'bg-danger', couple:'bg-success'}[g] ?? 'bg-secondary';
+}
 
 function showCatForm() {
     new bootstrap.Modal(document.getElementById('catModal')).show();
@@ -132,7 +135,69 @@ function showPromptForm() {
     document.getElementById('promptText').value = '';
     document.getElementById('promptGender').value = 'any';
     document.getElementById('promptSort').value = '0';
+    document.querySelector('#promptModal .modal-title').textContent = 'Новый промт';
     new bootstrap.Modal(document.getElementById('promptModal')).show();
+}
+
+function editPrompt(p) {
+    document.getElementById('promptId').value = p.id;
+    document.getElementById('promptName').value = p.name;
+    document.getElementById('promptText').value = p.prompt;
+    document.getElementById('promptGender').value = p.gender;
+    document.getElementById('promptSort').value = p.sort_order;
+    document.querySelector('#promptModal .modal-title').textContent = 'Редактировать промт';
+    new bootstrap.Modal(document.getElementById('promptModal')).show();
+}
+
+function filterPrompts(val) {
+    renderPrompts(val);
+}
+
+function renderPrompts(filter) {
+    const q = filter.toLowerCase();
+    const visible = allPrompts.filter(p =>
+        p.name.toLowerCase().includes(q) || p.prompt.toLowerCase().includes(q)
+    );
+    const list = document.getElementById('promptsList');
+    if (!visible.length) {
+        list.innerHTML = '<div class="list-group-item text-muted px-3 py-2">Нет промтов</div>';
+        return;
+    }
+    list.innerHTML = visible.map(p => `
+        <div class="list-group-item px-3 py-2">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <div class="flex-grow-1" style="cursor:pointer" onclick='editPrompt(${JSON.stringify(p)})'>
+                    <div class="fw-semibold">${p.name}</div>
+                    <small class="text-muted">${p.prompt.substring(0, 80)}…</small>
+                </div>
+                <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                    <span class="badge ${genderBadge(p.gender)}">${p.gender}</span>
+                    <button class="btn btn-sm btn-outline-primary border-0 p-1" onclick='editPrompt(${JSON.stringify(p)})' title="Редактировать"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger border-0 p-1" onclick="deletePrompt(${p.id})" title="Удалить"><i class="bi bi-trash3"></i></button>
+                </div>
+            </div>
+        </div>`).join('');
+}
+
+async function loadPrompts(catId, catName) {
+    currentCatId = catId;
+    document.querySelectorAll('.cat-row').forEach(r => r.classList.remove('active'));
+    document.querySelector(`.cat-row[data-id="${catId}"]`)?.classList.add('active');
+    document.getElementById('promptsTitle').textContent = catName;
+    document.getElementById('addPromptBtn').style.display = '';
+    const resp = await fetch(`/admin/categories/${catId}/prompts`);
+    allPrompts = await resp.json() ?? [];
+    const body = document.getElementById('promptsBody');
+    body.innerHTML = `
+        <div class="px-3 pt-3 pb-2">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control" id="promptSearch"
+                       placeholder="Поиск по названию или тексту..." oninput="filterPrompts(this.value)">
+            </div>
+        </div>
+        <div class="list-group list-group-flush" id="promptsList"></div>`;
+    renderPrompts('');
 }
 
 async function createCategory() {
@@ -153,26 +218,6 @@ async function deleteCategory(id) {
     else alert('Ошибка');
 }
 
-async function loadPrompts(catId, catName) {
-    currentCatId = catId;
-    document.getElementById('promptsTitle').textContent = 'Промты: ' + catName;
-    document.getElementById('addPromptBtn').style.display = '';
-    const resp = await fetch(`/admin/categories/${catId}/prompts`);
-    const prompts = await resp.json();
-    const body = document.getElementById('promptsBody');
-    if (!prompts || prompts.length === 0) {
-        body.innerHTML = '<p class="text-muted">Нет промтов в этой категории</p>';
-        return;
-    }
-    body.innerHTML = '<table class="table table-sm"><thead><tr><th>Название</th><th>Пол</th><th>Акт.</th><th></th></tr></thead><tbody>' +
-        prompts.map(p => `<tr>
-            <td>${p.name}<br><small class="text-muted">${p.prompt.substring(0, 60)}...</small></td>
-            <td>${p.gender}</td>
-            <td>${p.is_active ? '✓' : '—'}</td>
-            <td><button class="btn btn-sm btn-outline-danger" onclick="deletePrompt(${p.id})">🗑</button></td>
-        </tr>`).join('') + '</tbody></table>';
-}
-
 async function savePrompt() {
     const id = document.getElementById('promptId').value;
     const body = {
@@ -186,15 +231,26 @@ async function savePrompt() {
     const url = id ? `/admin/prompts/${id}` : `/admin/categories/${currentCatId}/prompts`;
     const method = id ? 'PUT' : 'POST';
     const resp = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-    if (resp.ok) { bootstrap.Modal.getInstance(document.getElementById('promptModal')).hide(); loadPrompts(currentCatId, document.getElementById('promptsTitle').textContent.replace('Промты: ','')); }
-    else alert('Ошибка');
+    if (resp.ok) {
+        const searchEl = document.getElementById('promptSearch');
+        if (searchEl) searchEl.value = '';
+        bootstrap.Modal.getInstance(document.getElementById('promptModal')).hide();
+        loadPrompts(currentCatId, document.getElementById('promptsTitle').textContent);
+    } else {
+        alert('Ошибка');
+    }
 }
 
 async function deletePrompt(id) {
     if (!confirm('Удалить промт?')) return;
     const resp = await fetch(`/admin/prompts/${id}`, {method:'DELETE'});
-    if (resp.ok) loadPrompts(currentCatId, document.getElementById('promptsTitle').textContent.replace('Промты: ',''));
-    else alert('Ошибка');
+    if (resp.ok) {
+        const searchEl = document.getElementById('promptSearch');
+        if (searchEl) searchEl.value = '';
+        loadPrompts(currentCatId, document.getElementById('promptsTitle').textContent);
+    } else {
+        alert('Ошибка');
+    }
 }
 </script>
 {{end}}
