@@ -140,7 +140,23 @@ func KbSettings() string {
 		{{Action: KbAction{Type: "callback", Label: "🔧 Качество", Payload: cbPayload("quality")}, Color: "primary"}},
 		{{Action: KbAction{Type: "callback", Label: "📐 Формат", Payload: cbPayload("format")}, Color: "primary"}},
 		{{Action: KbAction{Type: "callback", Label: "💳 Баланс", Payload: cbPayload("balance")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: "🤖 Модель", Payload: cbPayload("model")}, Color: "primary"}},
 		{{Action: KbAction{Type: "callback", Label: "◀️ Назад", Payload: cbPayload("back")}, Color: "secondary"}},
+	}})
+}
+
+func KbModel(current string) string {
+	mark := func(id string) string {
+		if current == id {
+			return "✅ "
+		}
+		return ""
+	}
+	return kbJSON(&Keyboard{Inline: true, Buttons: [][]KbBtn{
+		{{Action: KbAction{Type: "callback", Label: mark("google/nano-banana-pro") + "Nano Banana Pro", Payload: cbPayload("model_nbp")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: mark("google/nano-banana-2") + "Nano Banana 2", Payload: cbPayload("model_nb2")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: mark("openai/gpt-image-2") + "GPT Image 2", Payload: cbPayload("model_gpt2")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: "◀️ Назад", Payload: cbPayload("settings")}, Color: "secondary"}},
 	}})
 }
 
@@ -186,6 +202,36 @@ func KbBottomMenu() string {
 			{Action: KbAction{Type: "callback", Label: "🖼 Примеры работ", Payload: cbPayload("examples")}, Color: "secondary"},
 		},
 	}})
+}
+
+func KbCoupleMenu() string {
+	return kbJSON(&Keyboard{Inline: true, Buttons: [][]KbBtn{
+		{{Action: KbAction{Type: "callback", Label: "👫 Пара", Payload: cbPayload("couple_pair")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: "👨‍👩‍👧 Семейное фото", Payload: cbPayload("couple_family")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: "◀️ Назад", Payload: cbPayload("back")}, Color: "secondary"}},
+	}})
+}
+
+func KbCouplePrompts(coupleType string) string {
+	kb := &Keyboard{Inline: true}
+	kb.Buttons = append(kb.Buttons, []KbBtn{
+		{Action: KbAction{Type: "callback", Label: "🌹 Романтическая прогулка", Payload: cbPayload("couple_romantic")}, Color: "primary"},
+	})
+	if coupleType == "pair" {
+		kb.Buttons = append(kb.Buttons, []KbBtn{
+			{Action: KbAction{Type: "callback", Label: "💼 Деловой портрет", Payload: cbPayload("couple_business")}, Color: "primary"},
+		})
+	}
+	if coupleType == "family" {
+		kb.Buttons = append(kb.Buttons, []KbBtn{
+			{Action: KbAction{Type: "callback", Label: "🏠 Семейный уют", Payload: cbPayload("couple_family_cozy")}, Color: "primary"},
+		})
+	}
+	kb.Buttons = append(kb.Buttons,
+		[]KbBtn{{Action: KbAction{Type: "callback", Label: "🎨 Художественный стиль", Payload: cbPayload("couple_art")}, Color: "primary"}},
+		[]KbBtn{{Action: KbAction{Type: "callback", Label: "◀️ Назад", Payload: cbPayload("couple_menu")}, Color: "secondary"}},
+	)
+	return kbJSON(kb)
 }
 
 func KbFromMsg(buttons []repository.Button) string {

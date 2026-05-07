@@ -16,12 +16,17 @@ func HandleSettings(ctx context.Context, fc *Context, d *Deps) {
 	}
 	totalGens := fc.User.FreeGens + fc.User.PaidGens
 
+	model := fc.State.Model
+	if model == "" {
+		model = d.DefaultModel
+	}
+
 	text := fmt.Sprintf("⚙️ Настройки\n\n"+
-		"👤 Пол: %s\n"+
-		"🎯 Генераций: %d (бесплатных: %d, платных: %d)\n"+
+		"🎯 Баланс генераций: %d\n"+
+		"🤖 Модель: %s\n"+
 		"🔧 Качество: %s\n"+
 		"📐 Формат: %s",
-		fc.User.Gender, totalGens, fc.User.FreeGens, fc.User.PaidGens, resolution, aspectRatio)
+		totalGens, modelDisplayName(model), resolution, aspectRatio)
 
 	prevStep := fc.State.Step
 	if prevStep == StepSettings {
@@ -33,8 +38,25 @@ func HandleSettings(ctx context.Context, fc *Context, d *Deps) {
 		PhotoURL:    fc.State.PhotoURL,
 		Resolution:  fc.State.Resolution,
 		AspectRatio: fc.State.AspectRatio,
+		Model:       fc.State.Model,
 	})
 	_ = d.Sender.SendText(ctx, fc.VkID, text, KbSettings())
+}
+
+func modelDisplayName(modelID string) string {
+	switch modelID {
+	case "google/nano-banana-pro":
+		return "Nano Banana Pro"
+	case "google/nano-banana-2":
+		return "Nano Banana 2"
+	case "openai/gpt-image-2":
+		return "GPT Image 2"
+	default:
+		if modelID == "" {
+			return "по умолчанию"
+		}
+		return modelID
+	}
 }
 
 func HandleQuality(ctx context.Context, fc *Context, d *Deps) {
@@ -73,10 +95,23 @@ func HandleSetAspectRatio(ctx context.Context, fc *Context, d *Deps, ar string) 
 	HandleSettings(ctx, fc, d)
 }
 
+func HandleModel(ctx context.Context, fc *Context, d *Deps) {
+	current := fc.State.Model
+	if current == "" {
+		current = d.DefaultModel
+	}
+	_ = d.Sender.SendText(ctx, fc.VkID, "🤖 Выбери модель генерации:", KbModel(current))
+}
+
+func HandleSetModel(ctx context.Context, fc *Context, d *Deps, modelID string) {
+	fc.State.Model = modelID
+	HandleSettings(ctx, fc, d)
+}
+
 func HandleSupport(ctx context.Context, fc *Context, d *Deps) {
-	_ = d.Sender.SendMsg(ctx, fc.VkID, "support", KbBack())
+	_ = d.Sender.SendMsg(ctx, fc.VkID, "support_text", KbBack())
 }
 
 func HandleExamples(ctx context.Context, fc *Context, d *Deps) {
-	_ = d.Sender.SendMsg(ctx, fc.VkID, "examples", KbBack())
+	_ = d.Sender.SendMsg(ctx, fc.VkID, "examples_collage", KbBack())
 }

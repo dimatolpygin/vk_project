@@ -23,6 +23,7 @@ const (
 	StepAfterGen          = "after_gen"
 	StepTariffs           = "tariffs"
 	StepSettings          = "settings"
+	StepCoupleMenu        = "couple_menu"
 )
 
 type User struct {
@@ -45,6 +46,7 @@ type State struct {
 	CategoryID   int    `json:"category_id,omitempty"`
 	GenerationID int64  `json:"generation_id,omitempty"`
 	Model        string `json:"model,omitempty"`
+	CustomPrompt string `json:"custom_prompt,omitempty"`
 	PhotoURL     string `json:"photo_url,omitempty"`
 	Resolution   string `json:"resolution,omitempty"`
 	AspectRatio  string `json:"aspect_ratio,omitempty"`

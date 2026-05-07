@@ -105,6 +105,9 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 	photoURL := photos[0]
 	promptType := fc.State.PromptType
 	prompt := buildDefaultPrompt(fc.User.Gender, promptType)
+	if fc.State.CustomPrompt != "" {
+		prompt = fc.State.CustomPrompt
+	}
 	if fc.State.TemplateID > 0 {
 		p, err := d.PromptRepo.GetByID(ctx, fc.State.TemplateID)
 		if err == nil && p != nil {
@@ -161,6 +164,7 @@ func HandleAwaitingPrompt(ctx context.Context, fc *Context, d *Deps) {
 
 	state := fc.State
 	state.Step = StepAwaitingPhoto
+	state.CustomPrompt = fc.Message.Text
 	_ = d.State.Set(ctx, fc.VkID, state)
 	_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
 }
@@ -170,6 +174,14 @@ func HandleAwaitingPhotoEdit(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func buildDefaultPrompt(gender, promptType string) string {
+	switch promptType {
+	case "couple_pair":
+		return "romantic couple portrait, two people, professional photo, studio lighting, high quality"
+	case "couple_family":
+		return "family portrait, warm atmosphere, professional photo, studio lighting, high quality"
+	case "couple":
+		return "couple portrait, two people, professional photo, studio lighting, high quality"
+	}
 	genderStr := "woman"
 	if gender == "male" {
 		genderStr = "man"
