@@ -10,7 +10,14 @@ import (
 	"time"
 )
 
-const baseURL = "https://api.wavespeed.ai/api/v3"
+// Эндпоинты взяты напрямую из документации WaveSpeed API.
+var modelEndpoints = map[string]string{
+	"google/nano-banana-pro": "https://api.wavespeed.ai/api/v3/google/nano-banana-pro/edit",
+	"google/nano-banana-2":   "https://api.wavespeed.ai/api/v3/google/nano-banana-2/edit",
+	"openai/gpt-image-2":     "https://api.wavespeed.ai/api/v3/openai/gpt-image-2/edit",
+}
+
+const pollBaseURL = "https://api.wavespeed.ai/api/v3"
 
 type Client struct {
 	apiKey string
@@ -41,6 +48,11 @@ type PredictionStatus struct {
 }
 
 func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) {
+	endpoint, ok := modelEndpoints[req.Model]
+	if !ok {
+		return "", fmt.Errorf("неизвестная модель WaveSpeed: %q", req.Model)
+	}
+
 	if req.Resolution == "" {
 		req.Resolution = "1k"
 	}
@@ -53,7 +65,6 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) 
 		return "", err
 	}
 
-	endpoint := fmt.Sprintf("%s/%s/edit", baseURL, req.Model)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return "", err
@@ -84,7 +95,7 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) 
 }
 
 func (c *Client) Poll(ctx context.Context, taskID string) (*PredictionStatus, error) {
-	endpoint := fmt.Sprintf("%s/predictions/%s", baseURL, taskID)
+	endpoint := fmt.Sprintf("%s/predictions/%s", pollBaseURL, taskID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
