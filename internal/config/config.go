@@ -60,7 +60,7 @@ func Load() *Config {
 		VKConfirmationToken: mustEnv("VK_CONFIRMATION_TOKEN"),
 
 		WavespeedAPIKey:        mustEnv("WAVESPEED_API_KEY"),
-		WavespeedModel:         getEnv("WAVESPEED_MODEL", "nano-banana-pro"),
+		WavespeedModel:         getEnv("WAVESPEED_MODEL", "google/nano-banana-pro"),
 		WavespeedWebhookSecret: getEnv("WAVESPEED_WEBHOOK_SECRET", ""),
 
 		YukassaShopID:        mustEnv("YUKASSA_SHOP_ID"),
