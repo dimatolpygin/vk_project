@@ -1,256 +1,1407 @@
 {{define "content"}}
-<div class="row g-4">
-    <!-- Категории -->
-    <div class="col-md-5">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span class="fw-semibold">Категории</span>
-                <button class="btn btn-sm btn-primary" onclick="showCatForm()">+ Добавить</button>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush" id="catList">
-                    {{range .Categories}}
-                    <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2 px-3 cat-row"
-                            data-id="{{.ID}}" onclick="loadPrompts({{.ID}}, '{{.Name}}')">
-                        <div>
-                            <span class="fw-semibold">{{.Name}}</span>
-                            <span class="badge bg-secondary ms-2 fw-normal" style="font-size:.7rem">{{.Gender}}</span>
-                            {{if not .IsActive}}<span class="badge bg-warning text-dark ms-1 fw-normal" style="font-size:.7rem">неакт.</span>{{end}}
-                        </div>
-                        <button class="btn btn-sm btn-outline-danger border-0 p-1"
-                                onclick="event.stopPropagation();deleteCategory({{.ID}})" title="Удалить">
-                            <i class="bi bi-trash3"></i>
-                        </button>
-                    </button>
-                    {{end}}
-                </div>
-            </div>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap');
+
+    .prompt-library {
+        --pl-surface: #ffffff;
+        --pl-surface-soft: #f9fbff;
+        --pl-border: #e2e8f0;
+        --pl-primary: #3b82f6;
+        --pl-primary-soft: #eef4ff;
+        --pl-primary-deep: #1d4ed8;
+        --pl-text: #0f172a;
+        --pl-muted: #64748b;
+        --pl-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+        --pl-shadow-soft: 0 16px 32px rgba(15, 23, 42, 0.06);
+        font-family: "Manrope", sans-serif;
+        color: var(--pl-text);
+    }
+
+    .prompt-library__intro {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .prompt-library__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .35rem .65rem;
+        border-radius: 999px;
+        background: #eaf2ff;
+        color: var(--pl-primary-deep);
+        font-size: .75rem;
+        font-weight: 800;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    .prompt-library__subtitle {
+        max-width: 720px;
+        margin: .75rem 0 0;
+        color: var(--pl-muted);
+        font-size: .95rem;
+        line-height: 1.6;
+    }
+
+    .prompt-library__shell {
+        display: grid;
+        grid-template-columns: minmax(290px, 340px) minmax(0, 1fr);
+        gap: 1.5rem;
+        align-items: start;
+    }
+
+    .prompt-sidebar,
+    .prompt-stage {
+        background: var(--pl-surface);
+        border: 1px solid var(--pl-border);
+        border-radius: 24px;
+        box-shadow: var(--pl-shadow-soft);
+    }
+
+    .prompt-sidebar {
+        overflow: hidden;
+    }
+
+    .prompt-sidebar__header,
+    .prompt-stage__toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1.25rem 1.25rem 1rem;
+    }
+
+    .prompt-sidebar__title,
+    .prompt-stage__title {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .prompt-sidebar__meta,
+    .prompt-stage__meta {
+        margin-top: .35rem;
+        color: var(--pl-muted);
+        font-size: .86rem;
+        line-height: 1.5;
+    }
+
+    .prompt-sidebar__body {
+        padding: 0 1rem 1rem;
+    }
+
+    .prompt-sidebar__list {
+        display: flex;
+        flex-direction: column;
+        gap: .75rem;
+    }
+
+    .category-card {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: .6rem;
+        padding: .35rem;
+        border: 1px solid transparent;
+        border-radius: 20px;
+        background: transparent;
+        transition: border-color .2s ease, background-color .2s ease, transform .2s ease, box-shadow .2s ease;
+    }
+
+    .category-card::before {
+        content: "";
+        position: absolute;
+        inset: .45rem auto .45rem .1rem;
+        width: 4px;
+        border-radius: 999px;
+        background: transparent;
+        transition: background-color .2s ease;
+    }
+
+    .category-card:hover {
+        background: var(--pl-surface-soft);
+        border-color: #dbe8ff;
+        transform: translateY(-1px);
+    }
+
+    .category-card.is-active {
+        background: var(--pl-primary-soft);
+        border-color: #cfe0ff;
+        box-shadow: 0 14px 26px rgba(59, 130, 246, 0.12);
+    }
+
+    .category-card.is-active::before {
+        background: var(--pl-primary);
+    }
+
+    .category-card__main {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+        width: 100%;
+        padding: .55rem .6rem;
+        border: 0;
+        background: transparent;
+        text-align: left;
+        color: inherit;
+    }
+
+    .category-card__main:hover {
+        color: inherit;
+    }
+
+    .category-card__icon {
+        width: 46px;
+        height: 46px;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        border-radius: 16px;
+        background: linear-gradient(160deg, #dbeafe 0%, #f0fdf4 100%);
+        color: #1e3a8a;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .category-card__body {
+        min-width: 0;
+    }
+
+    .category-card__top {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .45rem;
+    }
+
+    .category-card__name {
+        font-weight: 800;
+        font-size: .96rem;
+        letter-spacing: -.01em;
+    }
+
+    .category-card__meta {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .45rem;
+        margin-top: .45rem;
+    }
+
+    .category-card__count {
+        color: var(--pl-muted);
+        font-size: .78rem;
+        font-weight: 700;
+    }
+
+    .category-card__menu {
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        margin-top: .35rem;
+        border: 0;
+        border-radius: 12px;
+        background: transparent;
+        color: #94a3b8;
+        transition: background-color .2s ease, color .2s ease;
+    }
+
+    .category-card__menu:hover,
+    .category-card__menu:focus-visible {
+        background: rgba(15, 23, 42, 0.06);
+        color: var(--pl-text);
+    }
+
+    .prompt-stage {
+        min-height: 680px;
+        overflow: hidden;
+    }
+
+    .prompt-stage__toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        padding-bottom: 1.1rem;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 82%, rgba(255, 255, 255, 0));
+        backdrop-filter: blur(10px);
+    }
+
+    .prompt-stage__content {
+        padding: 0 1.25rem 1.25rem;
+    }
+
+    .prompt-stage__header-copy {
+        min-width: 0;
+    }
+
+    .prompt-stage__actions {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .prompt-stage__search {
+        position: relative;
+        min-width: min(100%, 320px);
+    }
+
+    .prompt-stage__search i {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+    }
+
+    .prompt-stage__search input {
+        width: 100%;
+        padding: .85rem 1rem .85rem 2.7rem;
+        border: 1px solid var(--pl-border);
+        border-radius: 16px;
+        background: #fbfdff;
+        color: var(--pl-text);
+        font-size: .92rem;
+        font-weight: 600;
+        transition: border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .prompt-stage__search input:focus {
+        outline: none;
+        border-color: #bfdbfe;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+    }
+
+    .prompt-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.25rem;
+    }
+
+    .prompt-card {
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+        overflow: hidden;
+        border: 1px solid var(--pl-border);
+        border-radius: 22px;
+        background: var(--pl-surface);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.04);
+        transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+
+    .prompt-card:hover {
+        transform: translateY(-4px);
+        border-color: #cfe0ff;
+        box-shadow: var(--pl-shadow);
+    }
+
+    .prompt-card__preview {
+        position: relative;
+        height: 180px;
+        overflow: hidden;
+        background: linear-gradient(145deg, #e0f2fe 0%, #dbeafe 50%, #ede9fe 100%);
+    }
+
+    .prompt-card__preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .prompt-card__preview::after {
+        content: "";
+        position: absolute;
+        inset: auto 0 0;
+        height: 60%;
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0) 0%, rgba(15, 23, 42, 0.28) 100%);
+        pointer-events: none;
+    }
+
+    .prompt-card__preview-tag {
+        position: absolute;
+        left: 1rem;
+        bottom: .9rem;
+        z-index: 1;
+        padding: .38rem .7rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: #1e293b;
+        font-size: .72rem;
+        font-weight: 800;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+    }
+
+    .prompt-card__placeholder {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: 1rem;
+        background:
+            radial-gradient(circle at top left, rgba(255, 255, 255, 0.7), transparent 45%),
+            linear-gradient(145deg, #e0f2fe 0%, #dbeafe 50%, #ede9fe 100%);
+    }
+
+    .prompt-card__placeholder-title {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 54px;
+        height: 54px;
+        margin-bottom: .75rem;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.72);
+        color: #1d4ed8;
+        font-size: 1.2rem;
+        font-weight: 800;
+        box-shadow: 0 12px 30px rgba(59, 130, 246, 0.12);
+    }
+
+    .prompt-card__placeholder-text {
+        position: relative;
+        z-index: 1;
+        color: rgba(15, 23, 42, 0.75);
+        font-size: .78rem;
+        font-weight: 700;
+    }
+
+    .prompt-card__body {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: .8rem;
+        padding: 1rem 1rem 1.05rem;
+    }
+
+    .prompt-card__title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .prompt-card__excerpt {
+        margin: 0;
+        color: var(--pl-muted);
+        font-size: .9rem;
+        line-height: 1.55;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .prompt-card__footer {
+        display: flex;
+        gap: .55rem;
+        margin-top: auto;
+        opacity: .88;
+        transition: opacity .2s ease;
+    }
+
+    .prompt-card:hover .prompt-card__footer {
+        opacity: 1;
+    }
+
+    .prompt-card__action {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .65rem .85rem;
+        border: 1px solid var(--pl-border);
+        border-radius: 14px;
+        background: #f8fafc;
+        color: #334155;
+        font-size: .82rem;
+        font-weight: 700;
+        transition: border-color .2s ease, background-color .2s ease, transform .2s ease;
+    }
+
+    .prompt-card__action:hover {
+        border-color: #bfdbfe;
+        background: #eff6ff;
+        transform: translateY(-1px);
+    }
+
+    .prompt-card__action--danger:hover {
+        border-color: #fecaca;
+        background: #fff1f2;
+        color: #b91c1c;
+    }
+
+    .library-chip,
+    .library-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .3rem .55rem;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 800;
+        letter-spacing: .02em;
+    }
+
+    .library-chip--neutral {
+        background: #f1f5f9;
+        color: #475569;
+    }
+
+    .library-chip--male {
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+
+    .library-chip--female {
+        background: #fce7f3;
+        color: #be185d;
+    }
+
+    .library-chip--couple {
+        background: #dcfce7;
+        color: #15803d;
+    }
+
+    .library-badge--inactive {
+        background: #fff7ed;
+        color: #c2410c;
+    }
+
+    .prompt-empty {
+        display: grid;
+        place-items: center;
+        min-height: 520px;
+        padding: 2rem;
+    }
+
+    .prompt-empty__card {
+        width: min(100%, 520px);
+        padding: 2rem;
+        border: 1px dashed #cbd5e1;
+        border-radius: 28px;
+        background:
+            radial-gradient(circle at top, rgba(219, 234, 254, 0.75), transparent 42%),
+            #fbfdff;
+        text-align: center;
+    }
+
+    .prompt-empty__icon {
+        width: 74px;
+        height: 74px;
+        display: grid;
+        place-items: center;
+        margin: 0 auto 1rem;
+        border-radius: 24px;
+        background: #eff6ff;
+        color: var(--pl-primary);
+        font-size: 1.7rem;
+        box-shadow: 0 16px 32px rgba(59, 130, 246, 0.12);
+    }
+
+    .prompt-empty__title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .prompt-empty__text {
+        margin: .75rem auto 0;
+        max-width: 420px;
+        color: var(--pl-muted);
+        font-size: .95rem;
+        line-height: 1.7;
+    }
+
+    .prompt-empty__actions {
+        display: flex;
+        justify-content: center;
+        gap: .75rem;
+        flex-wrap: wrap;
+        margin-top: 1.35rem;
+    }
+
+    .prompt-empty--compact {
+        min-height: 320px;
+        padding: .5rem 0 0;
+    }
+
+    .prompt-empty--compact .prompt-empty__card {
+        max-width: none;
+        padding: 1.7rem;
+    }
+
+    .prompt-modal .modal-content {
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 24px;
+        box-shadow: 0 30px 60px rgba(15, 23, 42, 0.16);
+    }
+
+    .prompt-modal .modal-header,
+    .prompt-modal .modal-footer {
+        border-color: rgba(226, 232, 240, 0.8);
+        padding: 1.1rem 1.35rem;
+    }
+
+    .prompt-modal .modal-body {
+        padding: 1.2rem 1.35rem 1.35rem;
+    }
+
+    .prompt-modal .modal-title {
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .prompt-modal .form-label {
+        color: #334155;
+        font-weight: 700;
+        font-size: .9rem;
+    }
+
+    .prompt-modal .form-control,
+    .prompt-modal .form-select {
+        border-color: var(--pl-border);
+        border-radius: 16px;
+        padding: .85rem 1rem;
+        font-weight: 600;
+    }
+
+    .prompt-modal .form-control:focus,
+    .prompt-modal .form-select:focus {
+        border-color: #bfdbfe;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+    }
+
+    .prompt-modal__hint {
+        margin-bottom: 1rem;
+        padding: .9rem 1rem;
+        border: 1px solid #dbeafe;
+        border-radius: 16px;
+        background: #f8fbff;
+        color: #475569;
+        font-size: .88rem;
+        line-height: 1.55;
+    }
+
+    .prompt-modal__switch {
+        padding: .95rem 1rem;
+        border: 1px solid var(--pl-border);
+        border-radius: 18px;
+        background: #fbfdff;
+    }
+
+    .prompt-modal .btn {
+        border-radius: 14px;
+        font-weight: 700;
+    }
+
+    .dropdown-menu {
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        border-radius: 16px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+        padding: .45rem;
+    }
+
+    .dropdown-item {
+        border-radius: 12px;
+        font-weight: 600;
+        padding: .65rem .8rem;
+    }
+
+    @media (max-width: 1199.98px) {
+        .prompt-stage__toolbar {
+            flex-direction: column;
+        }
+
+        .prompt-stage__actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .prompt-stage__search {
+            flex: 1 1 320px;
+        }
+    }
+
+    @media (max-width: 991.98px) {
+        .prompt-library__shell {
+            grid-template-columns: 1fr;
+        }
+
+        .prompt-stage {
+            min-height: 0;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .prompt-library__intro,
+        .prompt-sidebar__header {
+            flex-direction: column;
+        }
+
+        .prompt-stage__toolbar,
+        .prompt-stage__content,
+        .prompt-sidebar__header,
+        .prompt-sidebar__body {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .prompt-stage__actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .prompt-stage__search {
+            min-width: 100%;
+        }
+
+        .prompt-card__footer {
+            flex-wrap: wrap;
+        }
+    }
+</style>
+
+<div class="prompt-library">
+    <div class="prompt-library__intro">
+        <div>
+            <span class="prompt-library__kicker"><i class="bi bi-stars"></i> Prompt Library</span>
+            <p class="prompt-library__subtitle">
+                Превратите набор готовых промтов в аккуратную библиотеку: быстро переключайтесь между категориями,
+                находите нужный стиль и редактируйте шаблоны без ощущения старого CRUD-экрана.
+            </p>
         </div>
     </div>
 
-    <!-- Промты -->
-    <div class="col-md-7">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span class="fw-semibold" id="promptsTitle">Промты</span>
-                <button class="btn btn-sm btn-primary" id="addPromptBtn" style="display:none" onclick="showPromptForm()">+ Добавить</button>
+    <div class="prompt-library__shell">
+        <aside class="prompt-sidebar">
+            <div class="prompt-sidebar__header">
+                <div>
+                    <h2 class="prompt-sidebar__title">Категории</h2>
+                    <div class="prompt-sidebar__meta">Компактный каталог с быстрым доступом к действиям и количеству шаблонов.</div>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm" id="openCategoryCreateBtn">
+                    <i class="bi bi-plus-lg me-1"></i>Новая категория
+                </button>
             </div>
-            <div class="card-body p-0" id="promptsBody">
-                <p class="text-muted px-3 py-3 mb-0">Выберите категорию для просмотра промтов</p>
+            <div class="prompt-sidebar__body">
+                <div class="prompt-sidebar__list" id="categoryList"></div>
             </div>
-        </div>
+        </aside>
+
+        <section class="prompt-stage" id="promptStage"></section>
     </div>
 </div>
 
-<!-- Форма категории -->
-<div class="modal fade" id="catModal" tabindex="-1">
+<div class="modal fade prompt-modal" id="catModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">Новая категория</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="catModalTitle">Новая категория</h5>
+                    <div class="text-muted small" id="catModalSubtitle">Создайте новый раздел для библиотеки промтов.</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label">Название</label>
-                    <input type="text" class="form-control" id="catName">
+                <input type="hidden" id="catId">
+                <div class="prompt-modal__hint">
+                    Категория управляет навигацией в библиотеке. Для этой итерации меняем только название, тип и порядок отображения.
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Пол</label>
+                    <label class="form-label" for="catName">Название</label>
+                    <input type="text" class="form-control" id="catName" placeholder="Например, Природа">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="catGender">Пол</label>
                     <select class="form-select" id="catGender">
                         <option value="any">Любой</option>
                         <option value="male">Мужской</option>
                         <option value="female">Женский</option>
-                        <option value="couple">Парное</option>
+                        <option value="couple">Парный</option>
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Порядок</label>
+                    <label class="form-label" for="catSort">Порядок</label>
                     <input type="number" class="form-control" id="catSort" value="0">
+                </div>
+                <div class="prompt-modal__switch" id="catActiveWrap" style="display:none">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="catIsActive" checked>
+                        <label class="form-check-label fw-semibold" for="catIsActive">Категория активна</label>
+                    </div>
+                    <div class="text-muted small mt-2">Неактивные категории остаются в админке, но не должны использоваться в боевом сценарии.</div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-primary" onclick="createCategory()">Создать</button>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveCategoryBtn">Сохранить</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Форма промта -->
-<div class="modal fade" id="promptModal" tabindex="-1">
+<div class="modal fade prompt-modal" id="promptModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">Новый промт</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="promptModalTitle">Новый промт</h5>
+                    <div class="text-muted small" id="promptModalSubtitle">Шаблон будет добавлен в выбранную категорию.</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="promptId">
-                <div class="mb-3">
-                    <label class="form-label">Название</label>
-                    <input type="text" class="form-control" id="promptName">
+                <div class="prompt-modal__hint">
+                    Категория: <strong id="promptCategoryLabel">Не выбрана</strong>. Превью пока только отображается, редактирование изображения добавим отдельно.
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Промт (для AI)</label>
-                    <textarea class="form-control" id="promptText" rows="4"></textarea>
+                    <label class="form-label" for="promptName">Название</label>
+                    <input type="text" class="form-control" id="promptName" placeholder="Например, На поляне">
                 </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Пол</label>
+                <div class="mb-3">
+                    <label class="form-label" for="promptText">Промт для AI</label>
+                    <textarea class="form-control" id="promptText" rows="6" placeholder="Опишите сцену, свет, стиль и детали..."></textarea>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="promptGender">Пол</label>
                         <select class="form-select" id="promptGender">
                             <option value="any">Любой</option>
                             <option value="male">Мужской</option>
                             <option value="female">Женский</option>
-                            <option value="couple">Парное</option>
+                            <option value="couple">Парный</option>
                         </select>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Порядок</label>
+                    <div class="col-md-6">
+                        <label class="form-label" for="promptSort">Порядок</label>
                         <input type="number" class="form-control" id="promptSort" value="0">
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-primary" onclick="savePrompt()">Сохранить</button>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="savePromptBtn">Сохранить промт</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
+const initialCategories = {{.CategoriesJSON}};
+const initialPrompts = {{.PromptsJSON}};
+
+const genderMeta = {
+    any: { label: 'Любой', chipClass: 'library-chip--neutral', previewLabel: 'универсальный' },
+    male: { label: 'Мужской', chipClass: 'library-chip--male', previewLabel: 'мужской' },
+    female: { label: 'Женский', chipClass: 'library-chip--female', previewLabel: 'женский' },
+    couple: { label: 'Парный', chipClass: 'library-chip--couple', previewLabel: 'парный' }
+};
+
+let categories = [];
 let currentCatId = null;
-let allPrompts = [];
+let currentSearch = '';
+let promptCache = new Map();
+let categoryCounts = new Map();
+let catModal = null;
+let promptModal = null;
 
-function genderBadge(g) {
-    return {any:'bg-secondary', male:'bg-primary', female:'bg-danger', couple:'bg-success'}[g] ?? 'bg-secondary';
+document.addEventListener('DOMContentLoaded', () => {
+    categories = (initialCategories ?? []).map(normalizeCategory);
+    buildPromptCache(initialPrompts ?? []);
+
+    catModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('catModal'));
+    promptModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('promptModal'));
+
+    document.getElementById('openCategoryCreateBtn').addEventListener('click', () => openCategoryModal());
+    document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
+    document.getElementById('savePromptBtn').addEventListener('click', savePrompt);
+    document.getElementById('categoryList').addEventListener('click', handleCategoryListClick);
+    document.getElementById('promptStage').addEventListener('click', handlePromptStageClick);
+    document.getElementById('promptStage').addEventListener('input', handlePromptStageInput);
+
+    renderSidebar();
+    renderPromptStage();
+});
+
+function normalizeCategory(category) {
+    return {
+        id: Number(category.id),
+        name: category.name ?? '',
+        preview_url: category.preview_url ?? null,
+        gender: category.gender ?? 'any',
+        sort_order: Number(category.sort_order ?? 0),
+        is_active: category.is_active !== false
+    };
 }
 
-function showCatForm() {
-    new bootstrap.Modal(document.getElementById('catModal')).show();
+function normalizePrompt(prompt) {
+    return {
+        id: Number(prompt.id),
+        category_id: Number(prompt.category_id),
+        name: prompt.name ?? '',
+        prompt: prompt.prompt ?? '',
+        preview_url: prompt.preview_url ?? null,
+        gender: prompt.gender ?? 'any',
+        sort_order: Number(prompt.sort_order ?? 0),
+        is_active: prompt.is_active !== false
+    };
 }
 
-function showPromptForm() {
-    document.getElementById('promptId').value = '';
-    document.getElementById('promptName').value = '';
-    document.getElementById('promptText').value = '';
-    document.getElementById('promptGender').value = 'any';
-    document.getElementById('promptSort').value = '0';
-    document.querySelector('#promptModal .modal-title').textContent = 'Новый промт';
-    new bootstrap.Modal(document.getElementById('promptModal')).show();
+function buildPromptCache(prompts) {
+    promptCache = new Map();
+    categoryCounts = new Map();
+
+    categories.forEach(category => {
+        promptCache.set(category.id, []);
+        categoryCounts.set(category.id, 0);
+    });
+
+    prompts
+        .map(normalizePrompt)
+        .filter(prompt => prompt.is_active)
+        .forEach(prompt => {
+            if (!promptCache.has(prompt.category_id)) {
+                promptCache.set(prompt.category_id, []);
+            }
+            promptCache.get(prompt.category_id).push(prompt);
+        });
+
+    for (const [categoryID, promptsByCategory] of promptCache.entries()) {
+        promptsByCategory.sort(sortPrompts);
+        categoryCounts.set(categoryID, promptsByCategory.length);
+    }
 }
 
-function editPrompt(p) {
-    document.getElementById('promptId').value = p.id;
-    document.getElementById('promptName').value = p.name;
-    document.getElementById('promptText').value = p.prompt;
-    document.getElementById('promptGender').value = p.gender;
-    document.getElementById('promptSort').value = p.sort_order;
-    document.querySelector('#promptModal .modal-title').textContent = 'Редактировать промт';
-    new bootstrap.Modal(document.getElementById('promptModal')).show();
+function sortPrompts(a, b) {
+    if (a.sort_order !== b.sort_order) {
+        return a.sort_order - b.sort_order;
+    }
+    return a.name.localeCompare(b.name, 'ru');
 }
 
-function filterPrompts(val) {
-    renderPrompts(val);
-}
-
-function renderPrompts(filter) {
-    const q = filter.toLowerCase();
-    const visible = allPrompts.filter(p =>
-        p.name.toLowerCase().includes(q) || p.prompt.toLowerCase().includes(q)
-    );
-    const list = document.getElementById('promptsList');
-    if (!visible.length) {
-        list.innerHTML = '<div class="list-group-item text-muted px-3 py-2">Нет промтов</div>';
+function renderSidebar() {
+    const list = document.getElementById('categoryList');
+    if (!categories.length) {
+        list.innerHTML = `
+            <div class="prompt-empty prompt-empty--compact">
+                <div class="prompt-empty__card">
+                    <div class="prompt-empty__icon"><i class="bi bi-collection"></i></div>
+                    <h3 class="prompt-empty__title">Категорий пока нет</h3>
+                    <p class="prompt-empty__text">Создайте первую категорию, чтобы наполнить библиотеку промтами и превью.</p>
+                    <div class="prompt-empty__actions">
+                        <button type="button" class="btn btn-primary" data-action="create-category">Создать категорию</button>
+                    </div>
+                </div>
+            </div>`;
         return;
     }
-    list.innerHTML = visible.map(p => `
-        <div class="list-group-item px-3 py-2">
-            <div class="d-flex justify-content-between align-items-start gap-2">
-                <div class="flex-grow-1" style="cursor:pointer" onclick='editPrompt(${JSON.stringify(p)})'>
-                    <div class="fw-semibold">${p.name}</div>
-                    <small class="text-muted">${p.prompt.substring(0, 80)}…</small>
+
+    list.innerHTML = categories.map(category => {
+        const meta = getGenderMeta(category.gender);
+        const isActive = currentCatId === category.id ? ' is-active' : '';
+        const count = categoryCounts.get(category.id) ?? 0;
+        return `
+            <div class="category-card${isActive}">
+                <button type="button" class="category-card__main" data-action="select-category" data-category-id="${category.id}">
+                    <div class="category-card__icon">${escapeHtml(getInitials(category.name))}</div>
+                    <div class="category-card__body">
+                        <div class="category-card__top">
+                            <span class="category-card__name">${escapeHtml(category.name)}</span>
+                            ${category.is_active ? '' : '<span class="library-badge library-badge--inactive">Неактивна</span>'}
+                        </div>
+                        <div class="category-card__meta">
+                            <span class="library-chip ${meta.chipClass}">${meta.label}</span>
+                            <span class="category-card__count">${formatTemplateCount(count)}</span>
+                        </div>
+                    </div>
+                </button>
+                <div class="dropdown">
+                    <button class="category-card__menu" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Действия категории">
+                        <i class="bi bi-three-dots"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <button class="dropdown-item" type="button" data-action="edit-category" data-category-id="${category.id}">
+                                <i class="bi bi-pencil-square me-2"></i>Редактировать
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item text-danger" type="button" data-action="delete-category" data-category-id="${category.id}">
+                                <i class="bi bi-trash3 me-2"></i>Удалить
+                            </button>
+                        </li>
+                    </ul>
                 </div>
-                <div class="d-flex align-items-center gap-1 flex-shrink-0">
-                    <span class="badge ${genderBadge(p.gender)}">${p.gender}</span>
-                    <button class="btn btn-sm btn-outline-primary border-0 p-1" onclick='editPrompt(${JSON.stringify(p)})' title="Редактировать"><i class="bi bi-pencil"></i></button>
-                    <button class="btn btn-sm btn-outline-danger border-0 p-1" onclick="deletePrompt(${p.id})" title="Удалить"><i class="bi bi-trash3"></i></button>
-                </div>
-            </div>
-        </div>`).join('');
+            </div>`;
+    }).join('');
 }
 
-async function loadPrompts(catId, catName) {
-    currentCatId = catId;
-    document.querySelectorAll('.cat-row').forEach(r => r.classList.remove('active'));
-    document.querySelector(`.cat-row[data-id="${catId}"]`)?.classList.add('active');
-    document.getElementById('promptsTitle').textContent = catName;
-    document.getElementById('addPromptBtn').style.display = '';
-    const resp = await fetch(`/admin/categories/${catId}/prompts`);
-    allPrompts = await resp.json() ?? [];
-    const body = document.getElementById('promptsBody');
-    body.innerHTML = `
-        <div class="px-3 pt-3 pb-2">
-            <div class="input-group input-group-sm">
-                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input type="text" class="form-control" id="promptSearch"
-                       placeholder="Поиск по названию или тексту..." oninput="filterPrompts(this.value)">
+function renderPromptStage() {
+    const stage = document.getElementById('promptStage');
+    const category = getCurrentCategory();
+
+    if (!category) {
+        stage.innerHTML = `
+            <div class="prompt-empty">
+                <div class="prompt-empty__card">
+                    <div class="prompt-empty__icon"><i class="bi bi-stars"></i></div>
+                    <h3 class="prompt-empty__title">Выберите категорию слева</h3>
+                    <p class="prompt-empty__text">
+                        Здесь появятся карточки шаблонов, быстрый поиск и все действия для работы с библиотекой промтов.
+                    </p>
+                </div>
+            </div>`;
+        return;
+    }
+
+    const totalCount = getCurrentPrompts().length;
+    stage.innerHTML = `
+        <div class="prompt-stage__toolbar">
+            <div class="prompt-stage__header-copy">
+                <h2 class="prompt-stage__title">${escapeHtml(category.name)}</h2>
+                <div class="prompt-stage__meta">
+                    ${formatTemplateCount(totalCount)} · карточки шаблонов с быстрым поиском и мягкими действиями
+                </div>
+            </div>
+            <div class="prompt-stage__actions">
+                <div class="prompt-stage__search">
+                    <i class="bi bi-search"></i>
+                    <input
+                        type="search"
+                        id="promptSearchInput"
+                        placeholder="Поиск по названию или тексту..."
+                        value="${escapeHtml(currentSearch)}"
+                    >
+                </div>
+                <button type="button" class="btn btn-primary" data-action="create-prompt">
+                    <i class="bi bi-plus-lg me-1"></i>Новый промт
+                </button>
             </div>
         </div>
-        <div class="list-group list-group-flush" id="promptsList"></div>`;
-    renderPrompts('');
+        <div class="prompt-stage__content" id="promptGridRegion"></div>`;
+
+    renderPromptGrid();
 }
 
-async function createCategory() {
+function renderPromptGrid() {
+    const gridRegion = document.getElementById('promptGridRegion');
+    if (!gridRegion) {
+        return;
+    }
+
+    const prompts = getCurrentPrompts();
+    const query = currentSearch.trim().toLowerCase();
+    const filtered = prompts.filter(prompt => {
+        if (!query) {
+            return true;
+        }
+        return prompt.name.toLowerCase().includes(query) || prompt.prompt.toLowerCase().includes(query);
+    });
+
+    if (!prompts.length) {
+        gridRegion.innerHTML = `
+            <div class="prompt-empty prompt-empty--compact">
+                <div class="prompt-empty__card">
+                    <div class="prompt-empty__icon"><i class="bi bi-grid-1x2"></i></div>
+                    <h3 class="prompt-empty__title">В категории пока нет шаблонов</h3>
+                    <p class="prompt-empty__text">Добавьте первый промт, чтобы библиотека начала наполняться карточками.</p>
+                    <div class="prompt-empty__actions">
+                        <button type="button" class="btn btn-primary" data-action="create-prompt">Создать первый промт</button>
+                    </div>
+                </div>
+            </div>`;
+        return;
+    }
+
+    if (!filtered.length) {
+        gridRegion.innerHTML = `
+            <div class="prompt-empty prompt-empty--compact">
+                <div class="prompt-empty__card">
+                    <div class="prompt-empty__icon"><i class="bi bi-search-heart"></i></div>
+                    <h3 class="prompt-empty__title">Ничего не найдено</h3>
+                    <p class="prompt-empty__text">Попробуйте сократить запрос или очистите поиск, чтобы снова увидеть все карточки.</p>
+                    <div class="prompt-empty__actions">
+                        <button type="button" class="btn btn-light" data-action="clear-search">Очистить поиск</button>
+                    </div>
+                </div>
+            </div>`;
+        return;
+    }
+
+    gridRegion.innerHTML = `<div class="prompt-grid">${filtered.map(renderPromptCard).join('')}</div>`;
+}
+
+function renderPromptCard(prompt) {
+    const meta = getGenderMeta(prompt.gender);
+    return `
+        <article class="prompt-card">
+            <div class="prompt-card__preview">
+                ${renderPromptPreview(prompt)}
+                <span class="prompt-card__preview-tag">${escapeHtml(meta.previewLabel)}</span>
+            </div>
+            <div class="prompt-card__body">
+                <div>
+                    <span class="library-chip ${meta.chipClass}">${escapeHtml(meta.label)}</span>
+                </div>
+                <h3 class="prompt-card__title">${escapeHtml(prompt.name)}</h3>
+                <p class="prompt-card__excerpt">${escapeHtml(prompt.prompt)}</p>
+                <div class="prompt-card__footer">
+                    <button type="button" class="prompt-card__action" data-action="edit-prompt" data-prompt-id="${prompt.id}">
+                        <i class="bi bi-pencil-square"></i>
+                        <span>Редактировать</span>
+                    </button>
+                    <button type="button" class="prompt-card__action prompt-card__action--danger" data-action="delete-prompt" data-prompt-id="${prompt.id}">
+                        <i class="bi bi-trash3"></i>
+                        <span>Удалить</span>
+                    </button>
+                </div>
+            </div>
+        </article>`;
+}
+
+function renderPromptPreview(prompt) {
+    if (prompt.preview_url) {
+        return `<img src="${escapeHtml(prompt.preview_url)}" alt="Превью шаблона ${escapeHtml(prompt.name)}">`;
+    }
+
+    return `
+        <div class="prompt-card__placeholder">
+            <div class="prompt-card__placeholder-title">${escapeHtml(getInitials(prompt.name))}</div>
+            <div class="prompt-card__placeholder-text">Превью ещё не добавлено</div>
+        </div>`;
+}
+
+function handleCategoryListClick(event) {
+    const createCategoryButton = event.target.closest('[data-action="create-category"]');
+    if (createCategoryButton) {
+        openCategoryModal();
+        return;
+    }
+
+    const selectButton = event.target.closest('[data-action="select-category"]');
+    if (selectButton) {
+        currentCatId = Number(selectButton.dataset.categoryId);
+        currentSearch = '';
+        renderSidebar();
+        renderPromptStage();
+        return;
+    }
+
+    const editButton = event.target.closest('[data-action="edit-category"]');
+    if (editButton) {
+        const category = getCategoryById(Number(editButton.dataset.categoryId));
+        if (category) {
+            openCategoryModal(category);
+        }
+        return;
+    }
+
+    const deleteButton = event.target.closest('[data-action="delete-category"]');
+    if (deleteButton) {
+        deleteCategory(Number(deleteButton.dataset.categoryId));
+    }
+}
+
+function handlePromptStageClick(event) {
+    const createPromptButton = event.target.closest('[data-action="create-prompt"]');
+    if (createPromptButton) {
+        openPromptModal();
+        return;
+    }
+
+    const editPromptButton = event.target.closest('[data-action="edit-prompt"]');
+    if (editPromptButton) {
+        const prompt = getPromptByID(Number(editPromptButton.dataset.promptId));
+        if (prompt) {
+            openPromptModal(prompt);
+        }
+        return;
+    }
+
+    const deletePromptButton = event.target.closest('[data-action="delete-prompt"]');
+    if (deletePromptButton) {
+        deletePrompt(Number(deletePromptButton.dataset.promptId));
+        return;
+    }
+
+    const clearSearchButton = event.target.closest('[data-action="clear-search"]');
+    if (clearSearchButton) {
+        currentSearch = '';
+        renderPromptStage();
+    }
+}
+
+function handlePromptStageInput(event) {
+    if (event.target.id !== 'promptSearchInput') {
+        return;
+    }
+    currentSearch = event.target.value;
+    renderPromptGrid();
+}
+
+function openCategoryModal(category = null) {
+    const isEdit = Boolean(category);
+    document.getElementById('catId').value = isEdit ? category.id : '';
+    document.getElementById('catName').value = isEdit ? category.name : '';
+    document.getElementById('catGender').value = isEdit ? category.gender : 'any';
+    document.getElementById('catSort').value = isEdit ? String(category.sort_order) : '0';
+    document.getElementById('catIsActive').checked = isEdit ? category.is_active : true;
+    document.getElementById('catActiveWrap').style.display = isEdit ? '' : 'none';
+    document.getElementById('catModalTitle').textContent = isEdit ? 'Редактировать категорию' : 'Новая категория';
+    document.getElementById('catModalSubtitle').textContent = isEdit
+        ? 'Обновите название, тип и статус категории.'
+        : 'Создайте новый раздел для библиотеки промтов.';
+    catModal.show();
+}
+
+function openPromptModal(prompt = null) {
+    if (!currentCatId) {
+        return;
+    }
+
+    const category = getCurrentCategory();
+    const isEdit = Boolean(prompt);
+
+    document.getElementById('promptId').value = isEdit ? prompt.id : '';
+    document.getElementById('promptName').value = isEdit ? prompt.name : '';
+    document.getElementById('promptText').value = isEdit ? prompt.prompt : '';
+    document.getElementById('promptGender').value = isEdit ? prompt.gender : 'any';
+    document.getElementById('promptSort').value = isEdit ? String(prompt.sort_order) : '0';
+    document.getElementById('promptCategoryLabel').textContent = category ? category.name : 'Не выбрана';
+    document.getElementById('promptModalTitle').textContent = isEdit ? 'Редактировать промт' : 'Новый промт';
+    document.getElementById('promptModalSubtitle').textContent = isEdit
+        ? 'Обновите текст и параметры карточки.'
+        : 'Шаблон будет добавлен в выбранную категорию.';
+    promptModal.show();
+}
+
+async function saveCategory() {
+    const saveButton = document.getElementById('saveCategoryBtn');
+    const id = Number(document.getElementById('catId').value);
+    const name = document.getElementById('catName').value.trim();
+    const gender = document.getElementById('catGender').value;
+    const sortOrder = parseInt(document.getElementById('catSort').value, 10) || 0;
+
+    if (!name) {
+        alert('Введите название категории.');
+        return;
+    }
+
+    const isEdit = Boolean(id);
     const body = {
-        name: document.getElementById('catName').value,
-        gender: document.getElementById('catGender').value,
-        sort_order: parseInt(document.getElementById('catSort').value),
+        name,
+        gender,
+        sort_order: sortOrder
     };
-    const resp = await fetch('/admin/categories', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-    if (resp.ok) location.reload();
-    else alert('Ошибка');
+
+    if (isEdit) {
+        const currentCategory = getCategoryById(id);
+        body.is_active = document.getElementById('catIsActive').checked;
+        body.preview_url = currentCategory ? currentCategory.preview_url : null;
+    }
+
+    togglePending(saveButton, true, isEdit ? 'Сохраняем...' : 'Создаём...');
+    try {
+        const resp = await fetch(isEdit ? `/admin/categories/${id}` : '/admin/categories', {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        if (resp.ok) {
+            location.reload();
+            return;
+        }
+
+        alert('Не удалось сохранить категорию.');
+    } finally {
+        togglePending(saveButton, false);
+    }
 }
 
 async function deleteCategory(id) {
-    if (!confirm('Удалить категорию?')) return;
-    const resp = await fetch(`/admin/categories/${id}`, {method:'DELETE'});
-    if (resp.ok) location.reload();
-    else alert('Ошибка');
+    if (!confirm('Удалить категорию?')) {
+        return;
+    }
+
+    const resp = await fetch(`/admin/categories/${id}`, { method: 'DELETE' });
+    if (resp.ok) {
+        location.reload();
+        return;
+    }
+
+    alert('Не удалось удалить категорию.');
 }
 
 async function savePrompt() {
-    const id = document.getElementById('promptId').value;
+    if (!currentCatId) {
+        return;
+    }
+
+    const saveButton = document.getElementById('savePromptBtn');
+    const id = Number(document.getElementById('promptId').value);
+    const name = document.getElementById('promptName').value.trim();
+    const promptText = document.getElementById('promptText').value.trim();
+    const gender = document.getElementById('promptGender').value;
+    const sortOrder = parseInt(document.getElementById('promptSort').value, 10) || 0;
+
+    if (!name || !promptText) {
+        alert('Заполните название и текст промта.');
+        return;
+    }
+
+    const existingPrompt = getPromptByID(id);
     const body = {
         category_id: currentCatId,
-        name: document.getElementById('promptName').value,
-        prompt: document.getElementById('promptText').value,
-        gender: document.getElementById('promptGender').value,
-        sort_order: parseInt(document.getElementById('promptSort').value),
-        is_active: true,
+        name,
+        prompt: promptText,
+        gender,
+        sort_order: sortOrder,
+        is_active: existingPrompt ? existingPrompt.is_active : true
     };
-    const url = id ? `/admin/prompts/${id}` : `/admin/categories/${currentCatId}/prompts`;
-    const method = id ? 'PUT' : 'POST';
-    const resp = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-    if (resp.ok) {
-        const searchEl = document.getElementById('promptSearch');
-        if (searchEl) searchEl.value = '';
-        bootstrap.Modal.getInstance(document.getElementById('promptModal')).hide();
-        loadPrompts(currentCatId, document.getElementById('promptsTitle').textContent);
-    } else {
-        alert('Ошибка');
+
+    togglePending(saveButton, true, id ? 'Сохраняем...' : 'Создаём...');
+    try {
+        const resp = await fetch(id ? `/admin/prompts/${id}` : `/admin/categories/${currentCatId}/prompts`, {
+            method: id ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        if (!resp.ok) {
+            alert('Не удалось сохранить промт.');
+            return;
+        }
+
+        const prompts = getPromptsByCategory(currentCatId);
+        if (id) {
+            const promptIndex = prompts.findIndex(prompt => prompt.id === id);
+            if (promptIndex >= 0) {
+                prompts[promptIndex] = {
+                    ...prompts[promptIndex],
+                    ...body
+                };
+            }
+        } else {
+            const createdPrompt = normalizePrompt(await resp.json());
+            prompts.push(createdPrompt);
+        }
+
+        prompts.sort(sortPrompts);
+        categoryCounts.set(currentCatId, prompts.length);
+        currentSearch = '';
+        promptModal.hide();
+        renderSidebar();
+        renderPromptStage();
+    } finally {
+        togglePending(saveButton, false);
     }
 }
 
 async function deletePrompt(id) {
-    if (!confirm('Удалить промт?')) return;
-    const resp = await fetch(`/admin/prompts/${id}`, {method:'DELETE'});
-    if (resp.ok) {
-        const searchEl = document.getElementById('promptSearch');
-        if (searchEl) searchEl.value = '';
-        loadPrompts(currentCatId, document.getElementById('promptsTitle').textContent);
-    } else {
-        alert('Ошибка');
+    if (!confirm('Удалить промт?')) {
+        return;
     }
+
+    const resp = await fetch(`/admin/prompts/${id}`, { method: 'DELETE' });
+    if (!resp.ok) {
+        alert('Не удалось удалить промт.');
+        return;
+    }
+
+    const prompts = getPromptsByCategory(currentCatId);
+    const nextPrompts = prompts.filter(prompt => prompt.id !== id);
+    promptCache.set(currentCatId, nextPrompts);
+    categoryCounts.set(currentCatId, nextPrompts.length);
+    renderSidebar();
+    renderPromptStage();
+}
+
+function getCurrentCategory() {
+    return getCategoryById(currentCatId);
+}
+
+function getCategoryById(id) {
+    return categories.find(category => category.id === id) ?? null;
+}
+
+function getCurrentPrompts() {
+    return getPromptsByCategory(currentCatId).slice().sort(sortPrompts);
+}
+
+function getPromptsByCategory(categoryID) {
+    if (!promptCache.has(categoryID)) {
+        promptCache.set(categoryID, []);
+    }
+    return promptCache.get(categoryID);
+}
+
+function getPromptByID(promptID) {
+    return getPromptsByCategory(currentCatId).find(prompt => prompt.id === promptID) ?? null;
+}
+
+function getGenderMeta(gender) {
+    return genderMeta[gender] ?? genderMeta.any;
+}
+
+function getInitials(value) {
+    const normalized = (value ?? '').trim();
+    if (!normalized) {
+        return 'AI';
+    }
+    return Array.from(normalized).slice(0, 2).join('').toUpperCase();
+}
+
+function formatTemplateCount(count) {
+    const abs = Math.abs(count) % 100;
+    const last = abs % 10;
+    let word = 'шаблонов';
+    if (abs < 11 || abs > 14) {
+        if (last === 1) {
+            word = 'шаблон';
+        } else if (last >= 2 && last <= 4) {
+            word = 'шаблона';
+        }
+    }
+    return `${count} ${word}`;
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function togglePending(button, isPending, pendingLabel = '') {
+    if (!button) {
+        return;
+    }
+    if (isPending) {
+        button.dataset.originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = `<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>${pendingLabel}`;
+        return;
+    }
+    if (button.dataset.originalHtml) {
+        button.innerHTML = button.dataset.originalHtml;
+    }
+    button.disabled = false;
 }
 </script>
 {{end}}
