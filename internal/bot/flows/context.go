@@ -22,6 +22,7 @@ const (
 	StepMainMenu          = "main_menu"
 	StepAfterGen          = "after_gen"
 	StepTariffs           = "tariffs"
+	StepSettings          = "settings"
 )
 
 type User struct {
@@ -45,6 +46,8 @@ type State struct {
 	GenerationID int64  `json:"generation_id,omitempty"`
 	Model        string `json:"model,omitempty"`
 	PhotoURL     string `json:"photo_url,omitempty"`
+	Resolution   string `json:"resolution,omitempty"`
+	AspectRatio  string `json:"aspect_ratio,omitempty"`
 }
 
 type InMessage struct {

@@ -81,6 +81,30 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleSavedPhotoStart(ctx, fc, r.d)
 	case "settings":
 		HandleSettings(ctx, fc, r.d)
+	case "quality":
+		HandleQuality(ctx, fc, r.d)
+	case "format":
+		HandleFormat(ctx, fc, r.d)
+	case "balance":
+		HandleBalance(ctx, fc, r.d)
+	case "quality_1k":
+		HandleSetResolution(ctx, fc, r.d, "1k")
+	case "quality_2k":
+		HandleSetResolution(ctx, fc, r.d, "2k")
+	case "quality_4k":
+		HandleSetResolution(ctx, fc, r.d, "4k")
+	case "ar_1_1":
+		HandleSetAspectRatio(ctx, fc, r.d, "1:1")
+	case "ar_9_16":
+		HandleSetAspectRatio(ctx, fc, r.d, "9:16")
+	case "ar_16_9":
+		HandleSetAspectRatio(ctx, fc, r.d, "16:9")
+	case "buy_gens":
+		HandleShowTariffs(ctx, fc, r.d)
+	case "support":
+		HandleSupport(ctx, fc, r.d)
+	case "examples":
+		HandleExamples(ctx, fc, r.d)
 	default:
 		log.Warn().Str("type", cb.Type).Msg("неизвестный callback")
 		_ = r.d.Sender.SendText(ctx, fc.VkID, "Неизвестная команда. Возвращаю в главное меню.", KbMainMenu())

@@ -37,6 +37,8 @@ type SubmitRequest struct {
 	Model        string   `json:"-"`
 	Resolution   string   `json:"resolution,omitempty"`
 	OutputFormat string   `json:"output_format,omitempty"`
+	AspectRatio  string   `json:"aspect_ratio,omitempty"`
+	Quality      string   `json:"quality,omitempty"`
 	WebhookURL   string   `json:"webhook_url,omitempty"`
 }
 

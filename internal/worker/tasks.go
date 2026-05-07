@@ -11,6 +11,7 @@ type GeneratePayload struct {
 	Images       []string `json:"images"`
 	Prompt       string   `json:"prompt"`
 	Resolution   string   `json:"resolution"`
+	AspectRatio  string   `json:"aspect_ratio,omitempty"`
 	OutputFormat string   `json:"output_format"`
 }
 

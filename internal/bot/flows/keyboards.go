@@ -127,6 +127,59 @@ func KbPrompts(prompts []*repository.Prompt) string {
 	return kbJSON(kb)
 }
 
+func KbSettings() string {
+	return kbJSON(&Keyboard{Inline: true, Buttons: [][]KbBtn{
+		{{Action: KbAction{Type: "callback", Label: "🔧 Качество", Payload: cbPayload("quality")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: "📐 Формат", Payload: cbPayload("format")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: "💳 Баланс", Payload: cbPayload("balance")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: "◀️ Назад", Payload: cbPayload("back")}, Color: "secondary"}},
+	}})
+}
+
+func KbQuality(current string) string {
+	mark := func(v string) string {
+		if current == v {
+			return "✅ "
+		}
+		return ""
+	}
+	return kbJSON(&Keyboard{Inline: true, Buttons: [][]KbBtn{
+		{{Action: KbAction{Type: "callback", Label: mark("1k") + "Стандарт (1k)", Payload: cbPayload("quality_1k")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: mark("2k") + "HD (2k)", Payload: cbPayload("quality_2k")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: mark("4k") + "Ультра (4k)", Payload: cbPayload("quality_4k")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: "◀️ Назад", Payload: cbPayload("settings")}, Color: "secondary"}},
+	}})
+}
+
+func KbAspectRatio(current string) string {
+	mark := func(v string) string {
+		if current == v {
+			return "✅ "
+		}
+		return ""
+	}
+	return kbJSON(&Keyboard{Inline: true, Buttons: [][]KbBtn{
+		{{Action: KbAction{Type: "callback", Label: mark("1:1") + "1:1 (Квадрат)", Payload: cbPayload("ar_1_1")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: mark("9:16") + "9:16 (Портрет)", Payload: cbPayload("ar_9_16")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: mark("16:9") + "16:9 (Пейзаж)", Payload: cbPayload("ar_16_9")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: "◀️ Назад", Payload: cbPayload("settings")}, Color: "secondary"}},
+	}})
+}
+
+func KbBottomMenu() string {
+	return kbJSON(&Keyboard{Inline: false, OneTime: false, Buttons: [][]KbBtn{
+		{
+			{Action: KbAction{Type: "callback", Label: "🏠 Главное меню", Payload: cbPayload("main_menu")}, Color: "secondary"},
+			{Action: KbAction{Type: "callback", Label: "💎 Купить генерации", Payload: cbPayload("buy_gens")}, Color: "primary"},
+		},
+		{
+			{Action: KbAction{Type: "callback", Label: "⚙️ Настройки", Payload: cbPayload("settings")}, Color: "secondary"},
+			{Action: KbAction{Type: "callback", Label: "🆘 Техподдержка", Payload: cbPayload("support")}, Color: "secondary"},
+			{Action: KbAction{Type: "callback", Label: "🖼 Примеры работ", Payload: cbPayload("examples")}, Color: "secondary"},
+		},
+	}})
+}
+
 func KbFromMsg(buttons []repository.Button) string {
 	kb := &Keyboard{Inline: true}
 	for _, b := range buttons {

@@ -120,13 +120,18 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 	_ = d.State.SetStep(ctx, fc.VkID, StepMainMenu)
 	_ = d.Sender.SendMsg(ctx, fc.VkID, "generating_wait", "")
 
+	resolution := fc.State.Resolution
+	if resolution == "" {
+		resolution = "1k"
+	}
 	payload := worker.GeneratePayload{
 		GenerationID: gen.ID,
 		UserVKID:     fc.VkID,
 		Model:        model,
 		Images:       []string{photoURL},
 		Prompt:       prompt,
-		Resolution:   "1k",
+		Resolution:   resolution,
+		AspectRatio:  fc.State.AspectRatio,
 		OutputFormat: "jpeg",
 	}
 	payloadBytes, _ := payload.Bytes()

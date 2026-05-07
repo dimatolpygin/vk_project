@@ -49,6 +49,7 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, t *asynq.Task) error 
 		Prompt:       p.Prompt,
 		Model:        p.Model,
 		Resolution:   p.Resolution,
+		AspectRatio:  p.AspectRatio,
 		OutputFormat: p.OutputFormat,
 	})
 	if err != nil {

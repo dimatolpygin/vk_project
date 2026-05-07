@@ -26,6 +26,18 @@ func HandleWelcome(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func HandleBack(ctx context.Context, fc *Context, d *Deps) {
+	if fc.State.Step == StepSettings {
+		if fc.User.Status == "paid" || fc.User.HasGens() {
+			HandleMainMenu(ctx, fc, d)
+		} else {
+			HandleWelcome(ctx, fc, d)
+		}
+		return
+	}
+	if fc.State.Step == StepTariffs && fc.State.PrevStep == StepSettings {
+		HandleSettings(ctx, fc, d)
+		return
+	}
 	if fc.State.Step == StepTariffs && fc.State.PrevStep == StepAfterGen && fc.State.PhotoURL != "" {
 		_ = d.State.Set(ctx, fc.VkID, &State{Step: StepAfterGen, PhotoURL: fc.State.PhotoURL})
 		_ = d.Sender.SendPhoto(ctx, fc.VkID, fc.State.PhotoURL, "🎉 Готово! Вот твоя нейрофотосессия:", KbAfterGen())
