@@ -1,0 +1,4 @@
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS pref_model        TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS pref_resolution   TEXT NOT NULL DEFAULT '1k',
+    ADD COLUMN IF NOT EXISTS pref_aspect_ratio TEXT NOT NULL DEFAULT '';

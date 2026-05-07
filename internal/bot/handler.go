@@ -212,12 +212,15 @@ func extractPhotos(attachments []VKAttachment) []string {
 
 func toFlowUser(u *repository.User) *flows.User {
 	return &flows.User{
-		VKID:          u.VKID,
-		Gender:        u.Gender,
-		FreeGens:      u.FreeGens,
-		PaidGens:      u.PaidGens,
-		Status:        u.Status,
-		ReferralCode:  u.ReferralCode,
-		SavedPhotoURL: u.SavedPhotoURL,
+		VKID:            u.VKID,
+		Gender:          u.Gender,
+		FreeGens:        u.FreeGens,
+		PaidGens:        u.PaidGens,
+		Status:          u.Status,
+		ReferralCode:    u.ReferralCode,
+		SavedPhotoURL:   u.SavedPhotoURL,
+		PrefModel:       u.PrefModel,
+		PrefResolution:  u.PrefResolution,
+		PrefAspectRatio: u.PrefAspectRatio,
 	}
 }

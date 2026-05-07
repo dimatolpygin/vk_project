@@ -64,11 +64,11 @@ func HandleCheckSubscription(ctx context.Context, fc *Context, d *Deps) {
 
 func proceedToPhotoRequest(ctx context.Context, fc *Context, d *Deps, promptType string) {
 	if fc.User.Gender == "unknown" {
-		_ = d.State.Set(ctx, fc.VkID, &State{Step: StepAwaitingGender, PromptType: promptType})
+		_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{Step: StepAwaitingGender, PromptType: promptType}, fc.State))
 		_ = d.Sender.SendMsg(ctx, fc.VkID, "gender_select", KbGender())
 		return
 	}
-	_ = d.State.Set(ctx, fc.VkID, &State{Step: StepAwaitingPhoto, PromptType: promptType})
+	_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{Step: StepAwaitingPhoto, PromptType: promptType}, fc.State))
 	_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
 }
 
@@ -80,7 +80,7 @@ func HandleGenderSelect(ctx context.Context, fc *Context, d *Deps, gender string
 	if promptType == "" {
 		promptType = "free"
 	}
-	_ = d.State.Set(ctx, fc.VkID, &State{Step: StepAwaitingPhoto, PromptType: promptType})
+	_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{Step: StepAwaitingPhoto, PromptType: promptType}, fc.State))
 	_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
 }
 
@@ -115,9 +115,12 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		}
 	}
 
-	model := d.DefaultModel
-	if fc.State.Model != "" {
-		model = fc.State.Model
+	model := fc.State.Model
+	if model == "" {
+		model = fc.User.PrefModel
+	}
+	if model == "" {
+		model = d.DefaultModel
 	}
 
 	gen, err := d.GenRepo.Create(ctx, fc.VkID, promptType, prompt, model, &photoURL)
@@ -133,7 +136,14 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 
 	resolution := fc.State.Resolution
 	if resolution == "" {
+		resolution = fc.User.PrefResolution
+	}
+	if resolution == "" {
 		resolution = "1k"
+	}
+	aspectRatio := fc.State.AspectRatio
+	if aspectRatio == "" {
+		aspectRatio = fc.User.PrefAspectRatio
 	}
 	payload := worker.GeneratePayload{
 		GenerationID: gen.ID,
@@ -142,7 +152,7 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		Images:       []string{photoURL},
 		Prompt:       prompt,
 		Resolution:   resolution,
-		AspectRatio:  fc.State.AspectRatio,
+		AspectRatio:  aspectRatio,
 		OutputFormat: "jpeg",
 	}
 	payloadBytes, _ := payload.Bytes()

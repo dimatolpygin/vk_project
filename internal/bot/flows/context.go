@@ -27,16 +27,36 @@ const (
 )
 
 type User struct {
-	VKID          int64
-	Gender        string
-	FreeGens      int
-	PaidGens      int
-	Status        string
-	ReferralCode  string
-	SavedPhotoURL *string
+	VKID            int64
+	Gender          string
+	FreeGens        int
+	PaidGens        int
+	Status          string
+	ReferralCode    string
+	SavedPhotoURL   *string
+	PrefModel       string
+	PrefResolution  string
+	PrefAspectRatio string
 }
 
 func (u *User) HasGens() bool { return u.FreeGens > 0 || u.PaidGens > 0 }
+
+// copyPrefs копирует Model, Resolution, AspectRatio из src в dst и возвращает dst.
+func copyPrefs(dst *State, src *State) *State {
+	if src == nil {
+		return dst
+	}
+	if dst.Model == "" {
+		dst.Model = src.Model
+	}
+	if dst.Resolution == "" {
+		dst.Resolution = src.Resolution
+	}
+	if dst.AspectRatio == "" {
+		dst.AspectRatio = src.AspectRatio
+	}
+	return dst
+}
 
 type State struct {
 	Step         string `json:"step"`

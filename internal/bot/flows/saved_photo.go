@@ -7,7 +7,7 @@ import (
 )
 
 func HandleSavedPhotoStart(ctx context.Context, fc *Context, d *Deps) {
-	_ = d.State.Set(ctx, fc.VkID, &State{Step: StepAwaitingPhoto, PromptType: "saved_photo_upload"})
+	_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{Step: StepAwaitingPhoto, PromptType: "saved_photo_upload"}, fc.State))
 	_ = d.Sender.SendMsg(ctx, fc.VkID, "saved_photo_intro", KbBack())
 }
 

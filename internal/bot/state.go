@@ -45,9 +45,14 @@ func (s *StateManager) Set(ctx context.Context, vkID int64, st *flows.State) err
 	return s.rdb.Set(ctx, stateKey(vkID), data, stateTTL).Err()
 }
 
-// SetStep реализует flows.StateMgr.
+// SetStep реализует flows.StateMgr — меняет только Step, сохраняя остальные поля.
 func (s *StateManager) SetStep(ctx context.Context, vkID int64, step string) error {
-	return s.Set(ctx, vkID, &flows.State{Step: step})
+	st, err := s.Get(ctx, vkID)
+	if err != nil {
+		return err
+	}
+	st.Step = step
+	return s.Set(ctx, vkID, st)
 }
 
 // Reset реализует flows.StateMgr.

@@ -3,20 +3,31 @@ package flows
 import (
 	"context"
 	"fmt"
+
+	"github.com/rs/zerolog/log"
 )
 
 func HandleSettings(ctx context.Context, fc *Context, d *Deps) {
 	resolution := fc.State.Resolution
 	if resolution == "" {
+		resolution = fc.User.PrefResolution
+	}
+	if resolution == "" {
 		resolution = "1k"
 	}
 	aspectRatio := fc.State.AspectRatio
+	if aspectRatio == "" {
+		aspectRatio = fc.User.PrefAspectRatio
+	}
 	if aspectRatio == "" {
 		aspectRatio = "авто"
 	}
 	totalGens := fc.User.FreeGens + fc.User.PaidGens
 
 	model := fc.State.Model
+	if model == "" {
+		model = fc.User.PrefModel
+	}
 	if model == "" {
 		model = d.DefaultModel
 	}
@@ -79,6 +90,7 @@ func HandleBalance(ctx context.Context, fc *Context, d *Deps) {
 		Step:        StepTariffs,
 		PrevStep:    StepSettings,
 		PhotoURL:    fc.State.PhotoURL,
+		Model:       fc.State.Model,
 		Resolution:  fc.State.Resolution,
 		AspectRatio: fc.State.AspectRatio,
 	})
@@ -87,11 +99,19 @@ func HandleBalance(ctx context.Context, fc *Context, d *Deps) {
 
 func HandleSetResolution(ctx context.Context, fc *Context, d *Deps, resolution string) {
 	fc.State.Resolution = resolution
+	fc.User.PrefResolution = resolution
+	if err := d.UserRepo.SaveSettings(ctx, fc.VkID, fc.State.Model, resolution, fc.State.AspectRatio); err != nil {
+		log.Error().Err(err).Msg("не удалось сохранить настройки пользователя")
+	}
 	HandleSettings(ctx, fc, d)
 }
 
 func HandleSetAspectRatio(ctx context.Context, fc *Context, d *Deps, ar string) {
 	fc.State.AspectRatio = ar
+	fc.User.PrefAspectRatio = ar
+	if err := d.UserRepo.SaveSettings(ctx, fc.VkID, fc.State.Model, fc.State.Resolution, ar); err != nil {
+		log.Error().Err(err).Msg("не удалось сохранить настройки пользователя")
+	}
 	HandleSettings(ctx, fc, d)
 }
 
@@ -105,6 +125,10 @@ func HandleModel(ctx context.Context, fc *Context, d *Deps) {
 
 func HandleSetModel(ctx context.Context, fc *Context, d *Deps, modelID string) {
 	fc.State.Model = modelID
+	fc.User.PrefModel = modelID
+	if err := d.UserRepo.SaveSettings(ctx, fc.VkID, modelID, fc.State.Resolution, fc.State.AspectRatio); err != nil {
+		log.Error().Err(err).Msg("не удалось сохранить настройки пользователя")
+	}
 	HandleSettings(ctx, fc, d)
 }
 
