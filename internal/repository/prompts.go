@@ -39,6 +39,19 @@ func (r *PromptRepo) ListByCategory(ctx context.Context, categoryID int, gender 
 	return scanPrompts(rows)
 }
 
+func (r *PromptRepo) ListByCategoryAll(ctx context.Context, categoryID int) ([]*Prompt, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, category_id, name, prompt, preview_url, gender, sort_order, is_active
+		FROM prompts
+		WHERE category_id = $1 AND is_active = true
+		ORDER BY sort_order`, categoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanPrompts(rows)
+}
+
 func (r *PromptRepo) List(ctx context.Context) ([]*Prompt, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, category_id, name, prompt, preview_url, gender, sort_order, is_active

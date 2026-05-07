@@ -125,7 +125,7 @@ func (h *CategoriesHandler) ListPrompts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	prompts, err := h.prompts.ListByCategory(r.Context(), catID, "any")
+	prompts, err := h.prompts.ListByCategoryAll(r.Context(), catID)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return

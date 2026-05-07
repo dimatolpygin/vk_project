@@ -9,8 +9,7 @@ func HandleCoupleStart(ctx context.Context, fc *Context, d *Deps) {
 	}
 	cats, err := d.CatRepo.ListActiveCouple(ctx)
 	if err != nil || len(cats) == 0 {
-		_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{Step: StepAwaitingPhoto, PromptType: "couple"}, fc.State))
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
+		_ = d.Sender.SendText(ctx, fc.VkID, "Категории пока не добавлены.", KbBack())
 		return
 	}
 	_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{Step: StepCoupleMenu, PromptType: "couple"}, fc.State))
