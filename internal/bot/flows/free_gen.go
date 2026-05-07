@@ -109,7 +109,7 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		Model:        model,
 		Images:       []string{photoURL},
 		Prompt:       prompt,
-		Resolution:   "1024*1024",
+		Resolution:   "1k",
 		OutputFormat: "jpeg",
 	}
 	payloadBytes, _ := payload.Bytes()

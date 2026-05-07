@@ -28,9 +28,8 @@ type SubmitRequest struct {
 	Images       []string `json:"images"`
 	Prompt       string   `json:"prompt"`
 	Model        string   `json:"-"`
-	Resolution   string   `json:"size,omitempty"`
+	Resolution   string   `json:"resolution,omitempty"`
 	OutputFormat string   `json:"output_format,omitempty"`
-	NumOutputs   int      `json:"num_outputs,omitempty"`
 	WebhookURL   string   `json:"webhook_url,omitempty"`
 }
 
@@ -42,11 +41,8 @@ type PredictionStatus struct {
 }
 
 func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) {
-	if req.NumOutputs == 0 {
-		req.NumOutputs = 1
-	}
 	if req.Resolution == "" {
-		req.Resolution = "1024*1024"
+		req.Resolution = "1k"
 	}
 	if req.OutputFormat == "" {
 		req.OutputFormat = "jpeg"
