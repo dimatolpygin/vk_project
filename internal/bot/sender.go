@@ -46,11 +46,18 @@ func (s *Sender) SendMsg(ctx context.Context, vkID int64, key string, kbJSON str
 
 	var attachment string
 	if msg.ImageURL != nil && *msg.ImageURL != "" {
-		attach, uploadErr := s.uploadPhotoFromURL(ctx, vkID, *msg.ImageURL)
-		if uploadErr != nil {
-			log.Warn().Err(uploadErr).Msg("не удалось загрузить изображение в VK")
+		if msg.VkAttachment != nil && *msg.VkAttachment != "" {
+			attachment = *msg.VkAttachment
 		} else {
-			attachment = attach
+			attach, uploadErr := s.uploadPhotoFromURL(ctx, vkID, *msg.ImageURL)
+			if uploadErr != nil {
+				log.Warn().Err(uploadErr).Msg("не удалось загрузить изображение в VK")
+			} else {
+				attachment = attach
+				if err := s.msgRepo.SetVkAttachment(ctx, msg.Key, attach); err != nil {
+					log.Warn().Err(err).Msg("не удалось сохранить vk_attachment в БД")
+				}
+			}
 		}
 	}
 
