@@ -38,6 +38,19 @@ func (r *CategoryRepo) ListActive(ctx context.Context, gender string) ([]*Catego
 	return scanCategories(rows)
 }
 
+func (r *CategoryRepo) ListActiveCouple(ctx context.Context) ([]*Category, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, name, group_id, preview_url, gender, sort_order, is_active
+		FROM categories
+		WHERE is_active = true AND gender = 'couple'
+		ORDER BY sort_order`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanCategories(rows)
+}
+
 func (r *CategoryRepo) List(ctx context.Context) ([]*Category, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, name, group_id, preview_url, gender, sort_order, is_active

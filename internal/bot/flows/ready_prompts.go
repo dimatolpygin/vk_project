@@ -17,12 +17,18 @@ func HandleReadyPromptsMenu(ctx context.Context, fc *Context, d *Deps) {
 
 func HandleSelectCategory(ctx context.Context, fc *Context, d *Deps) {
 	catID := fc.Callback.CategoryID
-	prompts, err := d.PromptRepo.ListByCategory(ctx, catID, fc.User.Gender)
+	promptType := "ready_prompt"
+	gender := fc.User.Gender
+	if fc.State.PromptType == "couple" {
+		promptType = "couple"
+		gender = "couple"
+	}
+	prompts, err := d.PromptRepo.ListByCategory(ctx, catID, gender)
 	if err != nil || len(prompts) == 0 {
 		_ = d.Sender.SendText(ctx, fc.VkID, "В этой категории пока нет шаблонов.", KbBack())
 		return
 	}
-	_ = d.State.Set(ctx, fc.VkID, &State{Step: StepAwaitingPhoto, PromptType: "ready_prompt", CategoryID: catID})
+	_ = d.State.Set(ctx, fc.VkID, &State{Step: StepAwaitingPhoto, PromptType: promptType, CategoryID: catID})
 	_ = d.Sender.SendText(ctx, fc.VkID, "Выбери стиль:", KbPrompts(prompts))
 }
 
@@ -33,9 +39,13 @@ func HandleSelectPrompt(ctx context.Context, fc *Context, d *Deps) {
 		_ = d.Sender.SendText(ctx, fc.VkID, "Шаблон не найден.", KbBack())
 		return
 	}
+	promptType := fc.State.PromptType
+	if promptType == "" {
+		promptType = "ready_prompt"
+	}
 	_ = d.State.Set(ctx, fc.VkID, &State{
 		Step:       StepAwaitingPhoto,
-		PromptType: "ready_prompt",
+		PromptType: promptType,
 		TemplateID: promptID,
 	})
 	_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())

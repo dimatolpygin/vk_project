@@ -204,36 +204,6 @@ func KbBottomMenu() string {
 	}})
 }
 
-func KbCoupleMenu() string {
-	return kbJSON(&Keyboard{Inline: true, Buttons: [][]KbBtn{
-		{{Action: KbAction{Type: "callback", Label: "👫 Пара", Payload: cbPayload("couple_pair")}, Color: "primary"}},
-		{{Action: KbAction{Type: "callback", Label: "👨‍👩‍👧 Семейное фото", Payload: cbPayload("couple_family")}, Color: "primary"}},
-		{{Action: KbAction{Type: "callback", Label: "◀️ Назад", Payload: cbPayload("back")}, Color: "secondary"}},
-	}})
-}
-
-func KbCouplePrompts(coupleType string) string {
-	kb := &Keyboard{Inline: true}
-	kb.Buttons = append(kb.Buttons, []KbBtn{
-		{Action: KbAction{Type: "callback", Label: "🌹 Романтическая прогулка", Payload: cbPayload("couple_romantic")}, Color: "primary"},
-	})
-	if coupleType == "pair" {
-		kb.Buttons = append(kb.Buttons, []KbBtn{
-			{Action: KbAction{Type: "callback", Label: "💼 Деловой портрет", Payload: cbPayload("couple_business")}, Color: "primary"},
-		})
-	}
-	if coupleType == "family" {
-		kb.Buttons = append(kb.Buttons, []KbBtn{
-			{Action: KbAction{Type: "callback", Label: "🏠 Семейный уют", Payload: cbPayload("couple_family_cozy")}, Color: "primary"},
-		})
-	}
-	kb.Buttons = append(kb.Buttons,
-		[]KbBtn{{Action: KbAction{Type: "callback", Label: "🎨 Художественный стиль", Payload: cbPayload("couple_art")}, Color: "primary"}},
-		[]KbBtn{{Action: KbAction{Type: "callback", Label: "◀️ Назад", Payload: cbPayload("couple_menu")}, Color: "secondary"}},
-	)
-	return kbJSON(kb)
-}
-
 func KbFromMsg(buttons []repository.Button) string {
 	kb := &Keyboard{Inline: true}
 	for _, b := range buttons {

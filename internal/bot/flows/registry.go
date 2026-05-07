@@ -77,20 +77,6 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleEditPhotoStart(ctx, fc, r.d)
 	case "couple":
 		HandleCoupleStart(ctx, fc, r.d)
-	case "couple_menu":
-		HandleCoupleMenu(ctx, fc, r.d)
-	case "couple_pair":
-		HandleCouplePairMenu(ctx, fc, r.d)
-	case "couple_family":
-		HandleCoupleFamilyMenu(ctx, fc, r.d)
-	case "couple_romantic":
-		HandleCoupleSelectStyle(ctx, fc, r.d, "romantic couple portrait, two people walking together, dreamy atmosphere, professional photography, high quality")
-	case "couple_business":
-		HandleCoupleSelectStyle(ctx, fc, r.d, "business couple portrait, professional attire, studio lighting, confident poses, high quality")
-	case "couple_family_cozy":
-		HandleCoupleSelectStyle(ctx, fc, r.d, "happy family portrait, warm cozy home atmosphere, natural smiles, professional photography, high quality")
-	case "couple_art":
-		HandleCoupleSelectStyle(ctx, fc, r.d, "artistic couple portrait, creative lighting, impressionist painting style, professional photography, high quality")
 	case "saved_photo":
 		HandleSavedPhotoStart(ctx, fc, r.d)
 	case "settings":
