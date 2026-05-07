@@ -1,7 +1,15 @@
 {{define "content"}}
 {{if .User}}
 {{/* ── Детальная страница пользователя ── */}}
-<a href="/admin/users" class="btn btn-sm btn-outline-secondary mb-3">← Назад к списку</a>
+<div class="d-flex align-items-center gap-2 mb-3">
+    <a href="/admin/users" class="btn btn-sm btn-outline-secondary">← Назад к списку</a>
+    <form method="POST" action="/admin/users/{{.User.VKID}}/delete"
+          onsubmit="return confirm('Удалить пользователя {{.User.VKID}}? Это действие необратимо.')">
+        <button type="submit" class="btn btn-sm btn-danger">
+            <i class="bi bi-trash"></i> Удалить пользователя
+        </button>
+    </form>
+</div>
 <div class="row g-3">
     <div class="col-md-5">
         <div class="card">

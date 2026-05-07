@@ -157,6 +157,23 @@ func (r *UserRepo) Count(ctx context.Context) (int, error) {
 	return n, err
 }
 
+func (r *UserRepo) Delete(ctx context.Context, vkID int64) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	tx.Exec(ctx, `DELETE FROM referrals  WHERE referrer_vk_id=$1 OR referred_vk_id=$1`, vkID)
+	tx.Exec(ctx, `DELETE FROM generations WHERE user_vk_id=$1`, vkID)
+	tx.Exec(ctx, `DELETE FROM orders      WHERE user_vk_id=$1`, vkID)
+	_, err = tx.Exec(ctx, `DELETE FROM users WHERE vk_id=$1`, vkID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func genReferralCode() string {
 	const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
 	b := make([]byte, 8)

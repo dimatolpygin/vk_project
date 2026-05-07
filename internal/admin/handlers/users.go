@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 	"vk_neuro_bot/internal/repository"
 )
@@ -13,12 +15,13 @@ import (
 type UsersHandler struct {
 	users  *repository.UserRepo
 	orders *repository.OrderRepo
+	rdb    *redis.Client
 	tmpl   *template.Template
 }
 
-func NewUsersHandler(users *repository.UserRepo, orders *repository.OrderRepo) *UsersHandler {
+func NewUsersHandler(users *repository.UserRepo, orders *repository.OrderRepo, rdb *redis.Client) *UsersHandler {
 	tmpl := parseTemplates("templates/layout.html", "templates/users.html")
-	return &UsersHandler{users: users, orders: orders, tmpl: tmpl}
+	return &UsersHandler{users: users, orders: orders, rdb: rdb, tmpl: tmpl}
 }
 
 func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -85,6 +88,21 @@ func (h *UsersHandler) AddGens(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/admin/users/"+vkIDStr, http.StatusSeeOther)
+}
+
+func (h *UsersHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	vkID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "bad id", http.StatusBadRequest)
+		return
+	}
+	if err := h.users.Delete(r.Context(), vkID); err != nil {
+		log.Error().Err(err).Int64("vk_id", vkID).Msg("ошибка удаления пользователя")
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	_ = h.rdb.Del(r.Context(), fmt.Sprintf("state:%d", vkID))
+	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
 }
 
 func (h *UsersHandler) Detail(w http.ResponseWriter, r *http.Request) {

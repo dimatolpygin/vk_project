@@ -115,7 +115,7 @@ func main() {
 
 	adminServer := admin.NewServer(
 		cfg.AdminLogin, cfg.AdminPassword,
-		userRepo, tariffRepo, msgRepo, catRepo, promptRepo, statsRepo, orderRepo,
+		userRepo, tariffRepo, msgRepo, catRepo, promptRepo, statsRepo, orderRepo, rdb,
 	)
 
 	botHTTP := &http.Server{

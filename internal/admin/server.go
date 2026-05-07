@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/redis/go-redis/v9"
 	"vk_neuro_bot/internal/admin/handlers"
 	"vk_neuro_bot/internal/repository"
 )
@@ -22,6 +23,7 @@ func NewServer(
 	prompts *repository.PromptRepo,
 	stats *repository.StatsRepo,
 	orders *repository.OrderRepo,
+	rdb *redis.Client,
 ) *Server {
 	s := &Server{}
 	r := chi.NewRouter()
@@ -29,7 +31,7 @@ func NewServer(
 	r.Use(middleware.Recoverer)
 	r.Use(basicAuth(login, password))
 
-	uh := handlers.NewUsersHandler(users, orders)
+	uh := handlers.NewUsersHandler(users, orders, rdb)
 	th := handlers.NewTariffsHandler(tariffs)
 	mh := handlers.NewMessagesHandler(msgs)
 	ch := handlers.NewCategoriesHandler(cats, prompts)
@@ -44,6 +46,7 @@ func NewServer(
 		r.Get("/users", uh.List)
 		r.Get("/users/{id}", uh.Detail)
 		r.Post("/users/{id}/add-gens", uh.AddGens)
+		r.Post("/users/{id}/delete", uh.Delete)
 
 		r.Get("/tariffs", th.List)
 		r.Post("/tariffs", th.Create)
