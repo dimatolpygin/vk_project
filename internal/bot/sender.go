@@ -8,7 +8,8 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"path/filepath"
+	"net/textproto"
+	"path"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -106,22 +107,33 @@ func (s *Sender) SendPhotoToUser(ctx context.Context, vkID int64, photoURL strin
 func (s *Sender) uploadPhotoFromURL(ctx context.Context, peerID int64, photoURL string) (string, error) {
 	uploadURL, err := s.vk.GetPhotoUploadServer(ctx, peerID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("getUploadServer: %w", err)
 	}
 
 	resp, err := s.http.Get(photoURL)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("скачивание фото: %w", err)
 	}
 	defer resp.Body.Close()
 	photoData, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("чтение тела фото: %w", err)
+	}
+	if len(photoData) == 0 {
+		return "", fmt.Errorf("скачанный файл пустой: %s", photoURL)
+	}
+
+	filename := path.Base(photoURL)
+	if filename == "." || filename == "/" || filename == "" {
+		filename = "photo.jpg"
 	}
 
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
-	fw, err := w.CreateFormFile("photo", filepath.Base(photoURL))
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="photo"; filename="%s"`, filename))
+	h.Set("Content-Type", "image/jpeg")
+	fw, err := w.CreatePart(h)
 	if err != nil {
 		return "", err
 	}
@@ -132,10 +144,19 @@ func (s *Sender) uploadPhotoFromURL(ctx context.Context, peerID int64, photoURL 
 
 	uploadResp, err := s.http.Post(uploadURL, w.FormDataContentType(), &buf)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("загрузка на VK upload server: %w", err)
 	}
 	defer uploadResp.Body.Close()
 	uploadBody, _ := io.ReadAll(uploadResp.Body)
+
+	log.Info().
+		Int("http_status", uploadResp.StatusCode).
+		Str("body", string(uploadBody)).
+		Msg("ответ VK upload server")
+
+	if uploadResp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("VK upload server вернул HTTP %d: %s", uploadResp.StatusCode, string(uploadBody))
+	}
 
 	var uploadResult struct {
 		Server int    `json:"server"`
@@ -143,7 +164,10 @@ func (s *Sender) uploadPhotoFromURL(ctx context.Context, peerID int64, photoURL 
 		Hash   string `json:"hash"`
 	}
 	if err := json.Unmarshal(uploadBody, &uploadResult); err != nil {
-		return "", err
+		return "", fmt.Errorf("парсинг ответа upload server: %w (тело: %s)", err, string(uploadBody))
+	}
+	if uploadResult.Photo == "" {
+		return "", fmt.Errorf("VK upload server вернул пустое photo (HTTP %d): %s", uploadResp.StatusCode, string(uploadBody))
 	}
 	return s.vk.SaveMessagesPhoto(ctx, uploadResult.Server, uploadResult.Photo, uploadResult.Hash)
 }
