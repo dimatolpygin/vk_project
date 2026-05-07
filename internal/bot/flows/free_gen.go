@@ -11,6 +11,11 @@ import (
 )
 
 func HandleFreeGenStart(ctx context.Context, fc *Context, d *Deps) {
+	if !fc.User.HasGens() {
+		HandleShowTariffs(ctx, fc, d)
+		return
+	}
+
 	isMember, err := d.VKClient.IsMember(ctx, fc.VkID)
 	if err != nil {
 		log.Error().Err(err).Msg("ошибка проверки подписки")

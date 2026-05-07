@@ -36,9 +36,9 @@ func NewServer(
 	sh := handlers.NewStatsHandler(stats)
 
 	r.Get("/", sh.GetStats)
-	r.Get("/admin", sh.GetStats)
 
 	r.Route("/admin", func(r chi.Router) {
+		r.Get("/", sh.GetStats)
 		r.Get("/stats", sh.GetStats)
 
 		r.Get("/users", uh.List)

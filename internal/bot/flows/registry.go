@@ -26,8 +26,8 @@ func (r *Registry) HandleMessage(ctx context.Context, fc *Context) {
 	case StepAwaitingPhotoEdit:
 		HandleAwaitingPhotoEdit(ctx, fc, r.d)
 	default:
-		if fc.Message != nil && fc.Message.Text == "/start" {
-			HandleWelcome(ctx, fc, r.d)
+		if fc.User.Status == "paid" || fc.User.HasGens() {
+			HandleMainMenu(ctx, fc, r.d)
 		} else {
 			HandleWelcome(ctx, fc, r.d)
 		}
