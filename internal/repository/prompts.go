@@ -8,14 +8,14 @@ import (
 )
 
 type Prompt struct {
-	ID         int
-	CategoryID int
-	Name       string
-	Prompt     string
-	PreviewURL *string
-	Gender     string
-	SortOrder  int
-	IsActive   bool
+	ID         int     `json:"id"`
+	CategoryID int     `json:"category_id"`
+	Name       string  `json:"name"`
+	Prompt     string  `json:"prompt"`
+	PreviewURL *string `json:"preview_url"`
+	Gender     string  `json:"gender"`
+	SortOrder  int     `json:"sort_order"`
+	IsActive   bool    `json:"is_active"`
 }
 
 type PromptRepo struct {
