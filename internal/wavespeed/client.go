@@ -97,7 +97,7 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) 
 }
 
 func (c *Client) Poll(ctx context.Context, taskID string) (*PredictionStatus, error) {
-	endpoint := fmt.Sprintf("%s/predictions/%s", pollBaseURL, taskID)
+	endpoint := fmt.Sprintf("%s/predictions/%s/result", pollBaseURL, taskID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
