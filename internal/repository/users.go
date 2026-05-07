@@ -22,6 +22,7 @@ type User struct {
 	PaidGens         int
 	Subscribed       bool
 	SavedPhotoURL    *string
+	UseSavedPhoto    bool
 	Status           string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
@@ -42,12 +43,12 @@ func (r *UserRepo) GetByVKID(ctx context.Context, vkID int64) (*User, error) {
 	u := &User{}
 	err := r.db.QueryRow(ctx, `
 		SELECT id, vk_id, COALESCE(username,''), COALESCE(first_name,''), gender, referral_code,
-		       referred_by, free_gens, paid_gens, subscribed, saved_photo_url, status, created_at, updated_at,
-		       pref_model, pref_resolution, pref_aspect_ratio
+		       referred_by, free_gens, paid_gens, subscribed, saved_photo_url, use_saved_photo, status,
+		       created_at, updated_at, pref_model, pref_resolution, pref_aspect_ratio
 		FROM users WHERE vk_id = $1`, vkID).
 		Scan(&u.ID, &u.VKID, &u.Username, &u.FirstName, &u.Gender, &u.ReferralCode,
-			&u.ReferredBy, &u.FreeGens, &u.PaidGens, &u.Subscribed, &u.SavedPhotoURL, &u.Status,
-			&u.CreatedAt, &u.UpdatedAt,
+			&u.ReferredBy, &u.FreeGens, &u.PaidGens, &u.Subscribed, &u.SavedPhotoURL, &u.UseSavedPhoto,
+			&u.Status, &u.CreatedAt, &u.UpdatedAt,
 			&u.PrefModel, &u.PrefResolution, &u.PrefAspectRatio)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -62,12 +63,12 @@ func (r *UserRepo) Create(ctx context.Context, vkID int64, username, firstName s
 		INSERT INTO users (vk_id, username, first_name, referral_code, referred_by)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, vk_id, COALESCE(username,''), COALESCE(first_name,''), gender, referral_code,
-		          referred_by, free_gens, paid_gens, subscribed, saved_photo_url, status, created_at, updated_at,
-		          pref_model, pref_resolution, pref_aspect_ratio`,
+		          referred_by, free_gens, paid_gens, subscribed, saved_photo_url, use_saved_photo, status,
+		          created_at, updated_at, pref_model, pref_resolution, pref_aspect_ratio`,
 		vkID, username, firstName, code, referredBy).
 		Scan(&u.ID, &u.VKID, &u.Username, &u.FirstName, &u.Gender, &u.ReferralCode,
-			&u.ReferredBy, &u.FreeGens, &u.PaidGens, &u.Subscribed, &u.SavedPhotoURL, &u.Status,
-			&u.CreatedAt, &u.UpdatedAt,
+			&u.ReferredBy, &u.FreeGens, &u.PaidGens, &u.Subscribed, &u.SavedPhotoURL, &u.UseSavedPhoto,
+			&u.Status, &u.CreatedAt, &u.UpdatedAt,
 			&u.PrefModel, &u.PrefResolution, &u.PrefAspectRatio)
 	return u, err
 }
@@ -76,12 +77,12 @@ func (r *UserRepo) GetByReferralCode(ctx context.Context, code string) (*User, e
 	u := &User{}
 	err := r.db.QueryRow(ctx, `
 		SELECT id, vk_id, COALESCE(username,''), COALESCE(first_name,''), gender, referral_code,
-		       referred_by, free_gens, paid_gens, subscribed, saved_photo_url, status, created_at, updated_at,
-		       pref_model, pref_resolution, pref_aspect_ratio
+		       referred_by, free_gens, paid_gens, subscribed, saved_photo_url, use_saved_photo, status,
+		       created_at, updated_at, pref_model, pref_resolution, pref_aspect_ratio
 		FROM users WHERE referral_code = $1`, code).
 		Scan(&u.ID, &u.VKID, &u.Username, &u.FirstName, &u.Gender, &u.ReferralCode,
-			&u.ReferredBy, &u.FreeGens, &u.PaidGens, &u.Subscribed, &u.SavedPhotoURL, &u.Status,
-			&u.CreatedAt, &u.UpdatedAt,
+			&u.ReferredBy, &u.FreeGens, &u.PaidGens, &u.Subscribed, &u.SavedPhotoURL, &u.UseSavedPhoto,
+			&u.Status, &u.CreatedAt, &u.UpdatedAt,
 			&u.PrefModel, &u.PrefResolution, &u.PrefAspectRatio)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -138,6 +139,11 @@ func (r *UserRepo) SetSavedPhoto(ctx context.Context, vkID int64, url string) er
 	return err
 }
 
+func (r *UserRepo) SetUseSavedPhoto(ctx context.Context, vkID int64, enabled bool) error {
+	_, err := r.db.Exec(ctx, `UPDATE users SET use_saved_photo = $2, updated_at = now() WHERE vk_id = $1`, vkID, enabled)
+	return err
+}
+
 func (r *UserRepo) HasGens(ctx context.Context, vkID int64) (bool, error) {
 	var freeGens, paidGens int
 	err := r.db.QueryRow(ctx, `SELECT free_gens, paid_gens FROM users WHERE vk_id = $1`, vkID).
@@ -151,8 +157,8 @@ func (r *UserRepo) HasGens(ctx context.Context, vkID int64) (bool, error) {
 func (r *UserRepo) List(ctx context.Context, limit, offset int) ([]*User, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, vk_id, COALESCE(username,''), COALESCE(first_name,''), gender, referral_code,
-		       referred_by, free_gens, paid_gens, subscribed, saved_photo_url, status, created_at, updated_at,
-		       pref_model, pref_resolution, pref_aspect_ratio
+		       referred_by, free_gens, paid_gens, subscribed, saved_photo_url, use_saved_photo, status,
+		       created_at, updated_at, pref_model, pref_resolution, pref_aspect_ratio
 		FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, err
@@ -162,8 +168,8 @@ func (r *UserRepo) List(ctx context.Context, limit, offset int) ([]*User, error)
 	for rows.Next() {
 		u := &User{}
 		if err := rows.Scan(&u.ID, &u.VKID, &u.Username, &u.FirstName, &u.Gender, &u.ReferralCode,
-			&u.ReferredBy, &u.FreeGens, &u.PaidGens, &u.Subscribed, &u.SavedPhotoURL, &u.Status,
-			&u.CreatedAt, &u.UpdatedAt,
+			&u.ReferredBy, &u.FreeGens, &u.PaidGens, &u.Subscribed, &u.SavedPhotoURL, &u.UseSavedPhoto,
+			&u.Status, &u.CreatedAt, &u.UpdatedAt,
 			&u.PrefModel, &u.PrefResolution, &u.PrefAspectRatio); err != nil {
 			return nil, err
 		}

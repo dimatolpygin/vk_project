@@ -205,12 +205,25 @@ func KbBottomMenu() string {
 	}})
 }
 
-func KbUseSavedPhoto() string {
-	return kbJSON(&Keyboard{Inline: true, Buttons: [][]KbBtn{
-		{{Action: KbAction{Type: "callback", Label: "✅ Использовать это фото", Payload: cbPayload("use_saved_photo")}, Color: "positive"}},
-		{{Action: KbAction{Type: "callback", Label: "🔄 Заменить фото", Payload: cbPayload("saved_photo")}, Color: "secondary"}},
-		{{Action: KbAction{Type: "callback", Label: "◀️ Назад", Payload: cbPayload("back")}, Color: "secondary"}},
-	}})
+func KbSavedPhotoMenu(hasSavedPhoto, useInPrompts bool) string {
+	kb := &Keyboard{Inline: true}
+	if !hasSavedPhoto {
+		kb.Buttons = append(kb.Buttons, []KbBtn{{
+			Action: KbAction{Type: "callback", Label: "📤 Загрузить фото", Payload: cbPayload("saved_photo_upload")},
+			Color:  "primary",
+		}})
+	} else {
+		toggleLabel := "▶️ Включить в готовых промтах"
+		if useInPrompts {
+			toggleLabel = "⏸ Выключить в готовых промтах"
+		}
+		kb.Buttons = append(kb.Buttons,
+			[]KbBtn{{Action: KbAction{Type: "callback", Label: "✏️ Заменить фото", Payload: cbPayload("saved_photo_upload")}, Color: "secondary"}},
+			[]KbBtn{{Action: KbAction{Type: "callback", Label: toggleLabel, Payload: cbPayload("toggle_saved_photo")}, Color: "primary"}},
+		)
+	}
+	kb.Buttons = append(kb.Buttons, []KbBtn{btnBack()})
+	return kbJSON(kb)
 }
 
 func KbFromMsg(buttons []repository.Button) string {

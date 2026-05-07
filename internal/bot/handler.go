@@ -268,6 +268,7 @@ func toFlowUser(u *repository.User) *flows.User {
 		Status:          u.Status,
 		ReferralCode:    u.ReferralCode,
 		SavedPhotoURL:   u.SavedPhotoURL,
+		UseSavedPhoto:   u.UseSavedPhoto,
 		PrefModel:       u.PrefModel,
 		PrefResolution:  u.PrefResolution,
 		PrefAspectRatio: u.PrefAspectRatio,

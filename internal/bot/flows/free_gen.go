@@ -177,6 +177,12 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		}
 	}
 
+	startGeneration(ctx, fc, d, uploadedURL, prompt, promptType, "")
+}
+
+// startGeneration создаёт запись генерации, списывает генерацию и ставит задачу в очередь.
+// waitMsg — кастомный текст ожидания; если пустой, используется шаблон generating_wait.
+func startGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, prompt, promptType, waitMsg string) {
 	model := fc.State.Model
 	if model == "" {
 		model = fc.User.PrefModel
@@ -185,7 +191,7 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		model = d.DefaultModel
 	}
 
-	gen, err := d.GenRepo.Create(ctx, fc.VkID, promptType, prompt, model, &uploadedURL)
+	gen, err := d.GenRepo.Create(ctx, fc.VkID, promptType, prompt, model, &photoURL)
 	if err != nil {
 		log.Error().Err(err).Msg("не удалось создать запись генерации")
 		_ = d.Sender.SendText(ctx, fc.VkID, "❌ Произошла ошибка. Попробуй позже.", KbBack())
@@ -194,7 +200,11 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 
 	_ = d.UserRepo.DecrementGens(ctx, fc.VkID)
 	_ = d.State.SetStep(ctx, fc.VkID, StepMainMenu)
-	_ = d.Sender.SendMsg(ctx, fc.VkID, "generating_wait", "")
+	if waitMsg == "" {
+		_ = d.Sender.SendMsg(ctx, fc.VkID, "generating_wait", "")
+	} else {
+		_ = d.Sender.SendText(ctx, fc.VkID, waitMsg, "")
+	}
 
 	resolution := fc.State.Resolution
 	if resolution == "" {
@@ -211,7 +221,7 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		GenerationID: gen.ID,
 		UserVKID:     fc.VkID,
 		Model:        model,
-		Images:       []string{uploadedURL},
+		Images:       []string{photoURL},
 		Prompt:       prompt,
 		Resolution:   resolution,
 		AspectRatio:  aspectRatio,

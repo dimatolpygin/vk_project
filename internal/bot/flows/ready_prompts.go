@@ -1,6 +1,9 @@
 package flows
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 func HandleReadyPromptsMenu(ctx context.Context, fc *Context, d *Deps) {
 	if !fc.User.HasGens() {
@@ -49,11 +52,16 @@ func HandleSelectPrompt(ctx context.Context, fc *Context, d *Deps) {
 		TemplateID: promptID,
 	}, fc.State))
 
-	if fc.User.SavedPhotoURL != nil && *fc.User.SavedPhotoURL != "" {
-		_ = d.Sender.SendPhoto(ctx, fc.VkID, *fc.User.SavedPhotoURL,
-			"📸 Для генерации будет использоваться ваше сохранённое фото. Продолжить или заменить?",
-			KbUseSavedPhoto())
-	} else {
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
+	// Если у пользователя включено использование сохранённого фото — сразу генерируем
+	if fc.User.UseSavedPhoto && fc.User.SavedPhotoURL != nil && *fc.User.SavedPhotoURL != "" {
+		if !fc.User.HasGens() {
+			_ = d.Sender.SendMsg(ctx, fc.VkID, "no_gens_left", KbBack())
+			return
+		}
+		waitMsg := fmt.Sprintf("⏳ Начинаю генерацию...\n📋 Шаблон: %s\n📸 Используется ваше сохранённое фото", p.Name)
+		startGeneration(ctx, fc, d, *fc.User.SavedPhotoURL, p.Prompt, promptType, waitMsg)
+		return
 	}
+
+	_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
 }

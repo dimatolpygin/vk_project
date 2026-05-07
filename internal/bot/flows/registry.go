@@ -89,8 +89,10 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleCoupleStart(ctx, fc, r.d)
 	case "saved_photo":
 		HandleSavedPhotoStart(ctx, fc, r.d)
-	case "use_saved_photo":
-		HandleUseSavedPhoto(ctx, fc, r.d)
+	case "saved_photo_upload":
+		HandleSavedPhotoUploadStart(ctx, fc, r.d)
+	case "toggle_saved_photo":
+		HandleToggleSavedPhoto(ctx, fc, r.d)
 	case "settings":
 		HandleSettings(ctx, fc, r.d)
 	case "quality":

@@ -37,6 +37,7 @@ type User struct {
 	Status          string
 	ReferralCode    string
 	SavedPhotoURL   *string
+	UseSavedPhoto   bool
 	PrefModel       string
 	PrefResolution  string
 	PrefAspectRatio string
