@@ -79,6 +79,8 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) 
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
 
+	fmt.Printf("[wavespeed submit] status=%d body=%s\n", resp.StatusCode, string(respBody))
+
 	var result struct {
 		Data struct {
 			ID string `json:"id"`
@@ -86,10 +88,10 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) 
 		Message string `json:"message"`
 	}
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", fmt.Errorf("не удалось распарсить ответ WaveSpeed: %s", string(respBody))
+		return "", fmt.Errorf("не удалось распарсить ответ WaveSpeed (HTTP %d): %s", resp.StatusCode, string(respBody))
 	}
 	if result.Data.ID == "" {
-		return "", fmt.Errorf("WaveSpeed не вернул task_id: %s", result.Message)
+		return "", fmt.Errorf("WaveSpeed не вернул task_id (HTTP %d): %s", resp.StatusCode, string(respBody))
 	}
 	return result.Data.ID, nil
 }
@@ -109,11 +111,13 @@ func (c *Client) Poll(ctx context.Context, taskID string) (*PredictionStatus, er
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 
+	fmt.Printf("[wavespeed poll] url=%s status=%d body=%s\n", endpoint, resp.StatusCode, string(body))
+
 	var result struct {
 		Data PredictionStatus `json:"data"`
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("не удалось распарсить статус: %s", string(body))
+		return nil, fmt.Errorf("не удалось распарсить статус (HTTP %d): %s", resp.StatusCode, string(body))
 	}
 	return &result.Data, nil
 }
