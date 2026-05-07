@@ -55,6 +55,8 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleBack(ctx, fc, r.d)
 	case "free_gen":
 		HandleFreeGenStart(ctx, fc, r.d)
+	case "gen_again":
+		HandleGenAgain(ctx, fc, r.d)
 	case "check_sub":
 		HandleCheckSubscription(ctx, fc, r.d)
 	case "gender_male":

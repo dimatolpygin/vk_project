@@ -40,8 +40,10 @@ func HandleResultEditPrompt(ctx context.Context, fc *Context, d *Deps) {
 		_ = d.Sender.SendMsg(ctx, fc.VkID, "no_gens_left", KbBack())
 		return
 	}
+	launchEditGeneration(ctx, fc, d, photoURL, fc.Message.Text)
+}
 
-	prompt := fc.Message.Text
+func launchEditGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, prompt string) {
 	model := fc.State.Model
 	if model == "" {
 		model = fc.User.PrefModel

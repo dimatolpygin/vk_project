@@ -72,6 +72,46 @@ func proceedToPhotoRequest(ctx context.Context, fc *Context, d *Deps, promptType
 	_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
 }
 
+func HandleGenAgain(ctx context.Context, fc *Context, d *Deps) {
+	if !fc.User.HasGens() {
+		HandleShowTariffs(ctx, fc, d)
+		return
+	}
+
+	if fc.User.Status != "paid" && fc.User.PaidGens == 0 {
+		isMember, err := d.VKClient.IsMember(ctx, fc.VkID)
+		if err != nil {
+			isMember = false
+		}
+		if !isMember {
+			_ = d.Sender.SendMsg(ctx, fc.VkID, "subscribe_cta", KbSubscribeCTA(d.VKGroupURL))
+			_ = d.State.SetStep(ctx, fc.VkID, StepFreeGenStart)
+			return
+		}
+	}
+
+	if fc.User.Gender == "unknown" {
+		savedState := *fc.State
+		savedState.Step = StepAwaitingGender
+		_ = d.State.Set(ctx, fc.VkID, &savedState)
+		_ = d.Sender.SendMsg(ctx, fc.VkID, "gender_select", KbGender())
+		return
+	}
+
+	savedState := *fc.State
+	savedState.PhotoURL = ""
+
+	if fc.State.PromptType == "edit" {
+		savedState.Step = StepAwaitingPhotoEdit
+		_ = d.State.Set(ctx, fc.VkID, &savedState)
+		_ = d.Sender.SendMsg(ctx, fc.VkID, "edit_photo_intro", KbBack())
+	} else {
+		savedState.Step = StepAwaitingPhoto
+		_ = d.State.Set(ctx, fc.VkID, &savedState)
+		_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
+	}
+}
+
 func HandleGenderSelect(ctx context.Context, fc *Context, d *Deps, gender string) {
 	_ = d.UserRepo.SetGender(ctx, fc.VkID, gender)
 	fc.User.Gender = gender
@@ -80,8 +120,19 @@ func HandleGenderSelect(ctx context.Context, fc *Context, d *Deps, gender string
 	if promptType == "" {
 		promptType = "free"
 	}
-	_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{Step: StepAwaitingPhoto, PromptType: promptType}, fc.State))
-	_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
+
+	newState := *fc.State
+	newState.PromptType = promptType
+
+	if promptType == "edit" {
+		newState.Step = StepAwaitingPhotoEdit
+		_ = d.State.Set(ctx, fc.VkID, &newState)
+		_ = d.Sender.SendMsg(ctx, fc.VkID, "edit_photo_intro", KbBack())
+	} else {
+		newState.Step = StepAwaitingPhoto
+		_ = d.State.Set(ctx, fc.VkID, &newState)
+		_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
+	}
 }
 
 func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
@@ -219,6 +270,12 @@ func HandleAwaitingPhotoEdit(ctx context.Context, fc *Context, d *Deps) {
 	state.Step = StepAwaitingEditPrompt
 	state.PhotoURL = uploadedURL
 	_ = d.State.Set(ctx, fc.VkID, state)
+
+	if state.CustomPrompt != "" {
+		fc.State = state
+		launchEditGeneration(ctx, fc, d, uploadedURL, state.CustomPrompt)
+		return
+	}
 	_ = d.Sender.SendText(ctx, fc.VkID, "✏️ Отлично! Теперь опиши, что нужно изменить на фото:", KbBack())
 }
 
