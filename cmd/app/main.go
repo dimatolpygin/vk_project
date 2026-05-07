@@ -155,7 +155,7 @@ func main() {
 	if s3Client != nil {
 		workerStorage = s3Client
 	}
-	generateHandler := worker.NewGenerateHandler(genRepo, sender, wsClient, workerStorage)
+	generateHandler := worker.NewGenerateHandler(genRepo, userRepo, sender, wsClient, workerStorage, rdb)
 	mux.HandleFunc(worker.TaskGenerate, generateHandler.ProcessTask)
 
 	go func() {

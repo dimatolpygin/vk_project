@@ -88,7 +88,12 @@ func (s *Sender) SendText(ctx context.Context, vkID int64, text string, kbJSON s
 func (s *Sender) SendPhoto(ctx context.Context, vkID int64, photoURL, caption, kbJSON string) error {
 	attachment, err := s.uploadPhotoFromURL(ctx, vkID, photoURL)
 	if err != nil {
-		return fmt.Errorf("ошибка загрузки фото в VK: %w", err)
+		log.Warn().Err(err).Msg("первая попытка загрузки фото в VK не удалась, повтор через 3с")
+		time.Sleep(3 * time.Second)
+		attachment, err = s.uploadPhotoFromURL(ctx, vkID, photoURL)
+		if err != nil {
+			return fmt.Errorf("ошибка загрузки фото в VK: %w", err)
+		}
 	}
 	return s.vk.SendMessage(ctx, vkgroup.SendMessageParams{
 		PeerID:     vkID,

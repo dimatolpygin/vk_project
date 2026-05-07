@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 	"vk_neuro_bot/internal/repository"
 	"vk_neuro_bot/internal/wavespeed"
@@ -25,19 +26,23 @@ type PhotoStorage interface {
 }
 
 type GenerateHandler struct {
-	genRepo *repository.GenerationRepo
-	sender  MessageSender
-	ws      *wavespeed.Client
-	storage PhotoStorage
+	genRepo  *repository.GenerationRepo
+	userRepo *repository.UserRepo
+	sender   MessageSender
+	ws       *wavespeed.Client
+	storage  PhotoStorage
+	rdb      *redis.Client
 }
 
 func NewGenerateHandler(
 	genRepo *repository.GenerationRepo,
+	userRepo *repository.UserRepo,
 	sender MessageSender,
 	ws *wavespeed.Client,
 	storage PhotoStorage,
+	rdb *redis.Client,
 ) *GenerateHandler {
-	return &GenerateHandler{genRepo: genRepo, sender: sender, ws: ws, storage: storage}
+	return &GenerateHandler{genRepo: genRepo, userRepo: userRepo, sender: sender, ws: ws, storage: storage, rdb: rdb}
 }
 
 func (h *GenerateHandler) ProcessTask(ctx context.Context, t *asynq.Task) error {
@@ -105,8 +110,18 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, t *asynq.Task) error 
 		Str("output_url", outputURL).
 		Msg("генерация завершена, отправляю фото")
 
+	// Сохраняем URL результата в Redis на случай сбоя при загрузке в VK
+	if h.rdb != nil {
+		key := fmt.Sprintf("gen_result:%d", p.GenerationID)
+		_ = h.rdb.Set(ctx, key, outputURL, 24*time.Hour).Err()
+	}
+
 	if err := h.sender.SendPhotoResult(ctx, p.UserVKID, outputURL, p.Model, p.Resolution, p.AspectRatio); err != nil {
-		_ = h.sender.SendTextToUser(ctx, p.UserVKID, "❌ Фото создано, но не удалось отправить. Попробуй ещё раз.")
+		log.Error().Err(err).Int64("generation_id", p.GenerationID).Msg("не удалось отправить фото после 2 попыток, возвращаю генерацию")
+		if h.userRepo != nil {
+			_ = h.userRepo.RefundGen(ctx, p.UserVKID)
+		}
+		_ = h.sender.SendTextToUser(ctx, p.UserVKID, "❌ Фото сгенерировано, но не удалось загрузить в VK. Генерация возвращена на твой баланс.")
 		return fmt.Errorf("%w: отправка фото: %v", asynq.SkipRetry, err)
 	}
 
