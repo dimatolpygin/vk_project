@@ -26,6 +26,7 @@ const (
 	StepTariffs             = "tariffs"
 	StepSettings            = "settings"
 	StepCoupleMenu          = "couple_menu"
+	StepAwaitingSavedPhoto  = "awaiting_saved_photo"
 )
 
 type User struct {

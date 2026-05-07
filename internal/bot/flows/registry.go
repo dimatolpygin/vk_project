@@ -25,6 +25,8 @@ func (r *Registry) HandleMessage(ctx context.Context, fc *Context) {
 		HandleAfterGen(ctx, fc, r.d)
 	case StepAwaitingPhoto:
 		HandleAwaitingPhoto(ctx, fc, r.d)
+	case StepAwaitingSavedPhoto:
+		HandleSavedPhotoReceived(ctx, fc, r.d)
 	case StepAwaitingPrompt:
 		HandleAwaitingPrompt(ctx, fc, r.d)
 	case StepAwaitingPhotoEdit:
@@ -87,6 +89,8 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleCoupleStart(ctx, fc, r.d)
 	case "saved_photo":
 		HandleSavedPhotoStart(ctx, fc, r.d)
+	case "use_saved_photo":
+		HandleUseSavedPhoto(ctx, fc, r.d)
 	case "settings":
 		HandleSettings(ctx, fc, r.d)
 	case "quality":

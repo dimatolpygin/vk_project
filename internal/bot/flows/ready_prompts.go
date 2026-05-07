@@ -48,5 +48,12 @@ func HandleSelectPrompt(ctx context.Context, fc *Context, d *Deps) {
 		PromptType: promptType,
 		TemplateID: promptID,
 	}, fc.State))
-	_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
+
+	if fc.User.SavedPhotoURL != nil && *fc.User.SavedPhotoURL != "" {
+		_ = d.Sender.SendPhoto(ctx, fc.VkID, *fc.User.SavedPhotoURL,
+			"📸 Для генерации будет использоваться ваше сохранённое фото. Продолжить или заменить?",
+			KbUseSavedPhoto())
+	} else {
+		_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
+	}
 }
