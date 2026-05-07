@@ -29,17 +29,58 @@ func (h *CategoriesHandler) ListCategories(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	if cats == nil {
+		cats = []*repository.Category{}
+	}
 
 	allPrompts, err := h.prompts.List(r.Context())
 	if err != nil {
-		allPrompts = nil
+		allPrompts = []*repository.Prompt{}
+	}
+	if allPrompts == nil {
+		allPrompts = []*repository.Prompt{}
+	}
+
+	type categoryView struct {
+		ID         int     `json:"id"`
+		Name       string  `json:"name"`
+		PreviewURL *string `json:"preview_url"`
+		Gender     string  `json:"gender"`
+		SortOrder  int     `json:"sort_order"`
+		IsActive   bool    `json:"is_active"`
+	}
+
+	catViews := make([]categoryView, 0, len(cats))
+	for _, cat := range cats {
+		catViews = append(catViews, categoryView{
+			ID:         cat.ID,
+			Name:       cat.Name,
+			PreviewURL: cat.PreviewURL,
+			Gender:     cat.Gender,
+			SortOrder:  cat.SortOrder,
+			IsActive:   cat.IsActive,
+		})
+	}
+
+	catsJSON, err := json.Marshal(catViews)
+	if err != nil {
+		log.Warn().Err(err).Msg("не удалось сериализовать категории для admin UI")
+		catsJSON = []byte("[]")
+	}
+
+	promptsJSON, err := json.Marshal(allPrompts)
+	if err != nil {
+		log.Warn().Err(err).Msg("не удалось сериализовать промты для admin UI")
+		promptsJSON = []byte("[]")
 	}
 
 	data := map[string]any{
-		"Title":      "Категории и промты",
-		"Active":     "prompts",
-		"Categories": cats,
-		"Prompts":    allPrompts,
+		"Title":          "Категории и промты",
+		"Active":         "prompts",
+		"Categories":     cats,
+		"Prompts":        allPrompts,
+		"CategoriesJSON": template.JS(string(catsJSON)),
+		"PromptsJSON":    template.JS(string(promptsJSON)),
 	}
 
 	if err := h.tmpl.ExecuteTemplate(w, "layout", data); err != nil {
