@@ -87,7 +87,7 @@ func main() {
 
 	// Bot deps
 	stateMgr := bot.NewStateManager(rdb)
-	sender := bot.NewSender(vkClient, msgRepo)
+	sender := bot.NewSender(vkClient, msgRepo, stateMgr)
 
 	deps := &flows.Deps{
 		Sender:        sender,

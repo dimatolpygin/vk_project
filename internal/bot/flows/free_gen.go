@@ -10,6 +10,18 @@ import (
 	"vk_neuro_bot/internal/worker"
 )
 
+func HandleAfterGen(ctx context.Context, fc *Context, d *Deps) {
+	if fc.State.PhotoURL != "" {
+		_ = d.Sender.SendPhoto(ctx, fc.VkID, fc.State.PhotoURL, "🎉 Готово! Вот твоя нейрофотосессия:", KbAfterGen())
+		return
+	}
+	if fc.User.HasGens() {
+		HandleMainMenu(ctx, fc, d)
+	} else {
+		HandleWelcome(ctx, fc, d)
+	}
+}
+
 func HandleFreeGenStart(ctx context.Context, fc *Context, d *Deps) {
 	if !fc.User.HasGens() {
 		HandleShowTariffs(ctx, fc, d)

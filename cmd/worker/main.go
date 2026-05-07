@@ -50,7 +50,8 @@ func main() {
 	msgRepo := repository.NewMessageRepo(pool)
 	vkClient := vkgroup.New(cfg.VKGroupToken, cfg.VKGroupID)
 	wsClient := wavespeed.New(cfg.WavespeedAPIKey)
-	sender := bot.NewSender(vkClient, msgRepo)
+	stateMgr := bot.NewStateManager(rdb)
+	sender := bot.NewSender(vkClient, msgRepo, stateMgr)
 
 	generateHandler := worker.NewGenerateHandler(genRepo, sender, wsClient)
 

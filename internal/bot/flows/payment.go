@@ -14,6 +14,11 @@ func HandleShowTariffs(ctx context.Context, fc *Context, d *Deps) {
 		_ = d.Sender.SendText(ctx, fc.VkID, "Тарифы временно недоступны. Попробуй позже.", KbBack())
 		return
 	}
+	_ = d.State.Set(ctx, fc.VkID, &State{
+		Step:     StepTariffs,
+		PrevStep: fc.State.Step,
+		PhotoURL: fc.State.PhotoURL,
+	})
 	_ = d.Sender.SendMsg(ctx, fc.VkID, "tariffs", KbTariffs(tariffs))
 }
 

@@ -151,6 +151,7 @@ func (s *Server) handleWavespeedWebhook(w http.ResponseWriter, r *http.Request) 
 		outputURL := event.Outputs[0]
 		_ = s.flowDeps.GenRepo.SetCompleted(r.Context(), gen.ID, outputURL)
 		_ = s.flowDeps.Sender.SendPhoto(r.Context(), gen.UserVKID, outputURL, "🎉 Готово! Вот твоя нейрофотосессия:", flows.KbAfterGen())
+		_ = s.flowDeps.State.Set(r.Context(), gen.UserVKID, &flows.State{Step: flows.StepAfterGen, PhotoURL: outputURL})
 	}
 
 	w.WriteHeader(http.StatusOK)

@@ -20,6 +20,8 @@ const (
 	StepAwaitingPrompt    = "awaiting_prompt"
 	StepAwaitingPhotoEdit = "awaiting_photo_edit"
 	StepMainMenu          = "main_menu"
+	StepAfterGen          = "after_gen"
+	StepTariffs           = "tariffs"
 )
 
 type User struct {
@@ -36,6 +38,7 @@ func (u *User) HasGens() bool { return u.FreeGens > 0 || u.PaidGens > 0 }
 
 type State struct {
 	Step         string `json:"step"`
+	PrevStep     string `json:"prev_step,omitempty"`
 	PromptType   string `json:"prompt_type,omitempty"`
 	TemplateID   int    `json:"template_id,omitempty"`
 	CategoryID   int    `json:"category_id,omitempty"`
