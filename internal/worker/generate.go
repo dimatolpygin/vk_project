@@ -54,7 +54,7 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, t *asynq.Task) error 
 	if err != nil {
 		_ = h.genRepo.SetFailed(ctx, p.GenerationID, err.Error())
 		_ = h.sender.SendTextToUser(ctx, p.UserVKID, "❌ Ошибка при запуске генерации. Попробуй ещё раз.")
-		return fmt.Errorf("wavespeed submit: %w", err)
+		return fmt.Errorf("%w: wavespeed submit: %v", asynq.SkipRetry, err)
 	}
 
 	if err := h.genRepo.SetWavespeedTaskID(ctx, p.GenerationID, taskID); err != nil {
@@ -67,13 +67,13 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, t *asynq.Task) error 
 	if err != nil {
 		_ = h.genRepo.SetFailed(ctx, p.GenerationID, err.Error())
 		_ = h.sender.SendTextToUser(ctx, p.UserVKID, "❌ Генерация завершилась с ошибкой. Попробуй позже.")
-		return fmt.Errorf("wavespeed poll: %w", err)
+		return fmt.Errorf("%w: wavespeed poll: %v", asynq.SkipRetry, err)
 	}
 
 	if len(status.Outputs) == 0 {
 		_ = h.genRepo.SetFailed(ctx, p.GenerationID, "нет выходных данных")
 		_ = h.sender.SendTextToUser(ctx, p.UserVKID, "❌ Не удалось получить результат.")
-		return fmt.Errorf("wavespeed: нет выходных данных")
+		return fmt.Errorf("%w: wavespeed: нет выходных данных", asynq.SkipRetry)
 	}
 
 	outputURL := status.Outputs[0]
