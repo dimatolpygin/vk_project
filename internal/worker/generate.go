@@ -88,7 +88,7 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, t *asynq.Task) error 
 	outputURL := status.Outputs[0]
 
 	if h.storage != nil {
-		key := fmt.Sprintf("generation_users/%d/%d.jpg", p.UserVKID, p.GenerationID)
+		key := fmt.Sprintf("generation_users/%d/%d.png", p.UserVKID, p.GenerationID)
 		if _, err := h.storage.UploadFromURL(ctx, key, outputURL); err != nil {
 			log.Error().Err(err).Msg("не удалось загрузить результат в S3")
 		} else {
@@ -106,7 +106,8 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, t *asynq.Task) error 
 		Msg("генерация завершена, отправляю фото")
 
 	if err := h.sender.SendPhotoResult(ctx, p.UserVKID, outputURL, p.Model, p.Resolution, p.AspectRatio); err != nil {
-		return fmt.Errorf("отправка фото: %w", err)
+		_ = h.sender.SendTextToUser(ctx, p.UserVKID, "❌ Фото создано, но не удалось отправить. Попробуй ещё раз.")
+		return fmt.Errorf("%w: отправка фото: %v", asynq.SkipRetry, err)
 	}
 
 	return nil

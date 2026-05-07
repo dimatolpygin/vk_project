@@ -81,7 +81,7 @@ func HandleResultEditPrompt(ctx context.Context, fc *Context, d *Deps) {
 		Prompt:       prompt,
 		Resolution:   resolution,
 		AspectRatio:  aspectRatio,
-		OutputFormat: "jpeg",
+		OutputFormat: "png",
 	}
 	payloadBytes, _ := payload.Bytes()
 	task := asynq.NewTask(worker.TaskGenerate, payloadBytes,

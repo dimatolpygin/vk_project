@@ -77,7 +77,7 @@ func (c *Client) UploadFromURL(ctx context.Context, key, url string) (string, er
 	}
 	ct := resp.Header.Get("Content-Type")
 	if ct == "" {
-		ct = "image/jpeg"
+		ct = "image/png"
 	}
 	return c.Upload(ctx, key, data, ct)
 }

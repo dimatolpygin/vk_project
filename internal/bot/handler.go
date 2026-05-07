@@ -219,13 +219,8 @@ func (h *Handler) answerCallbackEvent(ctx context.Context, obj *MessageEventObje
 	}
 }
 
-func needsCallbackAnswer(callbackType string) bool {
-	switch callbackType {
-	case "main_menu", "buy_gens", "settings", "support", "examples":
-		return true
-	default:
-		return false
-	}
+func needsCallbackAnswer(_ string) bool {
+	return true
 }
 
 func (h *Handler) ensureUser(ctx context.Context, vkID int64, username, firstName string) *repository.User {

@@ -194,13 +194,13 @@ func KbAspectRatio(current string) string {
 func KbBottomMenu() string {
 	return kbJSON(&Keyboard{Inline: false, OneTime: false, Buttons: [][]KbBtn{
 		{
-			{Action: KbAction{Type: "callback", Label: "🏠 Главное меню", Payload: cbPayload("main_menu")}, Color: "secondary"},
-			{Action: KbAction{Type: "callback", Label: "💎 Купить генерации", Payload: cbPayload("buy_gens")}, Color: "primary"},
+			{Action: KbAction{Type: "text", Label: "🏠 Главное меню", Payload: cbPayload("main_menu")}, Color: "secondary"},
+			{Action: KbAction{Type: "text", Label: "💎 Купить генерации", Payload: cbPayload("buy_gens")}, Color: "primary"},
 		},
 		{
-			{Action: KbAction{Type: "callback", Label: "⚙️ Настройки", Payload: cbPayload("settings")}, Color: "secondary"},
-			{Action: KbAction{Type: "callback", Label: "🆘 Техподдержка", Payload: cbPayload("support")}, Color: "secondary"},
-			{Action: KbAction{Type: "callback", Label: "🖼 Примеры работ", Payload: cbPayload("examples")}, Color: "secondary"},
+			{Action: KbAction{Type: "text", Label: "⚙️ Настройки", Payload: cbPayload("settings")}, Color: "secondary"},
+			{Action: KbAction{Type: "text", Label: "🆘 Техподдержка", Payload: cbPayload("support")}, Color: "secondary"},
+			{Action: KbAction{Type: "text", Label: "🖼 Примеры работ", Payload: cbPayload("examples")}, Color: "secondary"},
 		},
 	}})
 }

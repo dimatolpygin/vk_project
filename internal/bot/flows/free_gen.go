@@ -106,7 +106,7 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 
 	uploadedURL := photoURL
 	if d.Storage != nil {
-		key := fmt.Sprintf("user_upload/%d/%d.jpg", fc.VkID, time.Now().Unix())
+		key := fmt.Sprintf("user_upload/%d/%d.png", fc.VkID, time.Now().Unix())
 		if _, err := d.Storage.UploadFromURL(ctx, key, photoURL); err != nil {
 			log.Error().Err(err).Msg("не удалось загрузить фото в S3, используем VK URL")
 		} else {
@@ -164,7 +164,7 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		Prompt:       prompt,
 		Resolution:   resolution,
 		AspectRatio:  aspectRatio,
-		OutputFormat: "jpeg",
+		OutputFormat: "png",
 	}
 	payloadBytes, _ := payload.Bytes()
 	task := asynq.NewTask(worker.TaskGenerate, payloadBytes,

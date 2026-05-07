@@ -157,14 +157,14 @@ func (s *Sender) uploadPhotoFromURL(ctx context.Context, peerID int64, photoURL 
 
 	filename := path.Base(photoURL)
 	if filename == "." || filename == "/" || filename == "" {
-		filename = "photo.jpg"
+		filename = "photo.png"
 	}
 
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	h := make(textproto.MIMEHeader)
 	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="photo"; filename="%s"`, filename))
-	h.Set("Content-Type", "image/jpeg")
+	h.Set("Content-Type", "image/png")
 	fw, err := w.CreatePart(h)
 	if err != nil {
 		return "", err
