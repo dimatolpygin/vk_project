@@ -13,17 +13,18 @@ import (
 // ─── Shared types ────────────────────────────────────────────────────────────
 
 const (
-	StepWelcome           = "welcome"
-	StepFreeGenStart      = "free_gen_start"
-	StepAwaitingGender    = "awaiting_gender"
-	StepAwaitingPhoto     = "awaiting_photo"
-	StepAwaitingPrompt    = "awaiting_prompt"
-	StepAwaitingPhotoEdit = "awaiting_photo_edit"
-	StepMainMenu          = "main_menu"
-	StepAfterGen          = "after_gen"
-	StepTariffs           = "tariffs"
-	StepSettings          = "settings"
-	StepCoupleMenu        = "couple_menu"
+	StepWelcome             = "welcome"
+	StepFreeGenStart        = "free_gen_start"
+	StepAwaitingGender      = "awaiting_gender"
+	StepAwaitingPhoto       = "awaiting_photo"
+	StepAwaitingPrompt      = "awaiting_prompt"
+	StepAwaitingPhotoEdit   = "awaiting_photo_edit"
+	StepAwaitingResultEdit  = "awaiting_result_edit"
+	StepMainMenu            = "main_menu"
+	StepAfterGen            = "after_gen"
+	StepTariffs             = "tariffs"
+	StepSettings            = "settings"
+	StepCoupleMenu          = "couple_menu"
 )
 
 type User struct {
@@ -93,6 +94,12 @@ type Context struct {
 	Callback *CallbackData
 }
 
+// PhotoStorage — интерфейс S3-хранилища фото.
+type PhotoStorage interface {
+	UploadFromURL(ctx context.Context, key, url string) (string, error)
+	PublicURL(key string) string
+}
+
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
 // Sender — интерфейс отправки сообщений (реализует bot.Sender).
@@ -124,11 +131,12 @@ type Deps struct {
 	PromptRepo   *repository.PromptRepo
 	RefRepo      *repository.ReferralRepo
 	StatsRepo    *repository.StatsRepo
-	AsynqClient  *asynq.Client
-	WaveSpeed    *wavespeed.Client
-	Yukassa      *yukassa.Client
-	VKClient     *vkgroup.Client
-	VKGroupURL   string
-	DefaultModel string
+	AsynqClient   *asynq.Client
+	WaveSpeed     *wavespeed.Client
+	Yukassa       *yukassa.Client
+	VKClient      *vkgroup.Client
+	VKGroupURL    string
+	DefaultModel  string
 	BotWebhookURL string
+	Storage       PhotoStorage
 }

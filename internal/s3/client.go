@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -15,9 +16,10 @@ import (
 )
 
 type Client struct {
-	s3     *s3.Client
-	bucket string
-	http   *http.Client
+	s3       *s3.Client
+	bucket   string
+	endpoint string
+	http     *http.Client
 }
 
 func New(endpoint, bucket, accessKey, secretKey, region string) (*Client, error) {
@@ -39,10 +41,15 @@ func New(endpoint, bucket, accessKey, secretKey, region string) (*Client, error)
 	}
 
 	return &Client{
-		s3:     s3.NewFromConfig(cfg),
-		bucket: bucket,
-		http:   &http.Client{Timeout: 30 * time.Second},
+		s3:       s3.NewFromConfig(cfg),
+		bucket:   bucket,
+		endpoint: endpoint,
+		http:     &http.Client{Timeout: 30 * time.Second},
 	}, nil
+}
+
+func (c *Client) PublicURL(key string) string {
+	return fmt.Sprintf("%s/%s/%s", strings.TrimRight(c.endpoint, "/"), c.bucket, key)
 }
 
 func (c *Client) Upload(ctx context.Context, key string, data []byte, contentType string) (string, error) {

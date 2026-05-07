@@ -29,6 +29,8 @@ func (r *Registry) HandleMessage(ctx context.Context, fc *Context) {
 		HandleAwaitingPrompt(ctx, fc, r.d)
 	case StepAwaitingPhotoEdit:
 		HandleAwaitingPhotoEdit(ctx, fc, r.d)
+	case StepAwaitingResultEdit:
+		HandleResultEditPrompt(ctx, fc, r.d)
 	default:
 		if fc.User.Status == "paid" || fc.User.HasGens() {
 			HandleMainMenu(ctx, fc, r.d)
@@ -75,6 +77,8 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleCustomPromptStart(ctx, fc, r.d)
 	case "edit_photo":
 		HandleEditPhotoStart(ctx, fc, r.d)
+	case "edit_result":
+		HandleEditResultStart(ctx, fc, r.d)
 	case "couple":
 		HandleCoupleStart(ctx, fc, r.d)
 	case "saved_photo":

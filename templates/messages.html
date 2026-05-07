@@ -18,9 +18,14 @@
                     <textarea class="form-control" id="text-{{$m.Key}}" rows="4">{{$m.Text}}</textarea>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-semibold">URL изображения</label>
-                    <input type="text" class="form-control" id="img-{{$m.Key}}"
-                        value="{{if $m.ImageURL}}{{$m.ImageURL}}{{end}}">
+                    <label class="form-label fw-semibold">Изображение</label>
+                    <div class="input-group">
+                        <input type="file" class="form-control" id="file-{{$m.Key}}" accept="image/*"
+                               onchange="uploadFile('{{$m.Key}}')">
+                        <input type="text" class="form-control" id="img-{{$m.Key}}"
+                               value="{{if $m.ImageURL}}{{$m.ImageURL}}{{end}}" placeholder="URL изображения">
+                    </div>
+                    <div id="upload-status-{{$m.Key}}" class="text-muted small mt-1" style="display:none"></div>
                 </div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-primary btn-sm"
@@ -34,6 +39,24 @@
 </div>
 
 <script>
+async function uploadFile(key) {
+    const file = document.getElementById('file-' + key).files[0];
+    if (!file) return;
+    const el = document.getElementById('upload-status-' + key);
+    el.style.display = 'inline';
+    el.textContent = 'Загружаю...';
+    const fd = new FormData();
+    fd.append('file', file);
+    const resp = await fetch('/admin/upload', {method: 'POST', body: fd});
+    if (resp.ok) {
+        const {url} = await resp.json();
+        document.getElementById('img-' + key).value = url;
+        el.textContent = '✓ Загружено';
+    } else {
+        el.textContent = '❌ Ошибка загрузки';
+    }
+}
+
 async function saveMessage(key) {
     const text = document.getElementById('text-' + key).value;
     const img = document.getElementById('img-' + key).value;

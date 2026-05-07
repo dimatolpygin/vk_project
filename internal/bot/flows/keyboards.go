@@ -90,6 +90,7 @@ func KbAfterGen() string {
 func KbAfterGenPaid(photoURL string) string {
 	return kbJSON(&Keyboard{Inline: true, Buttons: [][]KbBtn{
 		{{Action: KbAction{Type: "open_link", Label: "⬇️ Скачать фото", Link: photoURL}}},
+		{{Action: KbAction{Type: "callback", Label: "✏️ Изменить фото", Payload: cbPayload("edit_result")}, Color: "secondary"}},
 		{{Action: KbAction{Type: "callback", Label: "✨ Сгенерировать еще", Payload: cbPayload("free_gen")}, Color: "primary"}},
 		{{Action: KbAction{Type: "callback", Label: "◀️ Назад", Payload: cbPayload("back")}, Color: "secondary"}},
 	}})

@@ -97,20 +97,35 @@ func (s *Sender) SendTextToUser(ctx context.Context, vkID int64, text string) er
 	return s.SendText(ctx, vkID, text, "")
 }
 
-// SendPhotoToUser реализует worker.MessageSender.
-func (s *Sender) SendPhotoToUser(ctx context.Context, vkID int64, photoURL string) error {
+// SendPhotoResult реализует worker.MessageSender — отправляет результат генерации с параметрами.
+func (s *Sender) SendPhotoResult(ctx context.Context, vkID int64, photoURL, model, resolution, aspectRatio string) error {
+	caption := "🎉 Готово! Вот твоя нейрофотосессия:"
 	kb := flows.KbAfterGen()
 	if s.userRepo != nil {
-		if u, err := s.userRepo.GetByVKID(ctx, vkID); err == nil && u != nil {
-			if u.PaidGens > 0 || u.Status == "paid" {
-				kb = flows.KbAfterGenPaid(photoURL)
+		if u, err := s.userRepo.GetByVKID(ctx, vkID); err == nil && u != nil && (u.PaidGens > 0 || u.Status == "paid") {
+			res := resolution
+			if res == "" {
+				res = "1k"
 			}
+			ar := aspectRatio
+			if ar == "" {
+				ar = "авто"
+			}
+			caption = fmt.Sprintf("🎉 Готово!\n\n🤖 Модель: %s\n🔧 Качество: %s\n📐 Формат: %s",
+				flows.ModelDisplayName(model), res, ar)
+			kb = flows.KbAfterGenPaid(photoURL)
 		}
 	}
-	if err := s.SendPhoto(ctx, vkID, photoURL, "🎉 Готово! Вот твоя нейрофотосессия:", kb); err != nil {
+	if err := s.SendPhoto(ctx, vkID, photoURL, caption, kb); err != nil {
 		return err
 	}
-	_ = s.stateMgr.Set(ctx, vkID, &flows.State{Step: flows.StepAfterGen, PhotoURL: photoURL})
+	_ = s.stateMgr.Set(ctx, vkID, &flows.State{
+		Step:        flows.StepAfterGen,
+		PhotoURL:    photoURL,
+		Model:       model,
+		Resolution:  resolution,
+		AspectRatio: aspectRatio,
+	})
 	return nil
 }
 

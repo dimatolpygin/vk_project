@@ -37,7 +37,7 @@ func HandleSettings(ctx context.Context, fc *Context, d *Deps) {
 		"🤖 Модель: %s\n"+
 		"🔧 Качество: %s\n"+
 		"📐 Формат: %s",
-		totalGens, modelDisplayName(model), resolution, aspectRatio)
+		totalGens, ModelDisplayName(model), resolution, aspectRatio)
 
 	prevStep := fc.State.Step
 	if prevStep == StepSettings {
@@ -54,7 +54,7 @@ func HandleSettings(ctx context.Context, fc *Context, d *Deps) {
 	_ = d.Sender.SendText(ctx, fc.VkID, text, KbSettings())
 }
 
-func modelDisplayName(modelID string) string {
+func ModelDisplayName(modelID string) string {
 	switch modelID {
 	case "google/nano-banana-pro":
 		return "Nano Banana Pro"

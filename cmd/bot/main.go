@@ -76,7 +76,21 @@ func main() {
 	vkClient := vkgroup.New(cfg.VKGroupToken, cfg.VKGroupID)
 	wsClient := wavespeed.New(cfg.WavespeedAPIKey)
 	ykClient := yukassa.New(cfg.YukassaShopID, cfg.YukassaSecretKey, cfg.YukassaWebhookSecret)
-	_, _ = s3.New(cfg.S3Endpoint, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Region)
+
+	var s3Client *s3.Client
+	if sc, err := s3.New(cfg.S3Endpoint, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Region); err != nil {
+		log.Warn().Err(err).Msg("S3 не настроен, продолжаем без хранилища")
+	} else {
+		s3Client = sc
+	}
+	var photoStorage flows.PhotoStorage
+	if s3Client != nil {
+		photoStorage = s3Client
+	}
+	var adminStorage admin.Storage
+	if s3Client != nil {
+		adminStorage = s3Client
+	}
 
 	// Asynq client
 	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
@@ -108,6 +122,7 @@ func main() {
 		VKGroupURL:    fmt.Sprintf("https://vk.com/club%d", cfg.VKGroupID),
 		DefaultModel:  cfg.WavespeedModel,
 		BotWebhookURL: cfg.BotWebhookURL,
+		Storage:       photoStorage,
 	}
 
 	registry := flows.NewRegistry(deps)
@@ -118,6 +133,7 @@ func main() {
 	adminServer := admin.NewServer(
 		cfg.AdminLogin, cfg.AdminPassword,
 		userRepo, tariffRepo, msgRepo, catRepo, promptRepo, statsRepo, orderRepo, rdb,
+		adminStorage,
 	)
 
 	// Start bot HTTP server

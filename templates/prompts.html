@@ -68,6 +68,15 @@
                     <label class="form-label">Порядок</label>
                     <input type="number" class="form-control" id="catSort" value="0">
                 </div>
+                <div class="mb-3">
+                    <label class="form-label">Превью (изображение)</label>
+                    <div class="input-group">
+                        <input type="file" class="form-control" id="catPreviewFile" accept="image/*"
+                               onchange="uploadCatPreview()">
+                        <input type="text" class="form-control" id="catPreviewURL" placeholder="URL превью">
+                    </div>
+                    <div id="catUploadStatus" class="text-muted small mt-1" style="display:none"></div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
@@ -119,6 +128,24 @@
 
 <script>
 let currentCatId = null;
+
+async function uploadCatPreview() {
+    const file = document.getElementById('catPreviewFile').files[0];
+    if (!file) return;
+    const el = document.getElementById('catUploadStatus');
+    el.style.display = 'inline';
+    el.textContent = 'Загружаю...';
+    const fd = new FormData();
+    fd.append('file', file);
+    const resp = await fetch('/admin/upload', {method: 'POST', body: fd});
+    if (resp.ok) {
+        const {url} = await resp.json();
+        document.getElementById('catPreviewURL').value = url;
+        el.textContent = '✓ Загружено';
+    } else {
+        el.textContent = '❌ Ошибка загрузки';
+    }
+}
 
 function showCatForm() {
     new bootstrap.Modal(document.getElementById('catModal')).show();

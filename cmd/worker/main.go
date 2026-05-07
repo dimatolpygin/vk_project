@@ -15,6 +15,7 @@ import (
 	"vk_neuro_bot/internal/config"
 	"vk_neuro_bot/internal/db"
 	"vk_neuro_bot/internal/repository"
+	"vk_neuro_bot/internal/s3"
 	"vk_neuro_bot/internal/vkgroup"
 	"vk_neuro_bot/internal/wavespeed"
 	"vk_neuro_bot/internal/worker"
@@ -54,7 +55,18 @@ func main() {
 	stateMgr := bot.NewStateManager(rdb)
 	sender := bot.NewSender(vkClient, msgRepo, userRepo, stateMgr)
 
-	generateHandler := worker.NewGenerateHandler(genRepo, sender, wsClient)
+	var s3Client *s3.Client
+	if sc, err := s3.New(cfg.S3Endpoint, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Region); err != nil {
+		log.Warn().Err(err).Msg("S3 не настроен, продолжаем без хранилища")
+	} else {
+		s3Client = sc
+	}
+	var workerStorage worker.PhotoStorage
+	if s3Client != nil {
+		workerStorage = s3Client
+	}
+
+	generateHandler := worker.NewGenerateHandler(genRepo, sender, wsClient, workerStorage)
 
 	srv := worker.NewAsynqServer(cfg.RedisAddr, cfg.RedisPassword)
 	mux := asynq.NewServeMux()

@@ -15,21 +15,29 @@ import (
 // Реализуется bot.Sender в пакете bot, инжектируется через main.go.
 type MessageSender interface {
 	SendTextToUser(ctx context.Context, vkID int64, text string) error
-	SendPhotoToUser(ctx context.Context, vkID int64, photoURL string) error
+	SendPhotoResult(ctx context.Context, vkID int64, photoURL, model, resolution, aspectRatio string) error
+}
+
+// PhotoStorage — интерфейс S3-хранилища для загрузки выходных фото.
+type PhotoStorage interface {
+	UploadFromURL(ctx context.Context, key, url string) (string, error)
+	PublicURL(key string) string
 }
 
 type GenerateHandler struct {
 	genRepo *repository.GenerationRepo
 	sender  MessageSender
 	ws      *wavespeed.Client
+	storage PhotoStorage
 }
 
 func NewGenerateHandler(
 	genRepo *repository.GenerationRepo,
 	sender MessageSender,
 	ws *wavespeed.Client,
+	storage PhotoStorage,
 ) *GenerateHandler {
-	return &GenerateHandler{genRepo: genRepo, sender: sender, ws: ws}
+	return &GenerateHandler{genRepo: genRepo, sender: sender, ws: ws, storage: storage}
 }
 
 func (h *GenerateHandler) ProcessTask(ctx context.Context, t *asynq.Task) error {
@@ -78,6 +86,16 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, t *asynq.Task) error 
 	}
 
 	outputURL := status.Outputs[0]
+
+	if h.storage != nil {
+		key := fmt.Sprintf("generation_users/%d/%d.jpg", p.UserVKID, p.GenerationID)
+		if _, err := h.storage.UploadFromURL(ctx, key, outputURL); err != nil {
+			log.Error().Err(err).Msg("не удалось загрузить результат в S3")
+		} else {
+			outputURL = h.storage.PublicURL(key)
+		}
+	}
+
 	if err := h.genRepo.SetCompleted(ctx, p.GenerationID, outputURL); err != nil {
 		log.Error().Err(err).Msg("не удалось сохранить output_photo_url")
 	}
@@ -87,7 +105,7 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, t *asynq.Task) error 
 		Str("output_url", outputURL).
 		Msg("генерация завершена, отправляю фото")
 
-	if err := h.sender.SendPhotoToUser(ctx, p.UserVKID, outputURL); err != nil {
+	if err := h.sender.SendPhotoResult(ctx, p.UserVKID, outputURL, p.Model, p.Resolution, p.AspectRatio); err != nil {
 		return fmt.Errorf("отправка фото: %w", err)
 	}
 

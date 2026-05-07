@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -9,6 +10,12 @@ import (
 	"vk_neuro_bot/internal/admin/handlers"
 	"vk_neuro_bot/internal/repository"
 )
+
+// Storage — интерфейс S3-хранилища, используется для загрузки файлов из админки.
+type Storage interface {
+	Upload(ctx context.Context, key string, data []byte, contentType string) (string, error)
+	PublicURL(key string) string
+}
 
 type Server struct {
 	router *chi.Mux
@@ -24,6 +31,7 @@ func NewServer(
 	stats *repository.StatsRepo,
 	orders *repository.OrderRepo,
 	rdb *redis.Client,
+	storage Storage,
 ) *Server {
 	s := &Server{}
 	r := chi.NewRouter()
@@ -36,12 +44,15 @@ func NewServer(
 	mh := handlers.NewMessagesHandler(msgs)
 	ch := handlers.NewCategoriesHandler(cats, prompts)
 	sh := handlers.NewStatsHandler(stats)
+	uploadH := handlers.NewUploadHandler(storage)
 
 	r.Get("/", sh.GetStats)
 
 	r.Route("/admin", func(r chi.Router) {
 		r.Get("/", sh.GetStats)
 		r.Get("/stats", sh.GetStats)
+
+		r.Post("/upload", uploadH.Upload)
 
 		r.Get("/users", uh.List)
 		r.Get("/users/{id}", uh.Detail)

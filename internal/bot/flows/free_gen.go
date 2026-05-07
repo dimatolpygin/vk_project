@@ -103,6 +103,17 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 	}
 
 	photoURL := photos[0]
+
+	uploadedURL := photoURL
+	if d.Storage != nil {
+		key := fmt.Sprintf("user_upload/%d/%d.jpg", fc.VkID, time.Now().Unix())
+		if _, err := d.Storage.UploadFromURL(ctx, key, photoURL); err != nil {
+			log.Error().Err(err).Msg("не удалось загрузить фото в S3, используем VK URL")
+		} else {
+			uploadedURL = d.Storage.PublicURL(key)
+		}
+	}
+
 	promptType := fc.State.PromptType
 	prompt := buildDefaultPrompt(fc.User.Gender, promptType)
 	if fc.State.CustomPrompt != "" {
@@ -123,7 +134,7 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		model = d.DefaultModel
 	}
 
-	gen, err := d.GenRepo.Create(ctx, fc.VkID, promptType, prompt, model, &photoURL)
+	gen, err := d.GenRepo.Create(ctx, fc.VkID, promptType, prompt, model, &uploadedURL)
 	if err != nil {
 		log.Error().Err(err).Msg("не удалось создать запись генерации")
 		_ = d.Sender.SendText(ctx, fc.VkID, "❌ Произошла ошибка. Попробуй позже.", KbBack())
@@ -149,7 +160,7 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		GenerationID: gen.ID,
 		UserVKID:     fc.VkID,
 		Model:        model,
-		Images:       []string{photoURL},
+		Images:       []string{uploadedURL},
 		Prompt:       prompt,
 		Resolution:   resolution,
 		AspectRatio:  aspectRatio,
