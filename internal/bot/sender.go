@@ -131,13 +131,16 @@ func (s *Sender) SendPhotoResult(ctx context.Context, vkID int64, photoURL, mode
 	if err := s.SendPhoto(ctx, vkID, photoURL, caption, kb); err != nil {
 		return err
 	}
-	_ = s.stateMgr.Set(ctx, vkID, &flows.State{
-		Step:        flows.StepAfterGen,
-		PhotoURL:    photoURL,
-		Model:       model,
-		Resolution:  resolution,
-		AspectRatio: aspectRatio,
-	})
+	st, err := s.stateMgr.Get(ctx, vkID)
+	if err != nil || st == nil {
+		st = &flows.State{}
+	}
+	st.Step = flows.StepAfterGen
+	st.PhotoURL = photoURL
+	st.Model = model
+	st.Resolution = resolution
+	st.AspectRatio = aspectRatio
+	_ = s.stateMgr.Set(ctx, vkID, st)
 	return nil
 }
 
