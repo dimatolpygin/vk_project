@@ -21,14 +21,16 @@ import (
 type Sender struct {
 	vk       *vkgroup.Client
 	msgRepo  *repository.MessageRepo
+	userRepo *repository.UserRepo
 	stateMgr flows.StateMgr
 	http     *http.Client
 }
 
-func NewSender(vk *vkgroup.Client, msgRepo *repository.MessageRepo, stateMgr flows.StateMgr) *Sender {
+func NewSender(vk *vkgroup.Client, msgRepo *repository.MessageRepo, userRepo *repository.UserRepo, stateMgr flows.StateMgr) *Sender {
 	return &Sender{
 		vk:       vk,
 		msgRepo:  msgRepo,
+		userRepo: userRepo,
 		stateMgr: stateMgr,
 		http:     &http.Client{Timeout: 30 * time.Second},
 	}
@@ -97,7 +99,15 @@ func (s *Sender) SendTextToUser(ctx context.Context, vkID int64, text string) er
 
 // SendPhotoToUser реализует worker.MessageSender.
 func (s *Sender) SendPhotoToUser(ctx context.Context, vkID int64, photoURL string) error {
-	if err := s.SendPhoto(ctx, vkID, photoURL, "🎉 Готово! Вот твоя нейрофотосессия:", flows.KbAfterGen()); err != nil {
+	kb := flows.KbAfterGen()
+	if s.userRepo != nil {
+		if u, err := s.userRepo.GetByVKID(ctx, vkID); err == nil && u != nil {
+			if u.PaidGens > 0 || u.Status == "paid" {
+				kb = flows.KbAfterGenPaid(photoURL)
+			}
+		}
+	}
+	if err := s.SendPhoto(ctx, vkID, photoURL, "🎉 Готово! Вот твоя нейрофотосессия:", kb); err != nil {
 		return err
 	}
 	_ = s.stateMgr.Set(ctx, vkID, &flows.State{Step: flows.StepAfterGen, PhotoURL: photoURL})

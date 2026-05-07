@@ -12,7 +12,8 @@ import (
 
 func HandleAfterGen(ctx context.Context, fc *Context, d *Deps) {
 	if fc.State.PhotoURL != "" {
-		_ = d.Sender.SendPhoto(ctx, fc.VkID, fc.State.PhotoURL, "🎉 Готово! Вот твоя нейрофотосессия:", KbAfterGen())
+		kb := afterGenKb(fc)
+		_ = d.Sender.SendPhoto(ctx, fc.VkID, fc.State.PhotoURL, "🎉 Готово! Вот твоя нейрофотосессия:", kb)
 		return
 	}
 	if fc.User.HasGens() {
@@ -20,6 +21,13 @@ func HandleAfterGen(ctx context.Context, fc *Context, d *Deps) {
 	} else {
 		HandleWelcome(ctx, fc, d)
 	}
+}
+
+func afterGenKb(fc *Context) string {
+	if fc.User.PaidGens > 0 || fc.User.Status == "paid" {
+		return KbAfterGenPaid(fc.State.PhotoURL)
+	}
+	return KbAfterGen()
 }
 
 func HandleFreeGenStart(ctx context.Context, fc *Context, d *Deps) {

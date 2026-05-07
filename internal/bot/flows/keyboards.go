@@ -87,6 +87,14 @@ func KbAfterGen() string {
 	}})
 }
 
+func KbAfterGenPaid(photoURL string) string {
+	return kbJSON(&Keyboard{Inline: true, Buttons: [][]KbBtn{
+		{{Action: KbAction{Type: "open_link", Label: "⬇️ Скачать фото", Link: photoURL}}},
+		{{Action: KbAction{Type: "callback", Label: "✨ Сгенерировать еще", Payload: cbPayload("free_gen")}, Color: "primary"}},
+		{{Action: KbAction{Type: "callback", Label: "◀️ Назад", Payload: cbPayload("back")}, Color: "secondary"}},
+	}})
+}
+
 func KbTariffs(tariffs []*repository.Tariff) string {
 	kb := &Keyboard{Inline: true}
 	for _, t := range tariffs {
