@@ -107,12 +107,12 @@ func (c *Client) SendMessage(ctx context.Context, p SendMessageParams) error {
 	return err
 }
 
-func (c *Client) SendEventAnswer(ctx context.Context, eventID string, userID int64, text string) error {
+func (c *Client) SendEventAnswer(ctx context.Context, eventID string, userID, peerID int64, text string) error {
 	eventData, _ := json.Marshal(map[string]string{"type": "show_snackbar", "text": text})
 	params := url.Values{
-		"event_id": {eventID},
-		"user_id":  {strconv.FormatInt(userID, 10)},
-		"peer_id":  {strconv.FormatInt(userID, 10)},
+		"event_id":   {eventID},
+		"user_id":    {strconv.FormatInt(userID, 10)},
+		"peer_id":    {strconv.FormatInt(peerID, 10)},
 		"event_data": {string(eventData)},
 	}
 	_, err := c.call(ctx, "messages.sendEventAnswer", params)

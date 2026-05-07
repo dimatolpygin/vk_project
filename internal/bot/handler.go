@@ -9,7 +9,6 @@ import (
 	"vk_neuro_bot/internal/repository"
 )
 
-// VKEvent — входящее событие от VK Callback API.
 type VKEvent struct {
 	Type    string          `json:"type"`
 	Object  json.RawMessage `json:"object"`
@@ -60,7 +59,6 @@ type CallbackPayload struct {
 	PromptID   int    `json:"prompt_id,omitempty"`
 }
 
-// Handler — диспетчер событий VK.
 type Handler struct {
 	state     *StateManager
 	sender    *Sender
@@ -92,16 +90,17 @@ func (h *Handler) Handle(ctx context.Context, event *VKEvent) {
 	case "message_event":
 		h.handleCallback(ctx, event.Object)
 	default:
-		log.Debug().Str("type", event.Type).Msg("неизвестный тип события VK")
+		log.Debug().Str("type", event.Type).Msg("unknown VK event type")
 	}
 }
 
 func (h *Handler) handleMessage(ctx context.Context, raw json.RawMessage) {
 	var obj MessageNewObject
 	if err := json.Unmarshal(raw, &obj); err != nil {
-		log.Error().Err(err).Msg("не удалось распарсить message_new")
+		log.Error().Err(err).Msg("failed to parse message_new")
 		return
 	}
+
 	msg := obj.Message
 	vkID := msg.FromID
 	if vkID <= 0 {
@@ -113,11 +112,15 @@ func (h *Handler) handleMessage(ctx context.Context, raw json.RawMessage) {
 		return
 	}
 
-	log.Info().Int64("vk_id", vkID).Str("text", msg.Text).Msg("входящее сообщение")
+	log.Info().Int64("vk_id", vkID).Str("text", msg.Text).Msg("incoming message")
 
 	state, err := h.state.Get(ctx, vkID)
 	if err != nil {
-		log.Error().Err(err).Msg("не удалось получить состояние")
+		log.Error().Err(err).Msg("failed to get state")
+		return
+	}
+
+	if h.handleMessagePayload(ctx, msg, user, state) {
 		return
 	}
 
@@ -134,15 +137,17 @@ func (h *Handler) handleMessage(ctx context.Context, raw json.RawMessage) {
 func (h *Handler) handleCallback(ctx context.Context, raw json.RawMessage) {
 	var obj MessageEventObject
 	if err := json.Unmarshal(raw, &obj); err != nil {
-		log.Error().Err(err).Msg("не удалось распарсить message_event")
+		log.Error().Err(err).Msg("failed to parse message_event")
 		return
 	}
 
 	var cbPayload CallbackPayload
 	if err := json.Unmarshal(obj.Payload, &cbPayload); err != nil {
-		log.Error().Err(err).Msg("не удалось распарсить callback payload")
+		log.Error().Err(err).Msg("failed to parse callback payload")
 		return
 	}
+
+	h.answerCallbackEvent(ctx, &obj, &cbPayload)
 
 	vkID := obj.UserID
 	user := h.ensureUser(ctx, vkID, "", "")
@@ -150,7 +155,7 @@ func (h *Handler) handleCallback(ctx context.Context, raw json.RawMessage) {
 		return
 	}
 
-	log.Info().Int64("vk_id", vkID).Str("type", cbPayload.Type).Msg("нажата кнопка")
+	log.Info().Int64("vk_id", vkID).Str("type", cbPayload.Type).Msg("callback button pressed")
 
 	_ = h.statsRepo.RecordClick(ctx, vkID, cbPayload.Type)
 
@@ -172,19 +177,70 @@ func (h *Handler) handleCallback(ctx context.Context, raw json.RawMessage) {
 	h.registry.HandleCallback(ctx, fc)
 }
 
+func (h *Handler) handleMessagePayload(ctx context.Context, msg VKMessage, user *repository.User, state *flows.State) bool {
+	if msg.Payload == "" {
+		return false
+	}
+
+	var cbPayload CallbackPayload
+	if err := json.Unmarshal([]byte(msg.Payload), &cbPayload); err != nil || cbPayload.Type == "" {
+		if err != nil {
+			log.Debug().Err(err).Int64("vk_id", msg.FromID).Str("payload", msg.Payload).Msg("failed to parse message payload")
+		}
+		return false
+	}
+
+	log.Info().Int64("vk_id", msg.FromID).Str("type", cbPayload.Type).Msg("reply keyboard button pressed")
+	_ = h.statsRepo.RecordClick(ctx, msg.FromID, cbPayload.Type)
+
+	fc := &flows.Context{
+		VkID:  msg.FromID,
+		User:  toFlowUser(user),
+		State: state,
+		Callback: &flows.CallbackData{
+			Type:       cbPayload.Type,
+			TariffID:   cbPayload.TariffID,
+			CategoryID: cbPayload.CategoryID,
+			PromptID:   cbPayload.PromptID,
+		},
+	}
+
+	h.registry.HandleCallback(ctx, fc)
+	return true
+}
+
+func (h *Handler) answerCallbackEvent(ctx context.Context, obj *MessageEventObject, cbPayload *CallbackPayload) {
+	if obj == nil || cbPayload == nil || obj.EventID == "" || !needsCallbackAnswer(cbPayload.Type) {
+		return
+	}
+
+	if err := h.sender.vk.SendEventAnswer(ctx, obj.EventID, obj.UserID, obj.PeerID, "Открываю..."); err != nil {
+		log.Warn().Err(err).Int64("vk_id", obj.UserID).Str("type", cbPayload.Type).Msg("failed to acknowledge callback event")
+	}
+}
+
+func needsCallbackAnswer(callbackType string) bool {
+	switch callbackType {
+	case "main_menu", "buy_gens", "settings", "support", "examples":
+		return true
+	default:
+		return false
+	}
+}
+
 func (h *Handler) ensureUser(ctx context.Context, vkID int64, username, firstName string) *repository.User {
 	user, err := h.userRepo.GetByVKID(ctx, vkID)
 	if err != nil {
-		log.Error().Err(err).Int64("vk_id", vkID).Msg("ошибка получения пользователя")
+		log.Error().Err(err).Int64("vk_id", vkID).Msg("failed to fetch user")
 		return nil
 	}
 	if user == nil {
 		user, err = h.userRepo.Create(ctx, vkID, username, firstName, nil)
 		if err != nil {
-			log.Error().Err(err).Int64("vk_id", vkID).Msg("ошибка создания пользователя")
+			log.Error().Err(err).Int64("vk_id", vkID).Msg("failed to create user")
 			return nil
 		}
-		log.Info().Int64("vk_id", vkID).Msg("новый пользователь зарегистрирован")
+		log.Info().Int64("vk_id", vkID).Msg("user created")
 	}
 	return user
 }
@@ -195,6 +251,7 @@ func extractPhotos(attachments []VKAttachment) []string {
 		if a.Type != "photo" {
 			continue
 		}
+
 		best := ""
 		maxW := 0
 		for _, sz := range a.Photo.Sizes {
