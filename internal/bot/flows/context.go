@@ -19,6 +19,7 @@ const (
 	StepAwaitingPhoto       = "awaiting_photo"
 	StepAwaitingPrompt      = "awaiting_prompt"
 	StepAwaitingPhotoEdit   = "awaiting_photo_edit"
+	StepAwaitingEditPrompt  = "awaiting_edit_prompt"
 	StepAwaitingResultEdit  = "awaiting_result_edit"
 	StepMainMenu            = "main_menu"
 	StepAfterGen            = "after_gen"

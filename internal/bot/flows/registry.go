@@ -29,6 +29,8 @@ func (r *Registry) HandleMessage(ctx context.Context, fc *Context) {
 		HandleAwaitingPrompt(ctx, fc, r.d)
 	case StepAwaitingPhotoEdit:
 		HandleAwaitingPhotoEdit(ctx, fc, r.d)
+	case StepAwaitingEditPrompt:
+		HandleResultEditPrompt(ctx, fc, r.d)
 	case StepAwaitingResultEdit:
 		HandleResultEditPrompt(ctx, fc, r.d)
 	default:

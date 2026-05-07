@@ -191,7 +191,35 @@ func HandleAwaitingPrompt(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func HandleAwaitingPhotoEdit(ctx context.Context, fc *Context, d *Deps) {
-	HandleAwaitingPhoto(ctx, fc, d)
+	photos := []string{}
+	if fc.Message != nil {
+		photos = fc.Message.Photos
+	}
+	if len(photos) == 0 {
+		_ = d.Sender.SendMsg(ctx, fc.VkID, "edit_photo_intro", KbBack())
+		return
+	}
+	if !fc.User.HasGens() {
+		_ = d.Sender.SendMsg(ctx, fc.VkID, "no_gens_left", KbBack())
+		return
+	}
+
+	photoURL := photos[0]
+	uploadedURL := photoURL
+	if d.Storage != nil {
+		key := fmt.Sprintf("user_upload/%d/%d.png", fc.VkID, time.Now().Unix())
+		if _, err := d.Storage.UploadFromURL(ctx, key, photoURL); err != nil {
+			log.Error().Err(err).Msg("не удалось загрузить фото в S3, используем VK URL")
+		} else {
+			uploadedURL = d.Storage.PublicURL(key)
+		}
+	}
+
+	state := fc.State
+	state.Step = StepAwaitingEditPrompt
+	state.PhotoURL = uploadedURL
+	_ = d.State.Set(ctx, fc.VkID, state)
+	_ = d.Sender.SendText(ctx, fc.VkID, "✏️ Отлично! Теперь опиши, что нужно изменить на фото:", KbBack())
 }
 
 func buildDefaultPrompt(gender, promptType string) string {
