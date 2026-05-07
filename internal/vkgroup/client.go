@@ -115,7 +115,7 @@ func (c *Client) SendEventAnswer(ctx context.Context, eventID string, userID, pe
 		"peer_id":    {strconv.FormatInt(peerID, 10)},
 		"event_data": {string(eventData)},
 	}
-	_, err := c.call(ctx, "messages.sendEventAnswer", params)
+	_, err := c.call(ctx, "messages.sendMessageEventAnswer", params)
 	return err
 }
 
