@@ -8,7 +8,6 @@ import (
 )
 
 func HandleWelcome(ctx context.Context, fc *Context, d *Deps) {
-	// Обрабатываем реферальный код из payload стартового сообщения
 	if fc.Message != nil && strings.HasPrefix(fc.Message.Text, "/start ") {
 		refCode := strings.TrimPrefix(fc.Message.Text, "/start ")
 		if refCode != "" {
@@ -19,7 +18,7 @@ func HandleWelcome(ctx context.Context, fc *Context, d *Deps) {
 		}
 	}
 
-	if err := d.Sender.SendMsg(ctx, fc.VkID, "welcome", KbWelcome()); err != nil {
+	if err := sendScreen(ctx, d, fc.VkID, "welcome", ScreenOptions{}); err != nil {
 		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("ошибка отправки welcome")
 	}
 	_ = d.State.SetStep(ctx, fc.VkID, StepWelcome)
@@ -34,15 +33,20 @@ func HandleBack(ctx context.Context, fc *Context, d *Deps) {
 		}
 		return
 	}
+
 	if fc.State.Step == StepTariffs && fc.State.PrevStep == StepSettings {
 		HandleSettings(ctx, fc, d)
 		return
 	}
+
 	if fc.State.Step == StepTariffs && fc.State.PrevStep == StepAfterGen && fc.State.PhotoURL != "" {
-		_ = d.State.Set(ctx, fc.VkID, &State{Step: StepAfterGen, PhotoURL: fc.State.PhotoURL})
-		_ = d.Sender.SendPhoto(ctx, fc.VkID, fc.State.PhotoURL, "🎉 Готово! Вот твоя нейрофотосессия:", KbAfterGen())
+		state := *fc.State
+		state.Step = StepAfterGen
+		_ = d.State.Set(ctx, fc.VkID, &state)
+		_ = showAfterGenScreen(ctx, fc, d, fc.State.PhotoURL)
 		return
 	}
+
 	if fc.User.Status == "paid" || fc.User.HasGens() {
 		HandleMainMenu(ctx, fc, d)
 	} else {

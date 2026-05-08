@@ -5,28 +5,28 @@ import (
 
 	"github.com/hibiken/asynq"
 	"vk_neuro_bot/internal/repository"
+	"vk_neuro_bot/internal/vkgroup"
 	"vk_neuro_bot/internal/wavespeed"
 	"vk_neuro_bot/internal/yukassa"
-	"vk_neuro_bot/internal/vkgroup"
 )
 
 // ─── Shared types ────────────────────────────────────────────────────────────
 
 const (
-	StepWelcome             = "welcome"
-	StepFreeGenStart        = "free_gen_start"
-	StepAwaitingGender      = "awaiting_gender"
-	StepAwaitingPhoto       = "awaiting_photo"
-	StepAwaitingPrompt      = "awaiting_prompt"
-	StepAwaitingPhotoEdit   = "awaiting_photo_edit"
-	StepAwaitingEditPrompt  = "awaiting_edit_prompt"
-	StepAwaitingResultEdit  = "awaiting_result_edit"
-	StepMainMenu            = "main_menu"
-	StepAfterGen            = "after_gen"
-	StepTariffs             = "tariffs"
-	StepSettings            = "settings"
-	StepCoupleMenu          = "couple_menu"
-	StepAwaitingSavedPhoto  = "awaiting_saved_photo"
+	StepWelcome            = "welcome"
+	StepFreeGenStart       = "free_gen_start"
+	StepAwaitingGender     = "awaiting_gender"
+	StepAwaitingPhoto      = "awaiting_photo"
+	StepAwaitingPrompt     = "awaiting_prompt"
+	StepAwaitingPhotoEdit  = "awaiting_photo_edit"
+	StepAwaitingEditPrompt = "awaiting_edit_prompt"
+	StepAwaitingResultEdit = "awaiting_result_edit"
+	StepMainMenu           = "main_menu"
+	StepAfterGen           = "after_gen"
+	StepTariffs            = "tariffs"
+	StepSettings           = "settings"
+	StepCoupleMenu         = "couple_menu"
+	StepAwaitingSavedPhoto = "awaiting_saved_photo"
 )
 
 type User struct {
@@ -97,6 +97,14 @@ type Context struct {
 	Callback *CallbackData
 }
 
+type ScreenMessage struct {
+	Key      string
+	Text     string
+	ImageURL *string
+	Keyboard string
+	CacheKey string
+}
+
 // PhotoStorage — интерфейс S3-хранилища фото.
 type PhotoStorage interface {
 	UploadFromURL(ctx context.Context, key, url string) (string, error)
@@ -110,6 +118,9 @@ type Sender interface {
 	SendMsg(ctx context.Context, vkID int64, key string, kbJSON string) error
 	SendText(ctx context.Context, vkID int64, text string, kbJSON string) error
 	SendPhoto(ctx context.Context, vkID int64, photoURL, caption, kbJSON string) error
+	SendScreen(ctx context.Context, vkID int64, screen *ScreenMessage) error
+	SendScreenText(ctx context.Context, vkID int64, key string, data map[string]any) error
+	SendPhotoResult(ctx context.Context, vkID int64, photoURL, model, resolution, aspectRatio string) error
 }
 
 // StateMgr — интерфейс управления состоянием (реализует bot.StateManager).
@@ -123,17 +134,17 @@ type StateMgr interface {
 // ─── Deps ────────────────────────────────────────────────────────────────────
 
 type Deps struct {
-	Sender       Sender
-	State        StateMgr
-	UserRepo     *repository.UserRepo
-	GenRepo      *repository.GenerationRepo
-	TariffRepo   *repository.TariffRepo
-	OrderRepo    *repository.OrderRepo
-	MsgRepo      *repository.MessageRepo
-	CatRepo      *repository.CategoryRepo
-	PromptRepo   *repository.PromptRepo
-	RefRepo      *repository.ReferralRepo
-	StatsRepo    *repository.StatsRepo
+	Sender        Sender
+	State         StateMgr
+	UserRepo      *repository.UserRepo
+	GenRepo       *repository.GenerationRepo
+	TariffRepo    *repository.TariffRepo
+	OrderRepo     *repository.OrderRepo
+	MsgRepo       *repository.MessageRepo
+	CatRepo       *repository.CategoryRepo
+	PromptRepo    *repository.PromptRepo
+	RefRepo       *repository.ReferralRepo
+	StatsRepo     *repository.StatsRepo
 	AsynqClient   *asynq.Client
 	WaveSpeed     *wavespeed.Client
 	Yukassa       *yukassa.Client

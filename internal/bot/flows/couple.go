@@ -4,14 +4,16 @@ import "context"
 
 func HandleCoupleStart(ctx context.Context, fc *Context, d *Deps) {
 	if !fc.User.HasGens() {
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "no_gens_left", KbBack())
+		_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
 		return
 	}
-	cats, err := d.CatRepo.ListActiveCouple(ctx)
-	if err != nil || len(cats) == 0 {
-		_ = d.Sender.SendText(ctx, fc.VkID, "Категории пока не добавлены.", KbBack())
+
+	categories, err := d.CatRepo.ListActiveCouple(ctx)
+	if err != nil || len(categories) == 0 {
+		_ = sendScreen(ctx, d, fc.VkID, "categories_empty", ScreenOptions{})
 		return
 	}
+
 	_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{Step: StepCoupleMenu, PromptType: "couple"}, fc.State))
-	_ = d.Sender.SendMsg(ctx, fc.VkID, "couple_intro", KbCategories(cats))
+	_ = sendScreen(ctx, d, fc.VkID, "couple_intro", ScreenOptions{PrefixRows: categoryRows(categories)})
 }

@@ -71,6 +71,9 @@ func main() {
 	promptRepo := repository.NewPromptRepo(pool)
 	refRepo := repository.NewReferralRepo(pool)
 	statsRepo := repository.NewStatsRepo(pool)
+	if err := msgRepo.EnsureDefaults(ctx); err != nil {
+		log.Fatal().Err(err).Msg("не удалось синхронизировать экраны контента")
+	}
 
 	// External clients
 	vkClient := vkgroup.New(cfg.VKGroupToken, cfg.VKGroupID)

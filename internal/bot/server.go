@@ -150,7 +150,7 @@ func (s *Server) handleWavespeedWebhook(w http.ResponseWriter, r *http.Request) 
 		}
 		outputURL := event.Outputs[0]
 		_ = s.flowDeps.GenRepo.SetCompleted(r.Context(), gen.ID, outputURL)
-		_ = s.flowDeps.Sender.SendPhoto(r.Context(), gen.UserVKID, outputURL, "🎉 Готово! Вот твоя нейрофотосессия:", flows.KbAfterGen())
+		_ = s.flowDeps.Sender.SendPhotoResult(r.Context(), gen.UserVKID, outputURL, gen.Model, "", "")
 		wsSt, err2 := s.flowDeps.State.Get(r.Context(), gen.UserVKID)
 		if err2 != nil || wsSt == nil {
 			wsSt = &flows.State{}

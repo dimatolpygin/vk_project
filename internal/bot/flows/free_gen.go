@@ -12,8 +12,7 @@ import (
 
 func HandleAfterGen(ctx context.Context, fc *Context, d *Deps) {
 	if fc.State.PhotoURL != "" {
-		kb := afterGenKb(fc)
-		_ = d.Sender.SendPhoto(ctx, fc.VkID, fc.State.PhotoURL, "🎉 Готово! Вот твоя нейрофотосессия:", kb)
+		_ = showAfterGenScreen(ctx, fc, d, fc.State.PhotoURL)
 		return
 	}
 	if fc.User.HasGens() {
@@ -21,13 +20,6 @@ func HandleAfterGen(ctx context.Context, fc *Context, d *Deps) {
 	} else {
 		HandleWelcome(ctx, fc, d)
 	}
-}
-
-func afterGenKb(fc *Context) string {
-	if fc.User.PaidGens > 0 || fc.User.Status == "paid" {
-		return KbAfterGenPaid(fc.State.PhotoURL)
-	}
-	return KbAfterGen()
 }
 
 func HandleFreeGenStart(ctx context.Context, fc *Context, d *Deps) {
@@ -43,7 +35,9 @@ func HandleFreeGenStart(ctx context.Context, fc *Context, d *Deps) {
 	}
 
 	if !isMember {
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "subscribe_cta", KbSubscribeCTA(d.VKGroupURL))
+		_ = sendScreen(ctx, d, fc.VkID, "subscribe_cta", ScreenOptions{
+			Links: map[string]string{"subscribe_group": d.VKGroupURL},
+		})
 		_ = d.State.SetStep(ctx, fc.VkID, StepFreeGenStart)
 		return
 	}
@@ -54,7 +48,9 @@ func HandleFreeGenStart(ctx context.Context, fc *Context, d *Deps) {
 func HandleCheckSubscription(ctx context.Context, fc *Context, d *Deps) {
 	isMember, err := d.VKClient.IsMember(ctx, fc.VkID)
 	if err != nil || !isMember {
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "subscribe_cta", KbSubscribeCTA(d.VKGroupURL))
+		_ = sendScreen(ctx, d, fc.VkID, "subscribe_cta", ScreenOptions{
+			Links: map[string]string{"subscribe_group": d.VKGroupURL},
+		})
 		return
 	}
 
@@ -65,11 +61,12 @@ func HandleCheckSubscription(ctx context.Context, fc *Context, d *Deps) {
 func proceedToPhotoRequest(ctx context.Context, fc *Context, d *Deps, promptType string) {
 	if fc.User.Gender == "unknown" {
 		_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{Step: StepAwaitingGender, PromptType: promptType}, fc.State))
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "gender_select", KbGender())
+		_ = sendScreen(ctx, d, fc.VkID, "gender_select", ScreenOptions{})
 		return
 	}
+
 	_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{Step: StepAwaitingPhoto, PromptType: promptType}, fc.State))
-	_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
+	_ = sendScreen(ctx, d, fc.VkID, "photo_requirements", ScreenOptions{})
 }
 
 func HandleGenAgain(ctx context.Context, fc *Context, d *Deps) {
@@ -84,7 +81,9 @@ func HandleGenAgain(ctx context.Context, fc *Context, d *Deps) {
 			isMember = false
 		}
 		if !isMember {
-			_ = d.Sender.SendMsg(ctx, fc.VkID, "subscribe_cta", KbSubscribeCTA(d.VKGroupURL))
+			_ = sendScreen(ctx, d, fc.VkID, "subscribe_cta", ScreenOptions{
+				Links: map[string]string{"subscribe_group": d.VKGroupURL},
+			})
 			_ = d.State.SetStep(ctx, fc.VkID, StepFreeGenStart)
 			return
 		}
@@ -94,7 +93,7 @@ func HandleGenAgain(ctx context.Context, fc *Context, d *Deps) {
 		savedState := *fc.State
 		savedState.Step = StepAwaitingGender
 		_ = d.State.Set(ctx, fc.VkID, &savedState)
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "gender_select", KbGender())
+		_ = sendScreen(ctx, d, fc.VkID, "gender_select", ScreenOptions{})
 		return
 	}
 
@@ -104,11 +103,11 @@ func HandleGenAgain(ctx context.Context, fc *Context, d *Deps) {
 	if fc.State.PromptType == "edit" {
 		savedState.Step = StepAwaitingPhotoEdit
 		_ = d.State.Set(ctx, fc.VkID, &savedState)
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "edit_photo_intro", KbBack())
+		_ = sendScreen(ctx, d, fc.VkID, "edit_photo_intro", ScreenOptions{})
 	} else {
 		savedState.Step = StepAwaitingPhoto
 		_ = d.State.Set(ctx, fc.VkID, &savedState)
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
+		_ = sendScreen(ctx, d, fc.VkID, "photo_requirements", ScreenOptions{})
 	}
 }
 
@@ -123,38 +122,34 @@ func HandleGenderSelect(ctx context.Context, fc *Context, d *Deps, gender string
 
 	newState := *fc.State
 	newState.PromptType = promptType
-
 	if promptType == "edit" {
 		newState.Step = StepAwaitingPhotoEdit
 		_ = d.State.Set(ctx, fc.VkID, &newState)
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "edit_photo_intro", KbBack())
-	} else {
-		newState.Step = StepAwaitingPhoto
-		_ = d.State.Set(ctx, fc.VkID, &newState)
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
+		_ = sendScreen(ctx, d, fc.VkID, "edit_photo_intro", ScreenOptions{})
+		return
 	}
+
+	newState.Step = StepAwaitingPhoto
+	_ = d.State.Set(ctx, fc.VkID, &newState)
+	_ = sendScreen(ctx, d, fc.VkID, "photo_requirements", ScreenOptions{})
 }
 
 func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
-	photos := []string{}
+	var photos []string
 	if fc.Message != nil {
 		photos = fc.Message.Photos
 	}
 
-	// Если фото не прислали, напоминаем
 	if len(photos) == 0 {
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
+		_ = sendScreen(ctx, d, fc.VkID, "photo_requirements", ScreenOptions{})
 		return
 	}
-
-	// Проверяем остаток генераций
 	if !fc.User.HasGens() {
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "no_gens_left", KbBack())
+		_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
 		return
 	}
 
 	photoURL := photos[0]
-
 	uploadedURL := photoURL
 	if d.Storage != nil {
 		key := fmt.Sprintf("user_upload/%d/%d.png", fc.VkID, time.Now().Unix())
@@ -171,18 +166,15 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		prompt = fc.State.CustomPrompt
 	}
 	if fc.State.TemplateID > 0 {
-		p, err := d.PromptRepo.GetByID(ctx, fc.State.TemplateID)
-		if err == nil && p != nil {
-			prompt = p.Prompt
+		if templatePrompt, err := d.PromptRepo.GetByID(ctx, fc.State.TemplateID); err == nil && templatePrompt != nil {
+			prompt = templatePrompt.Prompt
 		}
 	}
 
-	startGeneration(ctx, fc, d, uploadedURL, prompt, promptType, "")
+	startGeneration(ctx, fc, d, uploadedURL, prompt, promptType, "generating_wait", nil)
 }
 
-// startGeneration создаёт запись генерации, списывает генерацию и ставит задачу в очередь.
-// waitMsg — кастомный текст ожидания; если пустой, используется шаблон generating_wait.
-func startGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, prompt, promptType, waitMsg string) {
+func startGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, prompt, promptType, waitKey string, waitData map[string]any) {
 	model := fc.State.Model
 	if model == "" {
 		model = fc.User.PrefModel
@@ -194,29 +186,16 @@ func startGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, prompt
 	gen, err := d.GenRepo.Create(ctx, fc.VkID, promptType, prompt, model, &photoURL)
 	if err != nil {
 		log.Error().Err(err).Msg("не удалось создать запись генерации")
-		_ = d.Sender.SendText(ctx, fc.VkID, "❌ Произошла ошибка. Попробуй позже.", KbBack())
+		_ = sendScreen(ctx, d, fc.VkID, "generation_error", ScreenOptions{})
 		return
 	}
 
 	_ = d.UserRepo.DecrementGens(ctx, fc.VkID)
 	_ = d.State.SetStep(ctx, fc.VkID, StepMainMenu)
-	if waitMsg == "" {
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "generating_wait", "")
-	} else {
-		_ = d.Sender.SendText(ctx, fc.VkID, waitMsg, "")
-	}
+	_ = sendScreen(ctx, d, fc.VkID, waitKey, ScreenOptions{Data: waitData})
 
-	resolution := fc.State.Resolution
-	if resolution == "" {
-		resolution = fc.User.PrefResolution
-	}
-	if resolution == "" {
-		resolution = "1k"
-	}
-	aspectRatio := fc.State.AspectRatio
-	if aspectRatio == "" {
-		aspectRatio = fc.User.PrefAspectRatio
-	}
+	resolution := currentResolution(fc)
+	aspectRatio := currentAspectRatio(fc)
 	payload := worker.GeneratePayload{
 		GenerationID: gen.ID,
 		UserVKID:     fc.VkID,
@@ -234,13 +213,13 @@ func startGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, prompt
 	)
 	if _, err := d.AsynqClient.Enqueue(task); err != nil {
 		log.Error().Err(err).Msg("не удалось поставить задачу в очередь")
-		_ = d.Sender.SendText(ctx, fc.VkID, "❌ Ошибка запуска генерации. Попробуй позже.", KbMainMenu())
+		_ = sendScreen(ctx, d, fc.VkID, "generation_start_error", ScreenOptions{})
 	}
 }
 
 func HandleAwaitingPrompt(ctx context.Context, fc *Context, d *Deps) {
 	if fc.Message == nil || fc.Message.Text == "" {
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "custom_prompt_intro", KbBack())
+		_ = sendScreen(ctx, d, fc.VkID, "custom_prompt_intro", ScreenOptions{})
 		return
 	}
 
@@ -248,20 +227,20 @@ func HandleAwaitingPrompt(ctx context.Context, fc *Context, d *Deps) {
 	state.Step = StepAwaitingPhoto
 	state.CustomPrompt = fc.Message.Text
 	_ = d.State.Set(ctx, fc.VkID, state)
-	_ = d.Sender.SendMsg(ctx, fc.VkID, "photo_requirements", KbBack())
+	_ = sendScreen(ctx, d, fc.VkID, "photo_requirements", ScreenOptions{})
 }
 
 func HandleAwaitingPhotoEdit(ctx context.Context, fc *Context, d *Deps) {
-	photos := []string{}
+	var photos []string
 	if fc.Message != nil {
 		photos = fc.Message.Photos
 	}
 	if len(photos) == 0 {
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "edit_photo_intro", KbBack())
+		_ = sendScreen(ctx, d, fc.VkID, "edit_photo_intro", ScreenOptions{})
 		return
 	}
 	if !fc.User.HasGens() {
-		_ = d.Sender.SendMsg(ctx, fc.VkID, "no_gens_left", KbBack())
+		_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
 		return
 	}
 
@@ -286,7 +265,60 @@ func HandleAwaitingPhotoEdit(ctx context.Context, fc *Context, d *Deps) {
 		launchEditGeneration(ctx, fc, d, uploadedURL, state.CustomPrompt)
 		return
 	}
-	_ = d.Sender.SendText(ctx, fc.VkID, "✏️ Отлично! Теперь опиши, что нужно изменить на фото:", KbBack())
+
+	_ = sendScreen(ctx, d, fc.VkID, "edit_result_prompt", ScreenOptions{})
+}
+
+func showAfterGenScreen(ctx context.Context, fc *Context, d *Deps, photoURL string) error {
+	screenKey := "after_gen_free"
+	options := ScreenOptions{ImageOverride: &photoURL}
+
+	if fc.User.PaidGens > 0 || fc.User.Status == "paid" {
+		screenKey = "after_gen_paid"
+		options.Links = map[string]string{"download_photo": photoURL}
+		options.Data = map[string]any{
+			"ModelName":   ModelDisplayName(currentModel(fc, d)),
+			"Resolution":  currentResolution(fc),
+			"AspectRatio": currentAspectRatioLabel(fc),
+		}
+	}
+
+	return sendScreen(ctx, d, fc.VkID, screenKey, options)
+}
+
+func currentModel(fc *Context, d *Deps) string {
+	if fc.State.Model != "" {
+		return fc.State.Model
+	}
+	if fc.User.PrefModel != "" {
+		return fc.User.PrefModel
+	}
+	return d.DefaultModel
+}
+
+func currentResolution(fc *Context) string {
+	if fc.State.Resolution != "" {
+		return fc.State.Resolution
+	}
+	if fc.User.PrefResolution != "" {
+		return fc.User.PrefResolution
+	}
+	return "1k"
+}
+
+func currentAspectRatio(fc *Context) string {
+	if fc.State.AspectRatio != "" {
+		return fc.State.AspectRatio
+	}
+	return fc.User.PrefAspectRatio
+}
+
+func currentAspectRatioLabel(fc *Context) string {
+	ar := currentAspectRatio(fc)
+	if ar == "" {
+		return "авто"
+	}
+	return ar
 }
 
 func buildDefaultPrompt(gender, promptType string) string {
@@ -298,9 +330,10 @@ func buildDefaultPrompt(gender, promptType string) string {
 	case "couple":
 		return "couple portrait, two people, professional photo, studio lighting, high quality"
 	}
-	genderStr := "woman"
+
+	genderLabel := "woman"
 	if gender == "male" {
-		genderStr = "man"
+		genderLabel = "man"
 	}
-	return fmt.Sprintf("professional portrait photo of a %s, studio lighting, high quality, photorealistic", genderStr)
+	return fmt.Sprintf("professional portrait photo of a %s, studio lighting, high quality, photorealistic", genderLabel)
 }

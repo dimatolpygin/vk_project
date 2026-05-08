@@ -50,6 +50,9 @@ func main() {
 	genRepo := repository.NewGenerationRepo(pool)
 	msgRepo := repository.NewMessageRepo(pool)
 	userRepo := repository.NewUserRepo(pool)
+	if err := msgRepo.EnsureDefaults(ctx); err != nil {
+		log.Fatal().Err(err).Msg("не удалось синхронизировать экраны контента")
+	}
 	vkClient := vkgroup.New(cfg.VKGroupToken, cfg.VKGroupID)
 	wsClient := wavespeed.New(cfg.WavespeedAPIKey)
 	stateMgr := bot.NewStateManager(rdb)

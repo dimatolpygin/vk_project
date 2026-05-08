@@ -1,5 +1,5 @@
 {{define "content"}}
-<p class="text-muted mb-3">Редактируйте тексты и изображения бота. Изменения применяются мгновенно без перезапуска.</p>
+<p class="text-muted mb-3">Редактируйте тексты, изображения и кнопки экранов бота. Изменения применяются сразу, без перезапуска.</p>
 
 <div class="accordion" id="messagesAccordion">
     {{range $i, $m := .Messages}}
@@ -8,15 +8,16 @@
             <button class="accordion-button collapsed" type="button"
                 data-bs-toggle="collapse" data-bs-target="#msg-{{$m.Key}}">
                 <code class="me-2">{{$m.Key}}</code>
-                <span class="text-muted small text-truncate" style="max-width:400px">{{$m.Text}}</span>
+                <span class="text-muted small text-truncate" style="max-width: 420px">{{$m.Text}}</span>
             </button>
         </h2>
         <div id="msg-{{$m.Key}}" class="accordion-collapse collapse">
             <div class="accordion-body">
                 <div class="mb-3">
-                    <label class="form-label fw-semibold">Текст сообщения</label>
-                    <textarea class="form-control" id="text-{{$m.Key}}" rows="4">{{$m.Text}}</textarea>
+                    <label class="form-label fw-semibold">Текст экрана</label>
+                    <textarea class="form-control" id="text-{{$m.Key}}" rows="5">{{$m.Text}}</textarea>
                 </div>
+
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Изображение</label>
                     <div class="input-group">
@@ -27,9 +28,68 @@
                     </div>
                     <div id="upload-status-{{$m.Key}}" class="text-muted small mt-1" style="display:none"></div>
                 </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Кнопки</label>
+                    <div id="keyboard-{{$m.Key}}" class="d-grid gap-2"
+                         data-inline="{{if $m.Keyboard.Inline}}true{{else}}false{{end}}"
+                         data-one-time="{{if $m.Keyboard.OneTime}}true{{else}}false{{end}}">
+                        {{if $m.Keyboard.Items}}
+                            {{range $btn := $m.Keyboard.Items}}
+                            <div class="border rounded p-3 keyboard-item"
+                                 data-slot-id="{{$btn.SlotID}}"
+                                 data-action-key="{{$btn.ActionKey}}"
+                                 data-kind="{{$btn.Kind}}"
+                                 data-color="{{$btn.Color}}"
+                                 data-value="{{$btn.Value}}"
+                                 data-link-binding="{{$btn.LinkBinding}}">
+                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                    <span class="badge text-bg-secondary">slot: {{$btn.SlotID}}</span>
+                                    <span class="badge text-bg-light border">action: {{$btn.ActionKey}}</span>
+                                    <span class="badge text-bg-light border">type: {{$btn.Kind}}</span>
+                                    {{if $btn.Color}}<span class="badge text-bg-light border">color: {{$btn.Color}}</span>{{end}}
+                                    {{if $btn.Value}}<span class="badge text-bg-light border">value: {{$btn.Value}}</span>{{end}}
+                                    {{if $btn.LinkBinding}}<span class="badge text-bg-light border">link: {{$btn.LinkBinding}}</span>{{end}}
+                                </div>
+
+                                <div class="row g-2 align-items-end">
+                                    <div class="{{if eq $btn.Kind "toggle"}}col-md-4{{else}}col-md-5{{end}}">
+                                        <label class="form-label small">Label</label>
+                                        <input type="text" class="form-control form-control-sm keyboard-label" value="{{$btn.Label}}">
+                                    </div>
+
+                                    {{if eq $btn.Kind "toggle"}}
+                                    <div class="col-md-4">
+                                        <label class="form-label small">Label ON</label>
+                                        <input type="text" class="form-control form-control-sm keyboard-label-on" value="{{$btn.LabelOn}}">
+                                    </div>
+                                    {{end}}
+
+                                    <div class="col-md-1">
+                                        <label class="form-label small">Row</label>
+                                        <input type="number" class="form-control form-control-sm keyboard-row" value="{{$btn.Row}}">
+                                    </div>
+                                    <div class="col-md-1">
+                                        <label class="form-label small">Pos</label>
+                                        <input type="number" class="form-control form-control-sm keyboard-position" value="{{$btn.Position}}">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="form-check mt-4">
+                                            <input class="form-check-input keyboard-visible" type="checkbox" {{if $btn.Visible}}checked{{end}}>
+                                            <label class="form-check-label small">Видима</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {{end}}
+                        {{else}}
+                            <div class="text-muted small border rounded p-3">У этого экрана нет редактируемых кнопок.</div>
+                        {{end}}
+                    </div>
+                </div>
+
                 <div class="d-flex gap-2">
-                    <button class="btn btn-primary btn-sm"
-                        onclick="saveMessage('{{$m.Key}}')">Сохранить</button>
+                    <button class="btn btn-primary btn-sm" onclick="saveMessage('{{$m.Key}}')">Сохранить</button>
                     <span id="saved-{{$m.Key}}" class="text-success small align-self-center" style="display:none">✓ Сохранено</span>
                 </div>
             </div>
@@ -42,37 +102,77 @@
 async function uploadFile(key) {
     const file = document.getElementById('file-' + key).files[0];
     if (!file) return;
-    const el = document.getElementById('upload-status-' + key);
-    el.style.display = 'inline';
-    el.textContent = 'Загружаю...';
-    const fd = new FormData();
-    fd.append('file', file);
-    const resp = await fetch('/admin/upload', {method: 'POST', body: fd});
-    if (resp.ok) {
-        const {url} = await resp.json();
+
+    const status = document.getElementById('upload-status-' + key);
+    status.style.display = 'inline';
+    status.textContent = 'Загружаю...';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch('/admin/upload', { method: 'POST', body: formData });
+
+    if (response.ok) {
+        const { url } = await response.json();
         document.getElementById('img-' + key).value = url;
-        el.textContent = '✓ Загружено';
+        status.textContent = '✓ Загружено';
     } else {
-        el.textContent = '❌ Ошибка загрузки';
+        status.textContent = '✗ Ошибка загрузки';
     }
+}
+
+function collectKeyboard(key) {
+    const root = document.getElementById('keyboard-' + key);
+    const items = Array.from(root.querySelectorAll('.keyboard-item')).map((node) => {
+        const labelOnInput = node.querySelector('.keyboard-label-on');
+        return {
+            slot_id: node.dataset.slotId,
+            action_key: node.dataset.actionKey,
+            kind: node.dataset.kind,
+            color: node.dataset.color || '',
+            value: node.dataset.value || '',
+            link_binding: node.dataset.linkBinding || '',
+            label: node.querySelector('.keyboard-label').value,
+            label_on: labelOnInput ? labelOnInput.value : '',
+            row: parseInt(node.querySelector('.keyboard-row').value || '0', 10),
+            position: parseInt(node.querySelector('.keyboard-position').value || '0', 10),
+            visible: node.querySelector('.keyboard-visible').checked
+        };
+    });
+
+    return {
+        inline: root.dataset.inline === 'true',
+        one_time: root.dataset.oneTime === 'true',
+        items
+    };
 }
 
 async function saveMessage(key) {
     const text = document.getElementById('text-' + key).value;
-    const img = document.getElementById('img-' + key).value;
-    const body = {key, text, image_url: img || null, buttons: []};
-    const resp = await fetch('/admin/messages', {
+    const imageURL = document.getElementById('img-' + key).value;
+    const body = {
+        key,
+        text,
+        image_url: imageURL || null,
+        keyboard: collectKeyboard(key)
+    };
+
+    const response = await fetch('/admin/messages', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
     });
-    if (resp.ok) {
-        const el = document.getElementById('saved-' + key);
-        el.style.display = 'inline';
-        setTimeout(() => el.style.display = 'none', 2000);
-    } else {
-        alert('Ошибка сохранения');
+
+    if (response.ok) {
+        const marker = document.getElementById('saved-' + key);
+        marker.style.display = 'inline';
+        setTimeout(() => {
+            marker.style.display = 'none';
+        }, 2000);
+        return;
     }
+
+    const errorText = await response.text();
+    alert(errorText || 'Ошибка сохранения');
 }
 </script>
 {{end}}

@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"vk_neuro_bot/internal/content"
 	"vk_neuro_bot/internal/repository"
 )
 
 type Keyboard struct {
-	OneTime bool       `json:"one_time,omitempty"`
-	Buttons [][]KbBtn  `json:"buttons"`
-	Inline  bool       `json:"inline"`
+	OneTime bool      `json:"one_time,omitempty"`
+	Buttons [][]KbBtn `json:"buttons"`
+	Inline  bool      `json:"inline"`
 }
 
 type KbBtn struct {
@@ -23,6 +24,12 @@ type KbAction struct {
 	Label   string `json:"label,omitempty"`
 	Payload string `json:"payload,omitempty"`
 	Link    string `json:"link,omitempty"`
+}
+
+type KeyboardRenderOptions struct {
+	SelectedValue string
+	ToggleOn      bool
+	Links         map[string]string
 }
 
 func kbJSON(kb *Keyboard) string {
@@ -226,14 +233,88 @@ func KbSavedPhotoMenu(hasSavedPhoto, useInPrompts bool) string {
 	return kbJSON(kb)
 }
 
-func KbFromMsg(buttons []repository.Button) string {
-	kb := &Keyboard{Inline: true}
-	for _, b := range buttons {
-		p, _ := json.Marshal(map[string]string{"type": b.Payload})
-		kb.Buttons = append(kb.Buttons, []KbBtn{{
-			Action: KbAction{Type: "callback", Label: b.Label, Payload: string(p)},
-			Color:  "primary",
-		}})
+func RenderContentKeyboard(cfg content.Keyboard, opts KeyboardRenderOptions) string {
+	return renderContentKeyboardWithRows(cfg, nil, opts)
+}
+
+func RenderContentKeyboardWithRows(cfg content.Keyboard, prefixRows [][]KbBtn, opts KeyboardRenderOptions) string {
+	return renderContentKeyboardWithRows(cfg, prefixRows, opts)
+}
+
+func renderContentKeyboardWithRows(cfg content.Keyboard, prefixRows [][]KbBtn, opts KeyboardRenderOptions) string {
+	rows := make([][]KbBtn, 0, len(prefixRows)+len(cfg.Items))
+	rows = append(rows, prefixRows...)
+	rows = append(rows, contentRows(cfg, opts)...)
+	return kbJSON(&Keyboard{Inline: cfg.Inline, OneTime: cfg.OneTime, Buttons: rows})
+}
+
+func contentRows(cfg content.Keyboard, opts KeyboardRenderOptions) [][]KbBtn {
+	if len(cfg.Items) == 0 {
+		return nil
 	}
-	return kbJSON(kb)
+
+	var rows [][]KbBtn
+	currentRow := -1
+	var current []KbBtn
+	for _, item := range cfg.Items {
+		if !item.Visible {
+			continue
+		}
+		btn, ok := contentButton(item, opts)
+		if !ok {
+			continue
+		}
+		if currentRow == -1 {
+			currentRow = item.Row
+		}
+		if item.Row != currentRow {
+			if len(current) > 0 {
+				rows = append(rows, current)
+			}
+			currentRow = item.Row
+			current = nil
+		}
+		current = append(current, btn)
+	}
+	if len(current) > 0 {
+		rows = append(rows, current)
+	}
+	return rows
+}
+
+func contentButton(item content.Button, opts KeyboardRenderOptions) (KbBtn, bool) {
+	switch item.Kind {
+	case content.ButtonKindOpenLink:
+		link := opts.Links[item.LinkBinding]
+		if link == "" {
+			return KbBtn{}, false
+		}
+		return KbBtn{
+			Action: KbAction{Type: "open_link", Label: item.Label, Link: link},
+			Color:  item.Color,
+		}, true
+	case content.ButtonKindSelect:
+		label := item.Label
+		if item.Value != "" && item.Value == opts.SelectedValue {
+			label = "✅ " + label
+		}
+		return KbBtn{
+			Action: KbAction{Type: "callback", Label: label, Payload: cbPayload(item.ActionKey)},
+			Color:  item.Color,
+		}, true
+	case content.ButtonKindToggle:
+		label := item.Label
+		if opts.ToggleOn && item.LabelOn != "" {
+			label = item.LabelOn
+		}
+		return KbBtn{
+			Action: KbAction{Type: "callback", Label: label, Payload: cbPayload(item.ActionKey)},
+			Color:  item.Color,
+		}, true
+	default:
+		return KbBtn{
+			Action: KbAction{Type: "callback", Label: item.Label, Payload: cbPayload(item.ActionKey)},
+			Color:  item.Color,
+		}, true
+	}
 }

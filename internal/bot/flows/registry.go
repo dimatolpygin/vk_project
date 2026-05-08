@@ -6,7 +6,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// Registry диспетчеризует события VK на нужный flow.
 type Registry struct {
 	d *Deps
 }
@@ -16,9 +15,7 @@ func NewRegistry(d *Deps) *Registry {
 }
 
 func (r *Registry) HandleMessage(ctx context.Context, fc *Context) {
-	step := fc.State.Step
-
-	switch step {
+	switch fc.State.Step {
 	case StepWelcome, "":
 		HandleWelcome(ctx, fc, r.d)
 	case StepAfterGen:
@@ -31,9 +28,7 @@ func (r *Registry) HandleMessage(ctx context.Context, fc *Context) {
 		HandleAwaitingPrompt(ctx, fc, r.d)
 	case StepAwaitingPhotoEdit:
 		HandleAwaitingPhotoEdit(ctx, fc, r.d)
-	case StepAwaitingEditPrompt:
-		HandleResultEditPrompt(ctx, fc, r.d)
-	case StepAwaitingResultEdit:
+	case StepAwaitingEditPrompt, StepAwaitingResultEdit:
 		HandleResultEditPrompt(ctx, fc, r.d)
 	default:
 		if fc.User.Status == "paid" || fc.User.HasGens() {
@@ -45,14 +40,13 @@ func (r *Registry) HandleMessage(ctx context.Context, fc *Context) {
 }
 
 func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
-	cb := fc.Callback
-	if cb == nil {
+	if fc.Callback == nil {
 		return
 	}
 
-	log.Info().Int64("vk_id", fc.VkID).Str("cb_type", cb.Type).Msg("обработка callback")
+	log.Info().Int64("vk_id", fc.VkID).Str("cb_type", fc.Callback.Type).Msg("обработка callback")
 
-	switch cb.Type {
+	switch fc.Callback.Type {
 	case "back":
 		HandleBack(ctx, fc, r.d)
 	case "free_gen":
@@ -65,7 +59,7 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleGenderSelect(ctx, fc, r.d, "male")
 	case "gender_female":
 		HandleGenderSelect(ctx, fc, r.d, "female")
-	case "tariffs":
+	case "tariffs", "buy_gens":
 		HandleShowTariffs(ctx, fc, r.d)
 	case "buy_tariff":
 		HandleBuyTariff(ctx, fc, r.d)
@@ -121,15 +115,13 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleSetAspectRatio(ctx, fc, r.d, "9:16")
 	case "ar_16_9":
 		HandleSetAspectRatio(ctx, fc, r.d, "16:9")
-	case "buy_gens":
-		HandleShowTariffs(ctx, fc, r.d)
 	case "support":
 		HandleSupport(ctx, fc, r.d)
 	case "examples":
 		HandleExamples(ctx, fc, r.d)
 	default:
-		log.Warn().Str("type", cb.Type).Msg("неизвестный callback")
-		_ = r.d.Sender.SendText(ctx, fc.VkID, "Неизвестная команда. Возвращаю в главное меню.", KbMainMenu())
+		log.Warn().Str("type", fc.Callback.Type).Msg("неизвестный callback")
+		_ = sendScreen(ctx, r.d, fc.VkID, "unknown_command", ScreenOptions{})
 		_ = r.d.State.SetStep(ctx, fc.VkID, StepMainMenu)
 	}
 }

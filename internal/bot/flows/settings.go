@@ -2,47 +2,16 @@ package flows
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/rs/zerolog/log"
 )
 
 func HandleSettings(ctx context.Context, fc *Context, d *Deps) {
-	resolution := fc.State.Resolution
-	if resolution == "" {
-		resolution = fc.User.PrefResolution
-	}
-	if resolution == "" {
-		resolution = "1k"
-	}
-	aspectRatio := fc.State.AspectRatio
-	if aspectRatio == "" {
-		aspectRatio = fc.User.PrefAspectRatio
-	}
-	if aspectRatio == "" {
-		aspectRatio = "авто"
-	}
-	totalGens := fc.User.FreeGens + fc.User.PaidGens
-
-	model := fc.State.Model
-	if model == "" {
-		model = fc.User.PrefModel
-	}
-	if model == "" {
-		model = d.DefaultModel
-	}
-
-	text := fmt.Sprintf("⚙️ Настройки\n\n"+
-		"🎯 Баланс генераций: %d\n"+
-		"🤖 Модель: %s\n"+
-		"🔧 Качество: %s\n"+
-		"📐 Формат: %s",
-		totalGens, ModelDisplayName(model), resolution, aspectRatio)
-
 	prevStep := fc.State.Step
 	if prevStep == StepSettings {
 		prevStep = fc.State.PrevStep
 	}
+
 	_ = d.State.Set(ctx, fc.VkID, &State{
 		Step:        StepSettings,
 		PrevStep:    prevStep,
@@ -51,7 +20,15 @@ func HandleSettings(ctx context.Context, fc *Context, d *Deps) {
 		AspectRatio: fc.State.AspectRatio,
 		Model:       fc.State.Model,
 	})
-	_ = d.Sender.SendText(ctx, fc.VkID, text, KbSettings())
+
+	_ = sendScreen(ctx, d, fc.VkID, "settings_overview", ScreenOptions{
+		Data: map[string]any{
+			"TotalGens":   fc.User.FreeGens + fc.User.PaidGens,
+			"ModelName":   ModelDisplayName(currentModel(fc, d)),
+			"Resolution":  currentResolution(fc),
+			"AspectRatio": currentAspectRatioLabel(fc),
+		},
+	})
 }
 
 func ModelDisplayName(modelID string) string {
@@ -71,20 +48,18 @@ func ModelDisplayName(modelID string) string {
 }
 
 func HandleQuality(ctx context.Context, fc *Context, d *Deps) {
-	resolution := fc.State.Resolution
-	if resolution == "" {
-		resolution = "1k"
-	}
-	_ = d.Sender.SendText(ctx, fc.VkID, "🔧 Выбери качество генерации:", KbQuality(resolution))
+	_ = sendScreen(ctx, d, fc.VkID, "settings_quality", ScreenOptions{
+		SelectedValue: currentResolution(fc),
+	})
 }
 
 func HandleFormat(ctx context.Context, fc *Context, d *Deps) {
-	_ = d.Sender.SendText(ctx, fc.VkID, "📐 Выбери формат изображения:", KbAspectRatio(fc.State.AspectRatio))
+	_ = sendScreen(ctx, d, fc.VkID, "settings_format", ScreenOptions{
+		SelectedValue: currentAspectRatio(fc),
+	})
 }
 
 func HandleBalance(ctx context.Context, fc *Context, d *Deps) {
-	text := fmt.Sprintf("💳 Баланс\n\n🔹 Бесплатных: %d\n🔷 Платных: %d\n\nПополнить баланс:",
-		fc.User.FreeGens, fc.User.PaidGens)
 	tariffs, _ := d.TariffRepo.ListActive(ctx)
 	_ = d.State.Set(ctx, fc.VkID, &State{
 		Step:        StepTariffs,
@@ -94,7 +69,13 @@ func HandleBalance(ctx context.Context, fc *Context, d *Deps) {
 		Resolution:  fc.State.Resolution,
 		AspectRatio: fc.State.AspectRatio,
 	})
-	_ = d.Sender.SendText(ctx, fc.VkID, text, KbTariffs(tariffs))
+	_ = sendScreen(ctx, d, fc.VkID, "settings_balance", ScreenOptions{
+		Data: map[string]any{
+			"FreeGens": fc.User.FreeGens,
+			"PaidGens": fc.User.PaidGens,
+		},
+		PrefixRows: tariffRows(tariffs),
+	})
 }
 
 func HandleSetResolution(ctx context.Context, fc *Context, d *Deps, resolution string) {
@@ -116,11 +97,9 @@ func HandleSetAspectRatio(ctx context.Context, fc *Context, d *Deps, ar string) 
 }
 
 func HandleModel(ctx context.Context, fc *Context, d *Deps) {
-	current := fc.State.Model
-	if current == "" {
-		current = d.DefaultModel
-	}
-	_ = d.Sender.SendText(ctx, fc.VkID, "🤖 Выбери модель генерации:", KbModel(current))
+	_ = sendScreen(ctx, d, fc.VkID, "settings_model", ScreenOptions{
+		SelectedValue: currentModel(fc, d),
+	})
 }
 
 func HandleSetModel(ctx context.Context, fc *Context, d *Deps, modelID string) {
@@ -133,9 +112,9 @@ func HandleSetModel(ctx context.Context, fc *Context, d *Deps, modelID string) {
 }
 
 func HandleSupport(ctx context.Context, fc *Context, d *Deps) {
-	_ = d.Sender.SendMsg(ctx, fc.VkID, "support_text", KbBack())
+	_ = sendScreen(ctx, d, fc.VkID, "support_text", ScreenOptions{})
 }
 
 func HandleExamples(ctx context.Context, fc *Context, d *Deps) {
-	_ = d.Sender.SendMsg(ctx, fc.VkID, "examples_collage", KbBack())
+	_ = sendScreen(ctx, d, fc.VkID, "examples_collage", ScreenOptions{})
 }

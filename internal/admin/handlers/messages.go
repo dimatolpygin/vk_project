@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog/log"
+	"vk_neuro_bot/internal/content"
 	"vk_neuro_bot/internal/repository"
 )
 
@@ -52,17 +53,27 @@ func (h *MessagesHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 func (h *MessagesHandler) Upsert(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Key      string                 `json:"key"`
-		Text     string                 `json:"text"`
-		ImageURL *string                `json:"image_url"`
-		Buttons  []repository.Button    `json:"buttons"`
+		Key      string           `json:"key"`
+		Text     string           `json:"text"`
+		ImageURL *string          `json:"image_url"`
+		Keyboard content.Keyboard `json:"keyboard"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+	if req.Key == "" {
+		http.Error(w, "key is required", http.StatusBadRequest)
+		return
+	}
 
-	if err := h.msgs.Upsert(r.Context(), req.Key, req.Text, req.ImageURL, req.Buttons); err != nil {
+	keyboard, err := content.MergeEditableKeyboard(req.Key, req.Keyboard)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.msgs.Upsert(r.Context(), req.Key, req.Text, req.ImageURL, keyboard); err != nil {
 		log.Error().Err(err).Msg("ошибка сохранения сообщения")
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return

@@ -14,6 +14,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"vk_neuro_bot/internal/bot/flows"
+	"vk_neuro_bot/internal/content"
 	"vk_neuro_bot/internal/repository"
 	"vk_neuro_bot/internal/vkgroup"
 )
@@ -36,45 +37,24 @@ func NewSender(vk *vkgroup.Client, msgRepo *repository.MessageRepo, userRepo *re
 	}
 }
 
-// SendMsg реализует flows.Sender — отправляет сообщение по ключу из messages.
 func (s *Sender) SendMsg(ctx context.Context, vkID int64, key string, kbJSON string) error {
 	msg, err := s.msgRepo.Get(ctx, key)
 	if err != nil {
 		log.Error().Err(err).Str("key", key).Msg("не удалось получить сообщение из БД")
 		return err
 	}
-
-	var attachment string
-	if msg.ImageURL != nil && *msg.ImageURL != "" {
-		if msg.VkAttachment != nil && *msg.VkAttachment != "" {
-			attachment = *msg.VkAttachment
-		} else {
-			attach, uploadErr := s.uploadPhotoFromURL(ctx, vkID, *msg.ImageURL)
-			if uploadErr != nil {
-				log.Warn().Err(uploadErr).Msg("не удалось загрузить изображение в VK")
-			} else {
-				attachment = attach
-				if err := s.msgRepo.SetVkAttachment(ctx, msg.Key, attach); err != nil {
-					log.Warn().Err(err).Msg("не удалось сохранить vk_attachment в БД")
-				}
-			}
-		}
+	if kbJSON == "" {
+		kbJSON = flows.RenderContentKeyboard(msg.Keyboard, flows.KeyboardRenderOptions{})
 	}
-
-	if kbJSON == "" && len(msg.Buttons) > 0 {
-		kbJSON = flows.KbFromMsg(msg.Buttons)
-	}
-
-	return s.vk.SendMessage(ctx, vkgroup.SendMessageParams{
-		PeerID:     vkID,
-		Text:       msg.Text,
-		Attachment: attachment,
-		Keyboard:   kbJSON,
-		RandomID:   uniqueID(),
+	return s.SendScreen(ctx, vkID, &flows.ScreenMessage{
+		Key:      key,
+		Text:     msg.Text,
+		ImageURL: msg.ImageURL,
+		Keyboard: kbJSON,
+		CacheKey: key,
 	})
 }
 
-// SendText реализует flows.Sender — отправляет произвольный текст.
 func (s *Sender) SendText(ctx context.Context, vkID int64, text string, kbJSON string) error {
 	return s.vk.SendMessage(ctx, vkgroup.SendMessageParams{
 		PeerID:   vkID,
@@ -84,7 +64,6 @@ func (s *Sender) SendText(ctx context.Context, vkID int64, text string, kbJSON s
 	})
 }
 
-// SendPhoto реализует flows.Sender — отправляет фото.
 func (s *Sender) SendPhoto(ctx context.Context, vkID int64, photoURL, caption, kbJSON string) error {
 	attachment, err := s.uploadPhotoFromURL(ctx, vkID, photoURL)
 	if err != nil {
@@ -104,33 +83,71 @@ func (s *Sender) SendPhoto(ctx context.Context, vkID int64, photoURL, caption, k
 	})
 }
 
-// SendTextToUser реализует worker.MessageSender.
+func (s *Sender) SendScreen(ctx context.Context, vkID int64, screen *flows.ScreenMessage) error {
+	if screen == nil {
+		return nil
+	}
+
+	var attachment string
+	if screen.ImageURL != nil && *screen.ImageURL != "" {
+		resolved, err := s.resolveAttachment(ctx, vkID, *screen.ImageURL, screen.CacheKey)
+		if err != nil {
+			if screen.CacheKey == "" {
+				return err
+			}
+			log.Warn().Err(err).Str("screen_key", screen.Key).Msg("не удалось прикрепить изображение экрана")
+		} else {
+			attachment = resolved
+		}
+	}
+
+	return s.vk.SendMessage(ctx, vkgroup.SendMessageParams{
+		PeerID:     vkID,
+		Text:       screen.Text,
+		Attachment: attachment,
+		Keyboard:   screen.Keyboard,
+		RandomID:   uniqueID(),
+	})
+}
+
+func (s *Sender) SendScreenText(ctx context.Context, vkID int64, key string, data map[string]any) error {
+	return s.sendContentScreen(ctx, vkID, key, data, flows.KeyboardRenderOptions{}, nil)
+}
+
 func (s *Sender) SendTextToUser(ctx context.Context, vkID int64, text string) error {
 	return s.SendText(ctx, vkID, text, "")
 }
 
-// SendPhotoResult реализует worker.MessageSender — отправляет результат генерации с параметрами.
 func (s *Sender) SendPhotoResult(ctx context.Context, vkID int64, photoURL, model, resolution, aspectRatio string) error {
-	caption := "🎉 Готово! Вот твоя нейрофотосессия:"
-	kb := flows.KbAfterGen()
+	screenKey := "after_gen_free"
+	kbOpts := flows.KeyboardRenderOptions{}
+
+	resolutionLabel := resolution
+	if resolutionLabel == "" {
+		resolutionLabel = "1k"
+	}
+	aspectRatioLabel := aspectRatio
+	if aspectRatioLabel == "" {
+		aspectRatioLabel = "авто"
+	}
+
+	data := map[string]any{
+		"ModelName":   flows.ModelDisplayName(model),
+		"Resolution":  resolutionLabel,
+		"AspectRatio": aspectRatioLabel,
+	}
+
 	if s.userRepo != nil {
 		if u, err := s.userRepo.GetByVKID(ctx, vkID); err == nil && u != nil && (u.PaidGens > 0 || u.Status == "paid") {
-			res := resolution
-			if res == "" {
-				res = "1k"
-			}
-			ar := aspectRatio
-			if ar == "" {
-				ar = "авто"
-			}
-			caption = fmt.Sprintf("🎉 Готово!\n\n🤖 Модель: %s\n🔧 Качество: %s\n📐 Формат: %s",
-				flows.ModelDisplayName(model), res, ar)
-			kb = flows.KbAfterGenPaid(photoURL)
+			screenKey = "after_gen_paid"
+			kbOpts.Links = map[string]string{"download_photo": photoURL}
 		}
 	}
-	if err := s.SendPhoto(ctx, vkID, photoURL, caption, kb); err != nil {
+
+	if err := s.sendContentScreen(ctx, vkID, screenKey, data, kbOpts, &photoURL); err != nil {
 		return err
 	}
+
 	st, err := s.stateMgr.Get(ctx, vkID)
 	if err != nil || st == nil {
 		st = &flows.State{}
@@ -142,6 +159,54 @@ func (s *Sender) SendPhotoResult(ctx context.Context, vkID int64, photoURL, mode
 	st.AspectRatio = aspectRatio
 	_ = s.stateMgr.Set(ctx, vkID, st)
 	return nil
+}
+
+func (s *Sender) sendContentScreen(ctx context.Context, vkID int64, key string, data map[string]any, kbOpts flows.KeyboardRenderOptions, imageOverride *string) error {
+	msg, err := s.msgRepo.Get(ctx, key)
+	if err != nil {
+		return err
+	}
+
+	text, err := content.RenderText(msg.Text, data)
+	if err != nil {
+		log.Warn().Err(err).Str("key", key).Msg("не удалось отрендерить текст экрана")
+	}
+
+	imageURL := msg.ImageURL
+	cacheKey := key
+	if imageOverride != nil {
+		imageURL = imageOverride
+		cacheKey = ""
+	}
+
+	return s.SendScreen(ctx, vkID, &flows.ScreenMessage{
+		Key:      key,
+		Text:     text,
+		ImageURL: imageURL,
+		Keyboard: flows.RenderContentKeyboard(msg.Keyboard, kbOpts),
+		CacheKey: cacheKey,
+	})
+}
+
+func (s *Sender) resolveAttachment(ctx context.Context, vkID int64, imageURL, cacheKey string) (string, error) {
+	if cacheKey != "" {
+		msg, err := s.msgRepo.Get(ctx, cacheKey)
+		if err == nil && msg != nil && msg.ImageURL != nil && *msg.ImageURL == imageURL && msg.VkAttachment != nil && *msg.VkAttachment != "" {
+			return *msg.VkAttachment, nil
+		}
+	}
+
+	attachment, err := s.uploadPhotoFromURL(ctx, vkID, imageURL)
+	if err != nil {
+		return "", err
+	}
+
+	if cacheKey != "" {
+		if err := s.msgRepo.SetVkAttachment(ctx, cacheKey, attachment); err != nil {
+			log.Warn().Err(err).Str("cache_key", cacheKey).Msg("не удалось сохранить vk_attachment в БД")
+		}
+	}
+	return attachment, nil
 }
 
 func (s *Sender) uploadPhotoFromURL(ctx context.Context, peerID int64, photoURL string) (string, error) {
