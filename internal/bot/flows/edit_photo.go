@@ -6,6 +6,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/rs/zerolog/log"
+	"vk_neuro_bot/internal/repository"
 	"vk_neuro_bot/internal/worker"
 )
 
@@ -62,10 +63,6 @@ func launchEditGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, p
 		return
 	}
 
-	_ = d.UserRepo.DecrementGens(ctx, fc.VkID)
-	_ = d.State.SetStep(ctx, fc.VkID, StepMainMenu)
-	_ = sendScreen(ctx, d, fc.VkID, "generating_wait", ScreenOptions{})
-
 	resolution := fc.State.Resolution
 	if resolution == "" {
 		resolution = fc.User.PrefResolution
@@ -77,6 +74,17 @@ func launchEditGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, p
 	if aspectRatio == "" {
 		aspectRatio = fc.User.PrefAspectRatio
 	}
+
+	trackEvent(ctx, d, fc.VkID, repository.ActivityEventGenerationStarted, "edit_result", "generating_wait", map[string]any{
+		"generation_id": gen.ID,
+		"prompt_type":   "edit",
+		"model":         model,
+		"resolution":    resolution,
+		"aspect_ratio":  aspectRatio,
+	})
+	_ = d.UserRepo.DecrementGens(ctx, fc.VkID)
+	_ = d.State.SetStep(ctx, fc.VkID, StepMainMenu)
+	_ = sendScreen(ctx, d, fc.VkID, "generating_wait", ScreenOptions{})
 
 	payload := worker.GeneratePayload{
 		GenerationID: gen.ID,

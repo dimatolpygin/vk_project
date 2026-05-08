@@ -64,6 +64,7 @@ type Handler struct {
 	sender    *Sender
 	userRepo  *repository.UserRepo
 	statsRepo *repository.StatsRepo
+	activity  *repository.ActivityRepo
 	registry  *flows.Registry
 }
 
@@ -72,6 +73,7 @@ func NewHandler(
 	sender *Sender,
 	userRepo *repository.UserRepo,
 	statsRepo *repository.StatsRepo,
+	activityRepo *repository.ActivityRepo,
 	reg *flows.Registry,
 ) *Handler {
 	return &Handler{
@@ -79,6 +81,7 @@ func NewHandler(
 		sender:    sender,
 		userRepo:  userRepo,
 		statsRepo: statsRepo,
+		activity:  activityRepo,
 		registry:  reg,
 	}
 }
@@ -113,6 +116,15 @@ func (h *Handler) handleMessage(ctx context.Context, raw json.RawMessage) {
 	}
 
 	log.Info().Int64("vk_id", vkID).Str("text", msg.Text).Msg("incoming message")
+	h.recordActivity(ctx, repository.ActivityEvent{
+		UserVKID:  vkID,
+		EventType: repository.ActivityEventMessageReceived,
+		Meta: map[string]any{
+			"has_payload": msg.Payload != "",
+			"has_text":    msg.Text != "",
+			"photo_count": len(msg.Attachments),
+		},
+	})
 
 	state, err := h.state.Get(ctx, vkID)
 	if err != nil {
@@ -160,6 +172,11 @@ func (h *Handler) handleCallback(ctx context.Context, raw json.RawMessage) {
 	log.Info().Int64("vk_id", vkID).Str("type", cbPayload.Type).Msg("callback button pressed")
 
 	_ = h.statsRepo.RecordClick(ctx, vkID, cbPayload.Type)
+	h.recordActivity(ctx, repository.ActivityEvent{
+		UserVKID:  vkID,
+		EventType: repository.ActivityEventButtonClick,
+		ActionKey: cbPayload.Type,
+	})
 
 	state, _ := h.state.Get(ctx, vkID)
 
@@ -194,6 +211,11 @@ func (h *Handler) handleMessagePayload(ctx context.Context, msg VKMessage, user 
 
 	log.Info().Int64("vk_id", msg.FromID).Str("type", cbPayload.Type).Msg("reply keyboard button pressed")
 	_ = h.statsRepo.RecordClick(ctx, msg.FromID, cbPayload.Type)
+	h.recordActivity(ctx, repository.ActivityEvent{
+		UserVKID:  msg.FromID,
+		EventType: repository.ActivityEventButtonClick,
+		ActionKey: cbPayload.Type,
+	})
 
 	fc := &flows.Context{
 		VkID:  msg.FromID,
@@ -233,8 +255,21 @@ func (h *Handler) ensureUser(ctx context.Context, vkID int64, username, firstNam
 			return nil
 		}
 		log.Info().Int64("vk_id", vkID).Msg("user created")
+		h.recordActivity(ctx, repository.ActivityEvent{
+			UserVKID:  vkID,
+			EventType: repository.ActivityEventUserRegistered,
+		})
 	}
 	return user
+}
+
+func (h *Handler) recordActivity(ctx context.Context, event repository.ActivityEvent) {
+	if h.activity == nil {
+		return
+	}
+	if err := h.activity.Record(ctx, event); err != nil {
+		log.Debug().Err(err).Int64("vk_id", event.UserVKID).Str("event_type", event.EventType).Msg("failed to record activity")
+	}
 }
 
 func extractPhotos(attachments []VKAttachment) []string {

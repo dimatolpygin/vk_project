@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog/log"
+	"vk_neuro_bot/internal/repository"
 )
 
 func HandleWelcome(ctx context.Context, fc *Context, d *Deps) {
@@ -14,6 +15,9 @@ func HandleWelcome(ctx context.Context, fc *Context, d *Deps) {
 			referrer, err := d.UserRepo.GetByReferralCode(ctx, refCode)
 			if err == nil && referrer != nil && referrer.VKID != fc.VkID {
 				_ = d.RefRepo.Create(ctx, referrer.VKID, fc.VkID)
+				trackEvent(ctx, d, fc.VkID, repository.ActivityEventReferralCreated, "referral", "welcome", map[string]any{
+					"referrer_vk_id": referrer.VKID,
+				})
 			}
 		}
 	}

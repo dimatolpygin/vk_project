@@ -7,6 +7,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/rs/zerolog/log"
+	"vk_neuro_bot/internal/repository"
 	"vk_neuro_bot/internal/worker"
 )
 
@@ -55,6 +56,7 @@ func HandleCheckSubscription(ctx context.Context, fc *Context, d *Deps) {
 	}
 
 	_ = d.UserRepo.SetSubscribed(ctx, fc.VkID, true)
+	trackEvent(ctx, d, fc.VkID, repository.ActivityEventSubscriptionConfirmed, "check_sub", "subscribe_cta", nil)
 	proceedToPhotoRequest(ctx, fc, d, "free")
 }
 
@@ -190,6 +192,13 @@ func startGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, prompt
 		return
 	}
 
+	trackEvent(ctx, d, fc.VkID, repository.ActivityEventGenerationStarted, "free_gen", waitKey, map[string]any{
+		"generation_id": gen.ID,
+		"prompt_type":   promptType,
+		"model":         model,
+		"resolution":    currentResolution(fc),
+		"aspect_ratio":  currentAspectRatio(fc),
+	})
 	_ = d.UserRepo.DecrementGens(ctx, fc.VkID)
 	_ = d.State.SetStep(ctx, fc.VkID, StepMainMenu)
 	_ = sendScreen(ctx, d, fc.VkID, waitKey, ScreenOptions{Data: waitData})

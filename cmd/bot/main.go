@@ -71,6 +71,7 @@ func main() {
 	promptRepo := repository.NewPromptRepo(pool)
 	refRepo := repository.NewReferralRepo(pool)
 	statsRepo := repository.NewStatsRepo(pool)
+	activityRepo := repository.NewActivityRepo(pool)
 	if err := msgRepo.EnsureDefaults(ctx); err != nil {
 		log.Fatal().Err(err).Msg("не удалось синхронизировать экраны контента")
 	}
@@ -118,6 +119,7 @@ func main() {
 		PromptRepo:    promptRepo,
 		RefRepo:       refRepo,
 		StatsRepo:     statsRepo,
+		ActivityRepo:  activityRepo,
 		AsynqClient:   asynqClient,
 		WaveSpeed:     wsClient,
 		Yukassa:       ykClient,
@@ -129,7 +131,7 @@ func main() {
 	}
 
 	registry := flows.NewRegistry(deps)
-	handler := bot.NewHandler(stateMgr, sender, userRepo, statsRepo, registry)
+	handler := bot.NewHandler(stateMgr, sender, userRepo, statsRepo, activityRepo, registry)
 	botServer := bot.NewServer(cfg, handler, ykClient, deps)
 
 	// Admin server

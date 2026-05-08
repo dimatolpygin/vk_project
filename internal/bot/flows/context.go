@@ -145,6 +145,7 @@ type Deps struct {
 	PromptRepo    *repository.PromptRepo
 	RefRepo       *repository.ReferralRepo
 	StatsRepo     *repository.StatsRepo
+	ActivityRepo  *repository.ActivityRepo
 	AsynqClient   *asynq.Client
 	WaveSpeed     *wavespeed.Client
 	Yukassa       *yukassa.Client

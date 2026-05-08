@@ -123,3 +123,25 @@ func TestScreenMetaFallbackUsesHumanizedTitle(t *testing.T) {
 		t.Fatalf("expected humanized fallback title, got %q", meta.Title)
 	}
 }
+
+func TestActionMetaUsesHumanTitles(t *testing.T) {
+	meta := ActionMeta("buy_tariff")
+
+	if meta.SectionID != "billing" {
+		t.Fatalf("expected billing section, got %q", meta.SectionID)
+	}
+	if meta.Title != "Покупка тарифа" {
+		t.Fatalf("unexpected action title %q", meta.Title)
+	}
+}
+
+func TestActionMetaFallbackUsesHumanizedTitle(t *testing.T) {
+	meta := ActionMeta("very_custom_action")
+
+	if meta.SectionID != "other" {
+		t.Fatalf("expected fallback section to be other, got %q", meta.SectionID)
+	}
+	if meta.Title != "Very Custom Action" {
+		t.Fatalf("expected humanized fallback title, got %q", meta.Title)
+	}
+}

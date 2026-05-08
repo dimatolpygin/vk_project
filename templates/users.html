@@ -1,143 +1,864 @@
 {{define "content"}}
-{{if .User}}
-{{/* ── Детальная страница пользователя ── */}}
-<div class="d-flex align-items-center gap-2 mb-3">
-    <a href="/admin/users" class="btn btn-sm btn-outline-secondary">← Назад к списку</a>
-    <form method="POST" action="/admin/users/{{.User.VKID}}/delete"
-          onsubmit="return confirm('Удалить пользователя {{.User.VKID}}? Это действие необратимо.')">
-        <button type="submit" class="btn btn-sm btn-danger">
-            <i class="bi bi-trash"></i> Удалить пользователя
-        </button>
-    </form>
-</div>
-<div class="row g-3">
-    <div class="col-md-5">
-        <div class="card">
-            <div class="card-header fw-semibold">Профиль</div>
-            <ul class="list-group list-group-flush">
-                <li class="list-group-item d-flex justify-content-between">
-                    <span class="text-muted">VK ID</span>
-                    <strong><a href="https://vk.com/id{{.User.VKID}}" target="_blank">{{.User.VKID}}</a></strong>
-                </li>
-                <li class="list-group-item d-flex justify-content-between">
-                    <span class="text-muted">Username</span><strong>{{if .User.Username}}@{{.User.Username}}{{else}}—{{end}}</strong>
-                </li>
-                <li class="list-group-item d-flex justify-content-between">
-                    <span class="text-muted">Имя</span><strong>{{.User.FirstName}}</strong>
-                </li>
-                <li class="list-group-item d-flex justify-content-between">
-                    <span class="text-muted">Пол</span><strong>{{.User.Gender}}</strong>
-                </li>
-                <li class="list-group-item d-flex justify-content-between">
-                    <span class="text-muted">Статус</span>
-                    {{if eq .User.Status "paid"}}<span class="badge bg-success">paid</span>{{else}}<span class="badge bg-secondary">free</span>{{end}}
-                </li>
-                <li class="list-group-item d-flex justify-content-between">
-                    <span class="text-muted">Бесплат. ген.</span><strong>{{.User.FreeGens}}</strong>
-                </li>
-                <li class="list-group-item d-flex justify-content-between">
-                    <span class="text-muted">Плат. ген.</span><strong>{{.User.PaidGens}}</strong>
-                </li>
-                <li class="list-group-item d-flex justify-content-between">
-                    <span class="text-muted">Реф. код</span><code>{{.User.ReferralCode}}</code>
-                </li>
-                <li class="list-group-item d-flex justify-content-between">
-                    <span class="text-muted">Зарегистрирован</span><strong>{{.User.CreatedAt.Format "02.01.2006 15:04"}}</strong>
-                </li>
-            </ul>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap');
+
+    .users-workspace {
+        --uw-surface: #ffffff;
+        --uw-surface-soft: #f8fbff;
+        --uw-border: #dbe5f0;
+        --uw-border-strong: #c7d8ea;
+        --uw-text: #0f172a;
+        --uw-muted: #64748b;
+        --uw-primary: #0f766e;
+        --uw-primary-soft: #ecfeff;
+        --uw-accent: #1d4ed8;
+        --uw-accent-soft: #eff6ff;
+        --uw-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+        --uw-shadow-soft: 0 12px 28px rgba(15, 23, 42, 0.05);
+        font-family: "Manrope", sans-serif;
+        color: var(--uw-text);
+    }
+
+    .users-workspace__intro,
+    .users-detail__header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .users-workspace__kicker,
+    .users-detail__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .38rem .72rem;
+        border-radius: 999px;
+        background: var(--uw-primary-soft);
+        color: var(--uw-primary);
+        font-size: .76rem;
+        font-weight: 800;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+
+    .users-workspace__title,
+    .users-detail__title {
+        margin: .8rem 0 0;
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -.04em;
+    }
+
+    .users-workspace__subtitle,
+    .users-detail__subtitle {
+        max-width: 760px;
+        margin: .75rem 0 0;
+        color: var(--uw-muted);
+        font-size: .95rem;
+        line-height: 1.65;
+    }
+
+    .users-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .users-summary-card,
+    .users-panel,
+    .users-detail-card,
+    .users-hero {
+        border: 1px solid var(--uw-border);
+        border-radius: 26px;
+        background: var(--uw-surface);
+        box-shadow: var(--uw-shadow-soft);
+    }
+
+    .users-summary-card {
+        padding: 1.1rem 1.15rem;
+        background: linear-gradient(180deg, #fcfffe 0%, #ffffff 100%);
+    }
+
+    .users-summary-card__label {
+        color: var(--uw-muted);
+        font-size: .78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+
+    .users-summary-card__value {
+        margin-top: .5rem;
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -.04em;
+    }
+
+    .users-summary-card__hint {
+        margin-top: .35rem;
+        color: var(--uw-muted);
+        font-size: .86rem;
+        line-height: 1.5;
+    }
+
+    .users-panel {
+        padding: 1.2rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .users-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .users-toolbar__title {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .users-toolbar__copy {
+        margin-top: .35rem;
+        color: var(--uw-muted);
+        font-size: .88rem;
+    }
+
+    .users-toolbar__form {
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) 180px auto;
+        gap: .75rem;
+        align-items: end;
+        min-width: min(100%, 720px);
+    }
+
+    .users-toolbar__form .form-control,
+    .users-toolbar__form .form-select {
+        border-radius: 16px;
+        border-color: var(--uw-border);
+        padding-top: .82rem;
+        padding-bottom: .82rem;
+        font-weight: 600;
+        background: #fbfdff;
+    }
+
+    .users-toolbar__chips {
+        display: flex;
+        gap: .6rem;
+        flex-wrap: wrap;
+        margin-top: .9rem;
+    }
+
+    .users-list {
+        display: grid;
+        gap: .9rem;
+    }
+
+    .users-list__head,
+    .users-row {
+        display: grid;
+        grid-template-columns: minmax(0, 2.4fr) 1fr 1fr 1fr auto;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .users-list__head {
+        padding: 0 .35rem;
+        color: var(--uw-muted);
+        font-size: .76rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+
+    .users-row {
+        padding: 1rem 1.05rem;
+        border: 1px solid var(--uw-border);
+        border-radius: 24px;
+        background: linear-gradient(180deg, #ffffff 0%, #fcfeff 100%);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+    }
+
+    .users-profile {
+        display: flex;
+        gap: .9rem;
+        align-items: flex-start;
+        min-width: 0;
+    }
+
+    .users-profile__avatar,
+    .users-detail__avatar {
+        width: 50px;
+        height: 50px;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        border-radius: 16px;
+        background: linear-gradient(160deg, #def7f2 0%, #eff6ff 100%);
+        color: var(--uw-primary);
+        font-size: 1.1rem;
+    }
+
+    .users-profile__name,
+    .users-detail__name {
+        font-size: 1.02rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .users-profile__meta,
+    .users-detail__meta {
+        margin-top: .25rem;
+        color: var(--uw-muted);
+        font-size: .86rem;
+        line-height: 1.5;
+    }
+
+    .users-profile__chips {
+        display: flex;
+        gap: .45rem;
+        flex-wrap: wrap;
+        margin-top: .55rem;
+    }
+
+    .users-profile__chips .badge,
+    .users-toolbar__chips .badge,
+    .users-detail__stats .badge {
+        padding: .48rem .72rem;
+        border-radius: 999px;
+        font-weight: 700;
+    }
+
+    .users-metric__label {
+        color: var(--uw-muted);
+        font-size: .74rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+
+    .users-metric__value {
+        margin-top: .35rem;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .users-metric__subvalue {
+        margin-top: .22rem;
+        color: var(--uw-muted);
+        font-size: .83rem;
+        line-height: 1.45;
+    }
+
+    .users-list__empty {
+        padding: 3rem 1.5rem;
+        border: 1px dashed var(--uw-border-strong);
+        border-radius: 26px;
+        background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
+        text-align: center;
+    }
+
+    .users-list__empty i {
+        font-size: 1.5rem;
+        color: var(--uw-accent);
+    }
+
+    .users-pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 1.25rem;
+        flex-wrap: wrap;
+    }
+
+    .users-pagination__meta {
+        color: var(--uw-muted);
+        font-size: .88rem;
+        font-weight: 700;
+    }
+
+    .users-pagination__actions {
+        display: flex;
+        gap: .7rem;
+    }
+
+    .users-hero {
+        padding: 1.25rem;
+        margin-bottom: 1.25rem;
+        background: linear-gradient(180deg, #fbfffe 0%, #ffffff 100%);
+    }
+
+    .users-detail__top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .users-detail__profile {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .users-detail__stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .6rem;
+        justify-content: flex-end;
+    }
+
+    .users-detail__metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .9rem;
+        margin-top: 1.15rem;
+    }
+
+    .users-detail__metric {
+        padding: .95rem 1rem;
+        border: 1px solid var(--uw-border);
+        border-radius: 20px;
+        background: var(--uw-surface-soft);
+    }
+
+    .users-detail-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .users-detail-card {
+        padding: 1.1rem;
+    }
+
+    .users-detail-card__title {
+        margin: 0 0 .9rem;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .users-detail-list {
+        display: grid;
+        gap: .8rem;
+    }
+
+    .users-detail-list__row {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+        padding-bottom: .8rem;
+        border-bottom: 1px solid #eef2f7;
+    }
+
+    .users-detail-list__row:last-child {
+        padding-bottom: 0;
+        border-bottom: 0;
+    }
+
+    .users-detail-list__label {
+        color: var(--uw-muted);
+        font-size: .84rem;
+        font-weight: 700;
+    }
+
+    .users-detail-list__value {
+        text-align: right;
+        font-size: .9rem;
+        font-weight: 700;
+        color: var(--uw-text);
+    }
+
+    .users-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr);
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .users-orders-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0 .7rem;
+    }
+
+    .users-orders-table th {
+        color: var(--uw-muted);
+        font-size: .76rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        padding: 0 .9rem .2rem;
+    }
+
+    .users-orders-table td {
+        padding: .95rem .9rem;
+        background: var(--uw-surface-soft);
+        border-top: 1px solid var(--uw-border);
+        border-bottom: 1px solid var(--uw-border);
+        font-size: .9rem;
+        vertical-align: middle;
+    }
+
+    .users-orders-table td:first-child {
+        border-left: 1px solid var(--uw-border);
+        border-top-left-radius: 16px;
+        border-bottom-left-radius: 16px;
+    }
+
+    .users-orders-table td:last-child {
+        border-right: 1px solid var(--uw-border);
+        border-top-right-radius: 16px;
+        border-bottom-right-radius: 16px;
+    }
+
+    .users-action-form .form-control,
+    .users-action-form .form-select {
+        border-radius: 14px;
+        border-color: var(--uw-border);
+        background: #fbfdff;
+        font-weight: 600;
+    }
+
+    @media (max-width: 1199px) {
+        .users-summary-grid,
+        .users-detail__metrics,
+        .users-detail-grid,
+        .users-actions {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .users-list__head,
+        .users-row {
+            grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+        }
+
+        .users-row__action {
+            grid-column: 1 / -1;
+        }
+    }
+
+    @media (max-width: 991px) {
+        .users-summary-grid,
+        .users-detail__metrics,
+        .users-detail-grid,
+        .users-actions,
+        .users-toolbar__form {
+            grid-template-columns: 1fr;
+        }
+
+        .users-workspace__intro,
+        .users-detail__header,
+        .users-toolbar,
+        .users-detail__top,
+        .users-detail__profile {
+            flex-direction: column;
+        }
+
+        .users-list__head {
+            display: none;
+        }
+
+        .users-row {
+            grid-template-columns: 1fr;
+        }
+
+        .users-detail__stats {
+            justify-content: flex-start;
+        }
+    }
+</style>
+
+<div class="users-workspace">
+    {{if .Detail}}
+    <div class="users-detail__header">
+        <div>
+            <span class="users-detail__kicker">
+                <i class="bi bi-person-vcard"></i>
+                Карточка пользователя
+            </span>
+            <h2 class="users-detail__title">{{.Detail.DisplayName}}</h2>
+            <p class="users-detail__subtitle">
+                Детальная карточка пользователя с остатком генераций, настройками, рефералами, заказами и последней активностью.
+            </p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{.Detail.BackURL}}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i>
+                К списку
+            </a>
+            <a href="{{.Detail.ProfileURL}}" target="_blank" rel="noreferrer" class="btn btn-outline-dark">
+                <i class="bi bi-box-arrow-up-right"></i>
+                Профиль VK
+            </a>
         </div>
     </div>
-    <div class="col-md-7">
-        <div class="card">
-            <div class="card-header fw-semibold">История заказов</div>
-            {{if .Orders}}
-            <div class="card-body p-0">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light">
-                        <tr><th>ID</th><th>Тариф</th><th>Сумма</th><th>Статус</th><th>Дата</th></tr>
-                    </thead>
-                    <tbody>
-                        {{range .Orders}}
-                        <tr>
-                            <td>{{.ID}}</td>
-                            <td>{{.TariffID}}</td>
-                            <td>{{printf "%.0f" .Amount}} ₽</td>
-                            <td>
-                                {{if eq .Status "succeeded"}}<span class="badge bg-success">{{.Status}}</span>
-                                {{else if eq .Status "failed"}}<span class="badge bg-danger">{{.Status}}</span>
-                                {{else}}<span class="badge bg-warning text-dark">{{.Status}}</span>{{end}}
-                            </td>
-                            <td class="text-muted small">{{.CreatedAt.Format "02.01.2006"}}</td>
-                        </tr>
-                        {{end}}
-                    </tbody>
-                </table>
+
+    <section class="users-hero">
+        <div class="users-detail__top">
+            <div class="users-detail__profile">
+                <div class="users-detail__avatar">
+                    <i class="bi bi-person-circle"></i>
+                </div>
+                <div>
+                    <div class="users-detail__name">{{.Detail.DisplayName}}</div>
+                    <div class="users-detail__meta">{{.Detail.Subtitle}}</div>
+                    <div class="users-profile__chips">
+                        <span class="badge text-bg-{{.Detail.StatusClass}}">{{.Detail.StatusLabel}}</span>
+                        <span class="badge text-bg-light border">Последняя активность: {{.Detail.LastActivity}}</span>
+                        <span class="badge text-bg-light border">Дата регистрации: {{.Detail.CreatedAt}}</span>
+                    </div>
+                </div>
             </div>
-            {{else}}
-            <div class="card-body text-muted">Заказов нет</div>
+
+            <div class="users-detail__stats">
+                <span class="badge text-bg-light border">VK ID: {{.Detail.VKID}}</span>
+                <span class="badge text-bg-light border">{{.Detail.SubscribedLabel}}</span>
+                <span class="badge text-bg-light border">{{.Detail.SavedPhotoLabel}}</span>
+            </div>
+        </div>
+
+        <div class="users-detail__metrics">
+            <div class="users-detail__metric">
+                <div class="users-metric__label">Генерации на балансе</div>
+                <div class="users-metric__value">{{.Detail.TotalGens}}</div>
+                <div class="users-metric__subvalue">free {{.Detail.FreeGens}} · paid {{.Detail.PaidGens}}</div>
+            </div>
+            <div class="users-detail__metric">
+                <div class="users-metric__label">Создано генераций</div>
+                <div class="users-metric__value">{{.Detail.GeneratedCount}}</div>
+                <div class="users-metric__subvalue">Завершено: {{.Detail.CompletedGenCount}}</div>
+            </div>
+            <div class="users-detail__metric">
+                <div class="users-metric__label">Рефералы</div>
+                <div class="users-metric__value">{{.Detail.ReferredCount}}</div>
+                <div class="users-metric__subvalue">С бонусом: {{.Detail.ReferralBonusCount}}</div>
+            </div>
+            <div class="users-detail__metric">
+                <div class="users-metric__label">Заказы и выручка</div>
+                <div class="users-metric__value">{{.Detail.OrdersCount}}</div>
+                <div class="users-metric__subvalue">Успешно: {{.Detail.SuccessOrdersCount}} · {{.Detail.TotalSpent}}</div>
+            </div>
+        </div>
+    </section>
+
+    <div class="users-detail-grid">
+        <section class="users-detail-card">
+            <h3 class="users-detail-card__title">Профиль</h3>
+            <div class="users-detail-list">
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">VK ID</div>
+                    <div class="users-detail-list__value"><a href="{{.Detail.ProfileURL}}" target="_blank" rel="noreferrer">{{.Detail.VKID}}</a></div>
+                </div>
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Пол</div>
+                    <div class="users-detail-list__value">{{.Detail.Gender}}</div>
+                </div>
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Реферальный код</div>
+                    <div class="users-detail-list__value"><code>{{.Detail.ReferralCode}}</code></div>
+                </div>
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Дата регистрации</div>
+                    <div class="users-detail-list__value">{{.Detail.CreatedAt}}</div>
+                </div>
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Последняя активность</div>
+                    <div class="users-detail-list__value">{{.Detail.LastActivity}}</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="users-detail-card">
+            <h3 class="users-detail-card__title">Настройки и фото</h3>
+            <div class="users-detail-list">
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Модель</div>
+                    <div class="users-detail-list__value">{{.Detail.PrefModel}}</div>
+                </div>
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Качество</div>
+                    <div class="users-detail-list__value">{{.Detail.PrefResolution}}</div>
+                </div>
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Формат</div>
+                    <div class="users-detail-list__value">{{.Detail.PrefAspectRatio}}</div>
+                </div>
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Сохранённое фото</div>
+                    <div class="users-detail-list__value">
+                        {{if .Detail.SavedPhotoURL}}
+                        <a href="{{.Detail.SavedPhotoURL}}" target="_blank" rel="noreferrer">Открыть файл</a>
+                        {{else}}
+                        —
+                        {{end}}
+                    </div>
+                </div>
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Подписка</div>
+                    <div class="users-detail-list__value">{{.Detail.SubscribedLabel}}</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="users-detail-card">
+            <h3 class="users-detail-card__title">Покупки и рефералы</h3>
+            <div class="users-detail-list">
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Заказы</div>
+                    <div class="users-detail-list__value">{{.Detail.OrdersCount}}</div>
+                </div>
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Успешные оплаты</div>
+                    <div class="users-detail-list__value">{{.Detail.SuccessOrdersCount}}</div>
+                </div>
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Суммарно оплачено</div>
+                    <div class="users-detail-list__value">{{.Detail.TotalSpent}}</div>
+                </div>
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Приглашено друзей</div>
+                    <div class="users-detail-list__value">{{.Detail.ReferredCount}}</div>
+                </div>
+                <div class="users-detail-list__row">
+                    <div class="users-detail-list__label">Начислено бонусов</div>
+                    <div class="users-detail-list__value">{{.Detail.ReferralBonusCount}}</div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="users-actions">
+        <section class="users-detail-card">
+            <h3 class="users-detail-card__title">Начислить генерации</h3>
+            <p class="users-toolbar__copy">Быстро пополните баланс пользователя без переходов по другим разделам.</p>
+            <form method="POST" action="{{.Detail.AddGensURL}}" class="users-action-form row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small text-muted">Количество</label>
+                    <input type="number" name="count" min="1" max="9999" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small text-muted">Тип</label>
+                    <select name="type" class="form-select">
+                        <option value="free">Бесплатные</option>
+                        <option value="paid">Платные</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary w-100">Начислить</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="users-detail-card">
+            <h3 class="users-detail-card__title">Опасное действие</h3>
+            <p class="users-toolbar__copy">Удаление пользователя необратимо: будут очищены состояния, генерации, заказы и рефералы.</p>
+            <form method="POST" action="{{.Detail.DeleteURL}}" onsubmit="return confirm('Удалить пользователя {{.Detail.VKID}}? Это действие необратимо.')">
+                <button type="submit" class="btn btn-outline-danger w-100">
+                    <i class="bi bi-trash"></i>
+                    Удалить пользователя
+                </button>
+            </form>
+        </section>
+    </div>
+
+    <section class="users-detail-card">
+        <h3 class="users-detail-card__title">История заказов</h3>
+        {{if .Detail.Orders}}
+        <div class="table-responsive">
+            <table class="users-orders-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Тариф</th>
+                        <th>Сумма</th>
+                        <th>Статус</th>
+                        <th>Дата</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Detail.Orders}}
+                    <tr>
+                        <td>{{.ID}}</td>
+                        <td>#{{.TariffID}}</td>
+                        <td>{{.Amount}}</td>
+                        <td><span class="badge text-bg-{{.StatusClass}}">{{.StatusLabel}}</span></td>
+                        <td>{{.CreatedAt}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+        {{else}}
+        <div class="users-list__empty">
+            <i class="bi bi-receipt"></i>
+            <h3 class="mt-3 mb-2 fw-bold">Заказов пока нет</h3>
+            <p class="users-toolbar__copy mb-0">Здесь появится история оплат пользователя, когда он совершит первую покупку.</p>
+        </div>
+        {{end}}
+    </section>
+    {{else}}
+    <div class="users-workspace__intro">
+        <div>
+            <span class="users-workspace__kicker">
+                <i class="bi bi-people"></i>
+                Пользователи бота
+            </span>
+            <h2 class="users-workspace__title">Живая база пользователей</h2>
+            <p class="users-workspace__subtitle">
+                Здесь собраны профили пользователей с удобным поиском, балансом генераций, ссылками на VK и последней активностью по всем ключевым действиям в боте.
+            </p>
+        </div>
+    </div>
+
+    <div class="users-summary-grid">
+        <article class="users-summary-card">
+            <div class="users-summary-card__label">Всего пользователей</div>
+            <div class="users-summary-card__value">{{.Summary.TotalUsers}}</div>
+            <div class="users-summary-card__hint">Вся база пользователей бота.</div>
+        </article>
+        <article class="users-summary-card">
+            <div class="users-summary-card__label">Платящие пользователи</div>
+            <div class="users-summary-card__value">{{.Summary.PaidUsers}}</div>
+            <div class="users-summary-card__hint">Пользователи со статусом `paid`.</div>
+        </article>
+        <article class="users-summary-card">
+            <div class="users-summary-card__label">Новых сегодня</div>
+            <div class="users-summary-card__value">{{.Summary.NewUsersToday}}</div>
+            <div class="users-summary-card__hint">Регистрации за текущие сутки.</div>
+        </article>
+        <article class="users-summary-card">
+            <div class="users-summary-card__label">Активных за 7 дней</div>
+            <div class="users-summary-card__value">{{.Summary.ActiveUsers7d}}</div>
+            <div class="users-summary-card__hint">Сообщения, кнопки, генерации и оплаты.</div>
+        </article>
+    </div>
+
+    <section class="users-panel">
+        <div class="users-toolbar">
+            <div>
+                <h3 class="users-toolbar__title">Поиск и фильтры</h3>
+                <div class="users-toolbar__copy">
+                    Найдено {{.VisibleCount}} пользователей на странице{{if .FiltersApplied}} · режим: {{.StatusLabel}}{{end}}.
+                </div>
+            </div>
+
+            <form method="GET" action="/admin/users" class="users-toolbar__form">
+                <div>
+                    <label class="form-label small text-muted">Поиск</label>
+                    <input type="search" name="q" value="{{.Query}}" class="form-control" placeholder="Имя, @username, VK ID или referral code">
+                </div>
+                <div>
+                    <label class="form-label small text-muted">Статус</label>
+                    <select name="status" class="form-select">
+                        <option value="" {{if eq .Status ""}}selected{{end}}>Все статусы</option>
+                        <option value="free" {{if eq .Status "free"}}selected{{end}}>Только free</option>
+                        <option value="paid" {{if eq .Status "paid"}}selected{{end}}>Только paid</option>
+                    </select>
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary">Применить</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="users-toolbar__chips">
+            <span class="badge text-bg-light border">Всего в выборке: {{.Total}}</span>
+            <span class="badge text-bg-light border">Страница: {{.Page}}</span>
+            {{if .Query}}<span class="badge text-bg-light border">Поиск: {{.Query}}</span>{{end}}
+            {{if .Status}}<span class="badge text-bg-light border">Фильтр: {{.StatusLabel}}</span>{{end}}
+        </div>
+    </section>
+
+    <section class="users-panel">
+        {{if .Users}}
+        <div class="users-list">
+            <div class="users-list__head">
+                <div>Пользователь</div>
+                <div>Генерации</div>
+                <div>Дата регистрации</div>
+                <div>Последняя активность</div>
+                <div></div>
+            </div>
+
+            {{range .Users}}
+            <article class="users-row">
+                <div class="users-profile">
+                    <div class="users-profile__avatar">
+                        <i class="bi bi-person"></i>
+                    </div>
+                    <div>
+                        <div class="users-profile__name">
+                            <a href="{{.DetailURL}}" class="text-decoration-none text-reset">{{.DisplayName}}</a>
+                        </div>
+                        <div class="users-profile__meta">
+                            <a href="{{.ProfileURL}}" target="_blank" rel="noreferrer">{{.Subtitle}}</a>
+                        </div>
+                        <div class="users-profile__chips">
+                            <span class="badge text-bg-{{.StatusClass}}">{{.StatusLabel}}</span>
+                            <span class="badge text-bg-light border">VK ID: {{.VKID}}</span>
+                            {{if .HasSubscription}}<span class="badge text-bg-light border">Подписан</span>{{end}}
+                            {{if .HasSavedPhoto}}<span class="badge text-bg-light border">Есть сохранённое фото</span>{{end}}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="users-metric">
+                    <div class="users-metric__label">Генерации</div>
+                    <div class="users-metric__value">{{.TotalGens}}</div>
+                    <div class="users-metric__subvalue">free {{.FreeGens}} · paid {{.PaidGens}}</div>
+                </div>
+
+                <div class="users-metric">
+                    <div class="users-metric__label">Дата регистрации</div>
+                    <div class="users-metric__value">{{.CreatedAt}}</div>
+                    <div class="users-metric__subvalue">Профиль добавлен в базу</div>
+                </div>
+
+                <div class="users-metric">
+                    <div class="users-metric__label">Последняя активность</div>
+                    <div class="users-metric__value">{{.LastActivity}}</div>
+                    <div class="users-metric__subvalue">Сообщения, кнопки, генерации, оплаты</div>
+                </div>
+
+                <div class="users-row__action">
+                    <a href="{{.DetailURL}}" class="btn btn-outline-dark w-100">
+                        Открыть карточку
+                    </a>
+                </div>
+            </article>
             {{end}}
         </div>
-    </div>
-</div>
-<div class="card mt-3">
-    <div class="card-header fw-semibold">Начислить генерации</div>
-    <div class="card-body">
-        <form method="POST" action="/admin/users/{{.User.VKID}}/add-gens" class="row g-2 align-items-end">
-            <div class="col-auto">
-                <label class="form-label small text-muted mb-1">Количество</label>
-                <input type="number" name="count" min="1" max="9999" class="form-control form-control-sm" style="width:90px" required>
+
+        <div class="users-pagination">
+            <div class="users-pagination__meta">
+                Показано {{.VisibleCount}} из {{.Total}} пользователей.
             </div>
-            <div class="col-auto">
-                <label class="form-label small text-muted mb-1">Тип</label>
-                <select name="type" class="form-select form-select-sm">
-                    <option value="free">Бесплатные</option>
-                    <option value="paid">Платные</option>
-                </select>
+            <div class="users-pagination__actions">
+                {{if .HasPrev}}<a href="{{.PrevURL}}" class="btn btn-outline-secondary">← Назад</a>{{end}}
+                {{if .HasNext}}<a href="{{.NextURL}}" class="btn btn-outline-primary">Вперёд →</a>{{end}}
             </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-sm btn-primary">Начислить</button>
-            </div>
-        </form>
-    </div>
+        </div>
+        {{else}}
+        <div class="users-list__empty">
+            <i class="bi bi-search"></i>
+            <h3 class="mt-3 mb-2 fw-bold">Пользователи не найдены</h3>
+            <p class="users-toolbar__copy mb-0">Попробуйте изменить поисковый запрос или снять фильтр по статусу.</p>
+        </div>
+        {{end}}
+    </section>
+    {{end}}
 </div>
-{{else}}
-{{/* ── Список пользователей ── */}}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <span class="text-muted">Всего: <strong>{{.Total}}</strong></span>
-</div>
-<div class="card">
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>VK ID</th><th>Username</th><th>Имя</th><th>Пол</th>
-                    <th>Статус</th><th>Св. ген.</th><th>Пл. ген.</th><th>Рег.</th><th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {{range .Users}}
-                <tr>
-                    <td><code>{{.VKID}}</code></td>
-                    <td>{{if .Username}}<a href="https://vk.com/id{{.VKID}}" target="_blank">@{{.Username}}</a>{{else}}—{{end}}</td>
-                    <td>{{.FirstName}}</td>
-                    <td>{{.Gender}}</td>
-                    <td>{{if eq .Status "paid"}}<span class="badge bg-success">paid</span>{{else}}<span class="badge bg-secondary">free</span>{{end}}</td>
-                    <td>{{.FreeGens}}</td>
-                    <td>{{.PaidGens}}</td>
-                    <td class="text-muted small">{{.CreatedAt.Format "02.01.2006"}}</td>
-                    <td><a href="/admin/users/{{.VKID}}" class="btn btn-sm btn-outline-primary">Детали</a></td>
-                </tr>
-                {{end}}
-            </tbody>
-        </table>
-    </div>
-</div>
-<nav class="mt-3">
-    <ul class="pagination">
-        {{if .HasPrev}}<li class="page-item"><a class="page-link" href="?page={{dec .Page}}">← Назад</a></li>{{end}}
-        <li class="page-item disabled"><span class="page-link">Стр. {{.Page}}</span></li>
-        {{if .HasNext}}<li class="page-item"><a class="page-link" href="?page={{inc .Page}}">Вперёд →</a></li>{{end}}
-    </ul>
-</nav>
-{{end}}
 {{end}}

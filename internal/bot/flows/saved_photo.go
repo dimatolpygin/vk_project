@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"vk_neuro_bot/internal/repository"
 )
 
 func HandleSavedPhotoStart(ctx context.Context, fc *Context, d *Deps) {
@@ -56,6 +57,9 @@ func HandleSavedPhotoReceived(ctx context.Context, fc *Context, d *Deps) {
 		return
 	}
 
+	trackEvent(ctx, d, fc.VkID, repository.ActivityEventSavedPhotoSaved, "saved_photo_upload", "saved_photo_saved", map[string]any{
+		"has_storage": d.Storage != nil,
+	})
 	_ = d.State.SetStep(ctx, fc.VkID, StepMainMenu)
 	_ = sendScreen(ctx, d, fc.VkID, "saved_photo_saved", ScreenOptions{
 		Data: map[string]any{
@@ -72,6 +76,9 @@ func HandleToggleSavedPhoto(ctx context.Context, fc *Context, d *Deps) {
 		log.Error().Err(err).Msg("не удалось обновить настройку use_saved_photo")
 		return
 	}
+	trackEvent(ctx, d, fc.VkID, repository.ActivityEventSavedPhotoToggled, "toggle_saved_photo", "saved_photo_filled", map[string]any{
+		"enabled": newValue,
+	})
 	fc.User.UseSavedPhoto = newValue
 	showSavedPhotoMenu(ctx, fc, d)
 }

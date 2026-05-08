@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/rs/zerolog/log"
+	"vk_neuro_bot/internal/repository"
 )
 
 func HandleSettings(ctx context.Context, fc *Context, d *Deps) {
@@ -83,6 +84,10 @@ func HandleSetResolution(ctx context.Context, fc *Context, d *Deps, resolution s
 	fc.User.PrefResolution = resolution
 	if err := d.UserRepo.SaveSettings(ctx, fc.VkID, fc.State.Model, resolution, fc.State.AspectRatio); err != nil {
 		log.Error().Err(err).Msg("не удалось сохранить настройки пользователя")
+	} else {
+		trackEvent(ctx, d, fc.VkID, repository.ActivityEventSettingsChanged, "quality_"+resolution, "settings_quality", map[string]any{
+			"resolution": resolution,
+		})
 	}
 	HandleSettings(ctx, fc, d)
 }
@@ -92,6 +97,10 @@ func HandleSetAspectRatio(ctx context.Context, fc *Context, d *Deps, ar string) 
 	fc.User.PrefAspectRatio = ar
 	if err := d.UserRepo.SaveSettings(ctx, fc.VkID, fc.State.Model, fc.State.Resolution, ar); err != nil {
 		log.Error().Err(err).Msg("не удалось сохранить настройки пользователя")
+	} else {
+		trackEvent(ctx, d, fc.VkID, repository.ActivityEventSettingsChanged, "ar_"+normalizeAspectRatioKey(ar), "settings_format", map[string]any{
+			"aspect_ratio": ar,
+		})
 	}
 	HandleSettings(ctx, fc, d)
 }
@@ -107,6 +116,10 @@ func HandleSetModel(ctx context.Context, fc *Context, d *Deps, modelID string) {
 	fc.User.PrefModel = modelID
 	if err := d.UserRepo.SaveSettings(ctx, fc.VkID, modelID, fc.State.Resolution, fc.State.AspectRatio); err != nil {
 		log.Error().Err(err).Msg("не удалось сохранить настройки пользователя")
+	} else {
+		trackEvent(ctx, d, fc.VkID, repository.ActivityEventSettingsChanged, modelActionKey(modelID), "settings_model", map[string]any{
+			"model": modelID,
+		})
 	}
 	HandleSettings(ctx, fc, d)
 }
@@ -117,4 +130,30 @@ func HandleSupport(ctx context.Context, fc *Context, d *Deps) {
 
 func HandleExamples(ctx context.Context, fc *Context, d *Deps) {
 	_ = sendScreen(ctx, d, fc.VkID, "examples_collage", ScreenOptions{})
+}
+
+func modelActionKey(modelID string) string {
+	switch modelID {
+	case "google/nano-banana-pro":
+		return "model_nbp"
+	case "google/nano-banana-2":
+		return "model_nb2"
+	case "openai/gpt-image-2":
+		return "model_gpt2"
+	default:
+		return "model"
+	}
+}
+
+func normalizeAspectRatioKey(ar string) string {
+	switch ar {
+	case "1:1":
+		return "1_1"
+	case "9:16":
+		return "9_16"
+	case "16:9":
+		return "16_9"
+	default:
+		return ar
+	}
 }

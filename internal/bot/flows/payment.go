@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog/log"
+	"vk_neuro_bot/internal/repository"
 	"vk_neuro_bot/internal/yukassa"
 )
 
@@ -80,10 +81,20 @@ func ProcessSuccessfulPayment(ctx context.Context, d *Deps, paymentID string, us
 	if err := d.UserRepo.AddPaidGens(ctx, userVKID, tariff.GensCount); err != nil {
 		return err
 	}
+	trackEvent(ctx, d, userVKID, repository.ActivityEventPaymentSucceeded, "buy_tariff", "payment_success", map[string]any{
+		"payment_id": paymentID,
+		"tariff_id":  tariffID,
+		"gens_count": tariff.GensCount,
+		"amount":     tariff.Price,
+	})
 
 	ref, err := d.RefRepo.GiveBonus(ctx, userVKID)
 	if err == nil && ref != nil {
 		_ = d.UserRepo.AddFreeGens(ctx, ref.ReferrerVKID, 2)
+		trackEvent(ctx, d, ref.ReferrerVKID, repository.ActivityEventReferralBonusAwarded, "referral", "referral_bonus_awarded", map[string]any{
+			"referred_vk_id": userVKID,
+			"bonus_gens":     2,
+		})
 		_ = sendScreen(ctx, d, ref.ReferrerVKID, "referral_bonus_awarded", ScreenOptions{})
 	}
 
