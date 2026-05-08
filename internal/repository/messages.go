@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -144,6 +145,48 @@ func (r *MessageRepo) EnsureDefaults(ctx context.Context) error {
 	}
 
 	return rows.Err()
+}
+
+func (r *MessageRepo) WaitForKeyboardSchema(ctx context.Context, timeout time.Duration) error {
+	deadlineCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		ready, err := r.hasKeyboardSchema(deadlineCtx)
+		if err == nil && ready {
+			return nil
+		}
+		if err != nil {
+			lastErr = err
+		}
+
+		select {
+		case <-deadlineCtx.Done():
+			if lastErr != nil {
+				return fmt.Errorf("wait for messages.keyboard schema: %w", lastErr)
+			}
+			return fmt.Errorf("wait for messages.keyboard schema: %w", deadlineCtx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+func (r *MessageRepo) hasKeyboardSchema(ctx context.Context) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = current_schema()
+				AND table_name = 'messages'
+				AND column_name = 'keyboard'
+		)`).
+		Scan(&exists)
+	return exists, err
 }
 
 func hydrateKeyboard(key string, legacyButtonsJSON, keyboardJSON *[]byte) content.Keyboard {

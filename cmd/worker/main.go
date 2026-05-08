@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
@@ -50,6 +51,9 @@ func main() {
 	genRepo := repository.NewGenerationRepo(pool)
 	msgRepo := repository.NewMessageRepo(pool)
 	userRepo := repository.NewUserRepo(pool)
+	if err := msgRepo.WaitForKeyboardSchema(ctx, 30*time.Second); err != nil {
+		log.Fatal().Err(err).Msg("не удалось дождаться миграции content-экранов")
+	}
 	if err := msgRepo.EnsureDefaults(ctx); err != nil {
 		log.Fatal().Err(err).Msg("не удалось синхронизировать экраны контента")
 	}
