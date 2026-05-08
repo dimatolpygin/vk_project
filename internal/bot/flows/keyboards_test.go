@@ -69,3 +69,25 @@ func TestRenderContentKeyboardWithRowsKeepsPrefixRows(t *testing.T) {
 		t.Fatalf("expected service row with back button, got %q", got)
 	}
 }
+
+func TestKbBottomMenuUsesContentDefinition(t *testing.T) {
+	raw := KbBottomMenu()
+
+	var keyboard Keyboard
+	if err := json.Unmarshal([]byte(raw), &keyboard); err != nil {
+		t.Fatalf("unmarshal rendered keyboard: %v", err)
+	}
+
+	if keyboard.Inline {
+		t.Fatal("expected persistent reply keyboard to be non-inline")
+	}
+	if len(keyboard.Buttons) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(keyboard.Buttons))
+	}
+	if got := keyboard.Buttons[0][0].Action.Type; got != "text" {
+		t.Fatalf("expected text action type, got %q", got)
+	}
+	if got := keyboard.Buttons[1][2].Action.Label; got != "🖼 Примеры работ" {
+		t.Fatalf("unexpected examples label: %q", got)
+	}
+}

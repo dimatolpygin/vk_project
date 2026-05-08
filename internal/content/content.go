@@ -9,6 +9,7 @@ import (
 
 const (
 	ButtonKindCallback = "callback"
+	ButtonKindText     = "text"
 	ButtonKindOpenLink = "open_link"
 	ButtonKindSelect   = "select"
 	ButtonKindToggle   = "toggle"

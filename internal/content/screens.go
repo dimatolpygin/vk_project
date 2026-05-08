@@ -15,6 +15,13 @@ var screenDefinitions = map[string]ScreenDefinition{
 	"categories_empty": screen("categories_empty", "Категории пока не добавлены.",
 		callback("back", "back", "◀️ Назад", "secondary", 0, 0),
 	),
+	"bottom_menu": replyScreen("bottom_menu", "Быстрое меню",
+		textButton("bottom_main_menu", "main_menu", "🏠 Главное меню", "secondary", 0, 0),
+		textButton("bottom_buy_gens", "buy_gens", "💎 Купить генерации", "primary", 0, 1),
+		textButton("bottom_settings", "settings", "⚙️ Настройки", "secondary", 1, 0),
+		textButton("bottom_support", "support", "🆘 Техподдержка", "secondary", 1, 1),
+		textButton("bottom_examples", "examples", "🖼 Примеры работ", "secondary", 1, 2),
+	),
 	"couple_intro": screen("couple_intro", "👫 Парные и семейные фото\n\nОтправь фото двух людей для создания совместной нейрофотосессии:",
 		callback("back", "back", "◀️ Назад", "secondary", 100, 0),
 	),
@@ -183,11 +190,36 @@ func screen(key, text string, items ...Button) ScreenDefinition {
 	}
 }
 
+func replyScreen(key, text string, items ...Button) ScreenDefinition {
+	return ScreenDefinition{
+		Key:         key,
+		DefaultText: text,
+		Keyboard: Keyboard{
+			Inline:  false,
+			OneTime: false,
+			Items:   items,
+		},
+	}
+}
+
 func callback(slotID, actionKey, label, color string, row, position int) Button {
 	return Button{
 		SlotID:    slotID,
 		ActionKey: actionKey,
 		Kind:      ButtonKindCallback,
+		Label:     label,
+		Row:       row,
+		Position:  position,
+		Visible:   true,
+		Color:     color,
+	}
+}
+
+func textButton(slotID, actionKey, label, color string, row, position int) Button {
+	return Button{
+		SlotID:    slotID,
+		ActionKey: actionKey,
+		Kind:      ButtonKindText,
 		Label:     label,
 		Row:       row,
 		Position:  position,

@@ -199,17 +199,10 @@ func KbAspectRatio(current string) string {
 }
 
 func KbBottomMenu() string {
-	return kbJSON(&Keyboard{Inline: false, OneTime: false, Buttons: [][]KbBtn{
-		{
-			{Action: KbAction{Type: "text", Label: "🏠 Главное меню", Payload: cbPayload("main_menu")}, Color: "secondary"},
-			{Action: KbAction{Type: "text", Label: "💎 Купить генерации", Payload: cbPayload("buy_gens")}, Color: "primary"},
-		},
-		{
-			{Action: KbAction{Type: "text", Label: "⚙️ Настройки", Payload: cbPayload("settings")}, Color: "secondary"},
-			{Action: KbAction{Type: "text", Label: "🆘 Техподдержка", Payload: cbPayload("support")}, Color: "secondary"},
-			{Action: KbAction{Type: "text", Label: "🖼 Примеры работ", Payload: cbPayload("examples")}, Color: "secondary"},
-		},
-	}})
+	if def, ok := content.Definition("bottom_menu"); ok {
+		return RenderContentKeyboard(def.Keyboard, KeyboardRenderOptions{})
+	}
+	return ""
 }
 
 func KbSavedPhotoMenu(hasSavedPhoto, useInPrompts bool) string {
@@ -284,6 +277,11 @@ func contentRows(cfg content.Keyboard, opts KeyboardRenderOptions) [][]KbBtn {
 
 func contentButton(item content.Button, opts KeyboardRenderOptions) (KbBtn, bool) {
 	switch item.Kind {
+	case content.ButtonKindText:
+		return KbBtn{
+			Action: KbAction{Type: "text", Label: item.Label, Payload: cbPayload(item.ActionKey)},
+			Color:  item.Color,
+		}, true
 	case content.ButtonKindOpenLink:
 		link := opts.Links[item.LinkBinding]
 		if link == "" {
