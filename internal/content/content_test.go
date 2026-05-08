@@ -29,14 +29,14 @@ func TestKeyboardJSONRoundTrip(t *testing.T) {
 
 func TestBuildLegacyKeyboardUsesLegacyLabels(t *testing.T) {
 	keyboard := BuildLegacyKeyboard("welcome", []LegacyButton{
-		{Label: "Новый CTA", Payload: "free_gen"},
-		{Label: "Новый реф", Payload: "referral"},
+		{Label: "New CTA", Payload: "free_gen"},
+		{Label: "New referral", Payload: "referral"},
 	})
 
-	if got := keyboard.Items[0].Label; got != "Новый CTA" {
+	if got := keyboard.Items[0].Label; got != "New CTA" {
 		t.Fatalf("expected first label to be replaced, got %q", got)
 	}
-	if got := keyboard.Items[1].Label; got != "Новый реф" {
+	if got := keyboard.Items[1].Label; got != "New referral" {
 		t.Fatalf("expected second label to be replaced, got %q", got)
 	}
 }
@@ -62,11 +62,11 @@ func TestMergeEditableKeyboardAllowsEditableFields(t *testing.T) {
 	}
 
 	input := def.Keyboard
-	input.Items[0].Label = "Моё название"
+	input.Items[0].Label = "Custom label"
 	input.Items[0].Row = 10
 	input.Items[0].Position = 3
 	input.Items[0].Visible = false
-	input.Items[1].LabelOn = "Своя надпись ON"
+	input.Items[1].LabelOn = "Enabled label"
 
 	merged, err := MergeEditableKeyboard("saved_photo_filled", input)
 	if err != nil {
@@ -84,7 +84,7 @@ func TestMergeEditableKeyboardAllowsEditableFields(t *testing.T) {
 		}
 	}
 
-	if replaceButton.Label != "Моё название" {
+	if replaceButton.Label != "Custom label" {
 		t.Fatalf("expected edited label, got %q", replaceButton.Label)
 	}
 	if replaceButton.Row != 10 || replaceButton.Position != 3 {
@@ -93,7 +93,33 @@ func TestMergeEditableKeyboardAllowsEditableFields(t *testing.T) {
 	if replaceButton.Visible {
 		t.Fatal("expected visible=false to be preserved")
 	}
-	if toggleButton.LabelOn != "Своя надпись ON" {
+	if toggleButton.LabelOn != "Enabled label" {
 		t.Fatalf("expected label_on override, got %q", toggleButton.LabelOn)
+	}
+}
+
+func TestScreenMetaCoversDefaultScreens(t *testing.T) {
+	for _, def := range DefaultScreens() {
+		meta := ScreenMeta(def.Key)
+		if meta.Title == "" {
+			t.Fatalf("screen %q has empty admin title", def.Key)
+		}
+		if meta.SectionID == "" {
+			t.Fatalf("screen %q has empty section id", def.Key)
+		}
+		if _, ok := ScreenSectionByID(meta.SectionID); !ok {
+			t.Fatalf("screen %q points to unknown section %q", def.Key, meta.SectionID)
+		}
+	}
+}
+
+func TestScreenMetaFallbackUsesHumanizedTitle(t *testing.T) {
+	meta := ScreenMeta("unknown_screen_key")
+
+	if meta.SectionID != "other" {
+		t.Fatalf("expected fallback section to be other, got %q", meta.SectionID)
+	}
+	if meta.Title != "Unknown Screen Key" {
+		t.Fatalf("expected humanized fallback title, got %q", meta.Title)
 	}
 }

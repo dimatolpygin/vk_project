@@ -1,104 +1,897 @@
 {{define "content"}}
-<p class="text-muted mb-3">Редактируйте тексты, изображения и кнопки экранов бота. Изменения применяются сразу, без перезапуска.</p>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap');
 
-<div class="accordion" id="messagesAccordion">
-    {{range $i, $m := .Messages}}
-    <div class="accordion-item">
-        <h2 class="accordion-header">
-            <button class="accordion-button collapsed" type="button"
-                data-bs-toggle="collapse" data-bs-target="#msg-{{$m.Key}}">
-                <code class="me-2">{{$m.Key}}</code>
-                <span class="text-muted small text-truncate" style="max-width: 420px">{{$m.Text}}</span>
-            </button>
-        </h2>
-        <div id="msg-{{$m.Key}}" class="accordion-collapse collapse">
-            <div class="accordion-body">
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Текст экрана</label>
-                    <textarea class="form-control" id="text-{{$m.Key}}" rows="5">{{$m.Text}}</textarea>
-                </div>
+    .message-workspace {
+        --mw-surface: #ffffff;
+        --mw-surface-soft: #f8fbff;
+        --mw-border: #dbe5f0;
+        --mw-border-strong: #c8d7e6;
+        --mw-text: #0f172a;
+        --mw-muted: #64748b;
+        --mw-primary: #0f766e;
+        --mw-primary-soft: #ecfeff;
+        --mw-primary-deep: #115e59;
+        --mw-accent: #1d4ed8;
+        --mw-accent-soft: #eff6ff;
+        --mw-shadow: 0 22px 48px rgba(15, 23, 42, 0.08);
+        --mw-shadow-soft: 0 16px 34px rgba(15, 23, 42, 0.05);
+        font-family: "Manrope", sans-serif;
+        color: var(--mw-text);
+    }
 
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Изображение</label>
-                    <div class="input-group">
-                        <input type="file" class="form-control" id="file-{{$m.Key}}" accept="image/*"
-                               onchange="uploadFile('{{$m.Key}}')">
-                        <input type="text" class="form-control" id="img-{{$m.Key}}"
-                               value="{{if $m.ImageURL}}{{$m.ImageURL}}{{end}}" placeholder="URL изображения">
-                    </div>
-                    <div id="upload-status-{{$m.Key}}" class="text-muted small mt-1" style="display:none"></div>
-                </div>
+    .message-workspace__intro {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
 
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Кнопки</label>
-                    <div id="keyboard-{{$m.Key}}" class="d-grid gap-2"
-                         data-inline="{{if $m.Keyboard.Inline}}true{{else}}false{{end}}"
-                         data-one-time="{{if $m.Keyboard.OneTime}}true{{else}}false{{end}}">
-                        {{if $m.Keyboard.Items}}
-                            {{range $btn := $m.Keyboard.Items}}
-                            <div class="border rounded p-3 keyboard-item"
-                                 data-slot-id="{{$btn.SlotID}}"
-                                 data-action-key="{{$btn.ActionKey}}"
-                                 data-kind="{{$btn.Kind}}"
-                                 data-color="{{$btn.Color}}"
-                                 data-value="{{$btn.Value}}"
-                                 data-link-binding="{{$btn.LinkBinding}}">
-                                <div class="d-flex flex-wrap gap-2 mb-2">
-                                    <span class="badge text-bg-secondary">slot: {{$btn.SlotID}}</span>
-                                    <span class="badge text-bg-light border">action: {{$btn.ActionKey}}</span>
-                                    <span class="badge text-bg-light border">type: {{$btn.Kind}}</span>
-                                    {{if $btn.Color}}<span class="badge text-bg-light border">color: {{$btn.Color}}</span>{{end}}
-                                    {{if $btn.Value}}<span class="badge text-bg-light border">value: {{$btn.Value}}</span>{{end}}
-                                    {{if $btn.LinkBinding}}<span class="badge text-bg-light border">link: {{$btn.LinkBinding}}</span>{{end}}
-                                </div>
+    .message-workspace__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .38rem .72rem;
+        border-radius: 999px;
+        background: var(--mw-primary-soft);
+        color: var(--mw-primary-deep);
+        font-size: .76rem;
+        font-weight: 800;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
 
-                                <div class="row g-2 align-items-end">
-                                    <div class="{{if eq $btn.Kind "toggle"}}col-md-4{{else}}col-md-5{{end}}">
-                                        <label class="form-label small">Label</label>
-                                        <input type="text" class="form-control form-control-sm keyboard-label" value="{{$btn.Label}}">
-                                    </div>
+    .message-workspace__subtitle {
+        max-width: 760px;
+        margin: .8rem 0 0;
+        color: var(--mw-muted);
+        font-size: .96rem;
+        line-height: 1.6;
+    }
 
-                                    {{if eq $btn.Kind "toggle"}}
-                                    <div class="col-md-4">
-                                        <label class="form-label small">Label ON</label>
-                                        <input type="text" class="form-control form-control-sm keyboard-label-on" value="{{$btn.LabelOn}}">
-                                    </div>
-                                    {{end}}
+    .message-workspace__summary {
+        min-width: 220px;
+        padding: 1rem 1.1rem;
+        border: 1px solid var(--mw-border);
+        border-radius: 20px;
+        background: linear-gradient(180deg, #f8fffe 0%, #ffffff 100%);
+        box-shadow: var(--mw-shadow-soft);
+    }
 
-                                    <div class="col-md-1">
-                                        <label class="form-label small">Row</label>
-                                        <input type="number" class="form-control form-control-sm keyboard-row" value="{{$btn.Row}}">
-                                    </div>
-                                    <div class="col-md-1">
-                                        <label class="form-label small">Pos</label>
-                                        <input type="number" class="form-control form-control-sm keyboard-position" value="{{$btn.Position}}">
-                                    </div>
-                                    <div class="col-md-2">
-                                        <div class="form-check mt-4">
-                                            <input class="form-check-input keyboard-visible" type="checkbox" {{if $btn.Visible}}checked{{end}}>
-                                            <label class="form-check-label small">Видима</label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            {{end}}
-                        {{else}}
-                            <div class="text-muted small border rounded p-3">У этого экрана нет редактируемых кнопок.</div>
-                        {{end}}
-                    </div>
-                </div>
+    .message-workspace__summary-label {
+        color: var(--mw-muted);
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
 
-                <div class="d-flex gap-2">
-                    <button class="btn btn-primary btn-sm" onclick="saveMessage('{{$m.Key}}')">Сохранить</button>
-                    <span id="saved-{{$m.Key}}" class="text-success small align-self-center" style="display:none">✓ Сохранено</span>
-                </div>
-            </div>
+    .message-workspace__summary-value {
+        margin-top: .35rem;
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -.04em;
+    }
+
+    .message-workspace__summary-copy {
+        margin-top: .4rem;
+        color: var(--mw-muted);
+        font-size: .88rem;
+        line-height: 1.5;
+    }
+
+    .message-shell {
+        display: grid;
+        grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+        gap: 1.5rem;
+        align-items: start;
+    }
+
+    .message-sidebar,
+    .message-stage {
+        border: 1px solid var(--mw-border);
+        border-radius: 28px;
+        background: var(--mw-surface);
+        box-shadow: var(--mw-shadow-soft);
+    }
+
+    .message-sidebar {
+        position: sticky;
+        top: 1.5rem;
+        overflow: hidden;
+    }
+
+    .message-sidebar__header,
+    .message-stage__toolbar {
+        padding: 1.35rem 1.35rem 1.1rem;
+    }
+
+    .message-sidebar__header {
+        border-bottom: 1px solid var(--mw-border);
+        background: linear-gradient(180deg, #fcfffe 0%, #ffffff 100%);
+    }
+
+    .message-sidebar__title,
+    .message-stage__title {
+        margin: 0;
+        font-size: 1.12rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .message-sidebar__meta,
+    .message-stage__meta {
+        margin-top: .4rem;
+        color: var(--mw-muted);
+        font-size: .88rem;
+        line-height: 1.55;
+    }
+
+    .message-sidebar__list {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        padding: 1rem;
+    }
+
+    .message-sidebar__item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: .85rem;
+        align-items: center;
+        width: 100%;
+        padding: .9rem 1rem;
+        border: 1px solid transparent;
+        border-radius: 20px;
+        background: transparent;
+        color: inherit;
+        text-align: left;
+        transition: transform .18s ease, border-color .18s ease, background-color .18s ease, box-shadow .18s ease;
+    }
+
+    .message-sidebar__item:hover,
+    .message-sidebar__item:focus-visible {
+        border-color: #cfe8e3;
+        background: #f9fefd;
+        transform: translateY(-1px);
+        outline: none;
+    }
+
+    .message-sidebar__item.is-active {
+        border-color: #b8ddd6;
+        background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%);
+        box-shadow: 0 14px 30px rgba(15, 118, 110, 0.10);
+    }
+
+    .message-sidebar__item-main {
+        display: flex;
+        gap: .85rem;
+        min-width: 0;
+    }
+
+    .message-sidebar__icon {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        border-radius: 14px;
+        background: linear-gradient(160deg, #def7f2 0%, #eff6ff 100%);
+        color: var(--mw-primary-deep);
+        font-size: 1rem;
+    }
+
+    .message-sidebar__name {
+        font-size: .96rem;
+        font-weight: 800;
+        letter-spacing: -.01em;
+    }
+
+    .message-sidebar__desc {
+        margin-top: .2rem;
+        color: var(--mw-muted);
+        font-size: .8rem;
+        line-height: 1.45;
+    }
+
+    .message-sidebar__count {
+        min-width: 38px;
+        padding: .3rem .55rem;
+        border-radius: 999px;
+        background: #eef2ff;
+        color: #3730a3;
+        font-size: .78rem;
+        font-weight: 800;
+        text-align: center;
+    }
+
+    .message-stage {
+        overflow: hidden;
+    }
+
+    .message-stage__toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        border-bottom: 1px solid var(--mw-border);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 82%, rgba(255, 255, 255, 0));
+        backdrop-filter: blur(10px);
+    }
+
+    .message-stage__toolbar-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .message-stage__actions {
+        display: flex;
+        align-items: center;
+        gap: .85rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .message-stage__count {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .5rem .8rem;
+        border-radius: 999px;
+        background: #f8fafc;
+        color: #334155;
+        font-size: .83rem;
+        font-weight: 700;
+    }
+
+    .message-stage__search {
+        position: relative;
+        min-width: min(100%, 330px);
+    }
+
+    .message-stage__search i {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+    }
+
+    .message-stage__search input {
+        width: 100%;
+        padding: .88rem 1rem .88rem 2.7rem;
+        border: 1px solid var(--mw-border);
+        border-radius: 16px;
+        background: #fbfdff;
+        color: var(--mw-text);
+        font-size: .92rem;
+        font-weight: 600;
+        transition: border-color .18s ease, box-shadow .18s ease;
+    }
+
+    .message-stage__search input:focus {
+        outline: none;
+        border-color: #bfd9ff;
+        box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.10);
+    }
+
+    .message-stage__content {
+        padding: 1.35rem;
+    }
+
+    .message-grid {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .message-card {
+        border: 1px solid var(--mw-border);
+        border-radius: 24px;
+        background: linear-gradient(180deg, #ffffff 0%, #fcfeff 100%);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.04);
+        transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+    }
+
+    .message-card:hover {
+        border-color: var(--mw-border-strong);
+        box-shadow: var(--mw-shadow-soft);
+        transform: translateY(-2px);
+    }
+
+    .message-card__shell {
+        padding: 1.25rem 1.25rem 1rem;
+    }
+
+    .message-card__header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .message-card__title {
+        margin: .55rem 0 .3rem;
+        font-size: 1.14rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .message-card__description {
+        margin: 0;
+        color: var(--mw-muted);
+        font-size: .9rem;
+        line-height: 1.55;
+    }
+
+    .message-card__eyebrow,
+    .message-card__meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .55rem;
+        align-items: center;
+    }
+
+    .message-card__eyebrow .badge,
+    .keyboard-item__meta .badge {
+        padding: .45rem .65rem;
+        border-radius: 999px;
+        font-weight: 700;
+    }
+
+    .message-card__preview {
+        margin: 1rem 0 0;
+        padding: .95rem 1rem;
+        border-radius: 18px;
+        background: var(--mw-surface-soft);
+        color: #334155;
+        font-size: .9rem;
+        line-height: 1.6;
+    }
+
+    .message-card__meta {
+        margin-top: .95rem;
+        color: var(--mw-muted);
+        font-size: .8rem;
+        font-weight: 700;
+    }
+
+    .message-editor {
+        border-top: 1px solid var(--mw-border);
+        background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+        padding: 1.25rem;
+    }
+
+    .message-editor__grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .message-panel {
+        padding: 1rem;
+        border: 1px solid var(--mw-border);
+        border-radius: 22px;
+        background: #ffffff;
+    }
+
+    .message-panel__header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .message-panel__title {
+        margin: 0;
+        font-size: .98rem;
+        font-weight: 800;
+        letter-spacing: -.01em;
+    }
+
+    .message-panel__hint {
+        color: var(--mw-muted);
+        font-size: .8rem;
+        line-height: 1.45;
+    }
+
+    .message-upload {
+        display: grid;
+        gap: .75rem;
+    }
+
+    .message-image-preview {
+        display: none;
+        margin-top: .85rem;
+        padding: .6rem;
+        border: 1px dashed var(--mw-border-strong);
+        border-radius: 18px;
+        background: #fbfdff;
+    }
+
+    .message-image-preview.is-visible {
+        display: block;
+    }
+
+    .message-image-preview img {
+        width: 100%;
+        max-height: 240px;
+        object-fit: cover;
+        border-radius: 14px;
+        display: block;
+    }
+
+    .message-keyboard {
+        display: grid;
+        gap: .85rem;
+    }
+
+    .keyboard-item {
+        padding: .95rem;
+        border: 1px solid var(--mw-border);
+        border-radius: 18px;
+        background: #fcfeff;
+    }
+
+    .keyboard-item__meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .5rem;
+        margin-bottom: .8rem;
+    }
+
+    .keyboard-empty {
+        padding: 1rem;
+        border: 1px dashed var(--mw-border-strong);
+        border-radius: 18px;
+        color: var(--mw-muted);
+        font-size: .88rem;
+        background: #fcfdff;
+    }
+
+    .message-editor__footer {
+        display: flex;
+        align-items: center;
+        gap: .85rem;
+        margin-top: 1rem;
+    }
+
+    .message-save-indicator {
+        display: none;
+        color: #047857;
+        font-size: .86rem;
+        font-weight: 700;
+    }
+
+    .message-empty {
+        display: none;
+        padding: 3rem 1.5rem;
+        border: 1px dashed var(--mw-border-strong);
+        border-radius: 24px;
+        background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
+        text-align: center;
+    }
+
+    .message-empty.is-visible {
+        display: block;
+    }
+
+    .message-empty__icon {
+        width: 64px;
+        height: 64px;
+        display: grid;
+        place-items: center;
+        margin: 0 auto 1rem;
+        border-radius: 20px;
+        background: linear-gradient(160deg, #eff6ff 0%, #ecfeff 100%);
+        color: var(--mw-accent);
+        font-size: 1.35rem;
+    }
+
+    .message-empty__title {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .message-empty__copy {
+        max-width: 460px;
+        margin: .65rem auto 0;
+        color: var(--mw-muted);
+        font-size: .9rem;
+        line-height: 1.6;
+    }
+
+    @media (max-width: 1199px) {
+        .message-editor__grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 991px) {
+        .message-shell {
+            grid-template-columns: 1fr;
+        }
+
+        .message-sidebar {
+            position: static;
+        }
+
+        .message-workspace__intro,
+        .message-stage__toolbar-row,
+        .message-card__header {
+            flex-direction: column;
+        }
+
+        .message-stage__actions,
+        .message-card__header .btn {
+            width: 100%;
+        }
+
+        .message-stage__search {
+            min-width: 100%;
+        }
+    }
+</style>
+
+<div class="message-workspace" data-default-section="{{.DefaultSectionID}}">
+    <div class="message-workspace__intro">
+        <div>
+            <span class="message-workspace__kicker">
+                <i class="bi bi-layout-sidebar-inset"></i>
+                Контент-экраны
+            </span>
+            <p class="message-workspace__subtitle">
+                Редактируйте тексты, изображения и кнопки экранов бота в понятной структуре. Названия экранов и разделы
+                собраны так, чтобы администратор видел смысл сценария, а не только технический ключ.
+            </p>
+        </div>
+        <div class="message-workspace__summary">
+            <div class="message-workspace__summary-label">Всего экранов</div>
+            <div class="message-workspace__summary-value">{{.TotalScreens}}</div>
+            <div class="message-workspace__summary-copy">Изменения применяются сразу и не требуют перезапуска бота.</div>
         </div>
     </div>
-    {{end}}
+
+    <div class="message-shell">
+        <aside class="message-sidebar">
+            <div class="message-sidebar__header">
+                <h2 class="message-sidebar__title">Разделы</h2>
+                <div class="message-sidebar__meta">Слева собраны сценарии по смысловым блокам: от онбординга до системных ошибок.</div>
+            </div>
+
+            <div class="message-sidebar__list">
+                {{range .Sections}}
+                <button type="button"
+                        class="message-sidebar__item{{if eq $.DefaultSectionID .ID}} is-active{{end}}"
+                        data-section-nav
+                        data-section-id="{{.ID}}"
+                        data-section-title="{{.Title}}"
+                        data-section-description="{{.Description}}">
+                    <div class="message-sidebar__item-main">
+                        <div class="message-sidebar__icon">
+                            <i class="bi {{.Icon}}"></i>
+                        </div>
+                        <div>
+                            <div class="message-sidebar__name">{{.Title}}</div>
+                            <div class="message-sidebar__desc">{{.Description}}</div>
+                        </div>
+                    </div>
+                    <div class="message-sidebar__count">{{.Count}}</div>
+                </button>
+                {{end}}
+            </div>
+        </aside>
+
+        <section class="message-stage">
+            <div class="message-stage__toolbar">
+                <div class="message-stage__toolbar-row">
+                    <div>
+                        <h2 class="message-stage__title" id="message-stage-title">{{.DefaultSectionTitle}}</h2>
+                        <div class="message-stage__meta" id="message-stage-description">{{.DefaultSectionSummary}}</div>
+                    </div>
+
+                    <div class="message-stage__actions">
+                        <div class="message-stage__count">
+                            <i class="bi bi-collection"></i>
+                            <span id="message-stage-count">{{.TotalScreens}} экранов</span>
+                        </div>
+                        <div class="message-stage__search">
+                            <i class="bi bi-search"></i>
+                            <input type="search"
+                                   id="message-search"
+                                   placeholder="Поиск по названию, ключу, описанию или тексту">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="message-stage__content">
+                <div class="message-empty" id="message-empty">
+                    <div class="message-empty__icon">
+                        <i class="bi bi-filter-circle"></i>
+                    </div>
+                    <h3 class="message-empty__title">Ничего не найдено</h3>
+                    <p class="message-empty__copy" id="message-empty-copy">
+                        В выбранном разделе нет экранов под текущий фильтр. Попробуйте очистить поиск или открыть другой раздел.
+                    </p>
+                </div>
+
+                <div class="message-grid" id="message-grid">
+                    {{range .Screens}}
+                    <article class="message-card"
+                             data-screen-card
+                             data-section-id="{{.SectionID}}"
+                             data-search="{{.SearchText}}">
+                        <div class="message-card__shell">
+                            <div class="message-card__header">
+                                <div>
+                                    <div class="message-card__eyebrow">
+                                        <span class="badge text-bg-light border">
+                                            <i class="bi bi-code-square"></i>
+                                            {{.Key}}
+                                        </span>
+                                        <span class="badge text-bg-light border">{{.ButtonCount}} кнопок</span>
+                                        <span class="badge text-bg-light border {{if not .HasImage}}d-none{{end}}" id="card-image-badge-{{.Key}}">
+                                            <i class="bi bi-image"></i>
+                                            есть изображение
+                                        </span>
+                                        <span class="badge text-bg-light border {{if not .HasTemplateVars}}d-none{{end}}" id="card-vars-badge-{{.Key}}">
+                                            <i class="bi bi-braces"></i>
+                                            есть переменные
+                                        </span>
+                                    </div>
+                                    <h3 class="message-card__title">{{.Title}}</h3>
+                                    <p class="message-card__description">{{.Description}}</p>
+                                </div>
+
+                                <button type="button"
+                                        class="btn btn-outline-dark btn-sm"
+                                        data-editor-toggle
+                                        data-key="{{.Key}}">
+                                    Редактировать
+                                </button>
+                            </div>
+
+                            <p class="message-card__preview" id="card-preview-{{.Key}}">{{.PreviewText}}</p>
+                            <div class="message-card__meta">
+                                <span>Обновлён: {{.UpdatedAt}}</span>
+                            </div>
+                        </div>
+
+                        <div class="message-editor d-none" id="editor-{{.Key}}">
+                            <div class="message-editor__grid">
+                                <section class="message-panel">
+                                    <div class="message-panel__header">
+                                        <div>
+                                            <h4 class="message-panel__title">Текст и изображение</h4>
+                                            <div class="message-panel__hint">Редактируйте текст экрана и привязанную картинку в одном месте.</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Текст экрана</label>
+                                        <textarea class="form-control" id="text-{{.Key}}" rows="6">{{.Text}}</textarea>
+                                    </div>
+
+                                    <div class="message-upload">
+                                        <div>
+                                            <label class="form-label fw-semibold">Файл изображения</label>
+                                            <input type="file"
+                                                   class="form-control"
+                                                   id="file-{{.Key}}"
+                                                   accept="image/*"
+                                                   onchange="uploadFile('{{.Key}}')">
+                                        </div>
+
+                                        <div>
+                                            <label class="form-label fw-semibold">URL изображения</label>
+                                            <input type="text"
+                                                   class="form-control message-image-input"
+                                                   id="img-{{.Key}}"
+                                                   value="{{if .ImageURL}}{{.ImageURL}}{{end}}"
+                                                   data-key="{{.Key}}"
+                                                   placeholder="https://example.com/image.jpg">
+                                        </div>
+
+                                        <div id="upload-status-{{.Key}}" class="text-muted small" style="display:none"></div>
+                                    </div>
+
+                                    <div class="message-image-preview{{if .HasImage}} is-visible{{end}}" id="preview-wrap-{{.Key}}">
+                                        <img id="preview-{{.Key}}"
+                                             src="{{if .ImageURL}}{{.ImageURL}}{{end}}"
+                                             alt="Превью изображения для {{.Title}}">
+                                    </div>
+                                </section>
+
+                                <section class="message-panel">
+                                    <div class="message-panel__header">
+                                        <div>
+                                            <h4 class="message-panel__title">Кнопки</h4>
+                                            <div class="message-panel__hint">Технические поля показываются справочно, а редактируются только название, порядок и видимость.</div>
+                                        </div>
+                                    </div>
+
+                                    <div id="keyboard-{{.Key}}"
+                                         class="message-keyboard"
+                                         data-inline="{{if .Keyboard.Inline}}true{{else}}false{{end}}"
+                                         data-one-time="{{if .Keyboard.OneTime}}true{{else}}false{{end}}">
+                                        {{if .Keyboard.Items}}
+                                            {{range $btn := .Keyboard.Items}}
+                                            <div class="keyboard-item"
+                                                 data-slot-id="{{$btn.SlotID}}"
+                                                 data-action-key="{{$btn.ActionKey}}"
+                                                 data-kind="{{$btn.Kind}}"
+                                                 data-color="{{$btn.Color}}"
+                                                 data-value="{{$btn.Value}}"
+                                                 data-link-binding="{{$btn.LinkBinding}}">
+                                                <div class="keyboard-item__meta">
+                                                    <span class="badge text-bg-secondary">slot: {{$btn.SlotID}}</span>
+                                                    <span class="badge text-bg-light border">action: {{$btn.ActionKey}}</span>
+                                                    <span class="badge text-bg-light border">type: {{$btn.Kind}}</span>
+                                                    {{if $btn.Color}}<span class="badge text-bg-light border">color: {{$btn.Color}}</span>{{end}}
+                                                    {{if $btn.Value}}<span class="badge text-bg-light border">value: {{$btn.Value}}</span>{{end}}
+                                                    {{if $btn.LinkBinding}}<span class="badge text-bg-light border">link: {{$btn.LinkBinding}}</span>{{end}}
+                                                </div>
+
+                                                <div class="row g-2 align-items-end">
+                                                    <div class="{{if eq $btn.Kind "toggle"}}col-lg-4{{else}}col-lg-6{{end}}">
+                                                        <label class="form-label small">Название кнопки</label>
+                                                        <input type="text" class="form-control form-control-sm keyboard-label" value="{{$btn.Label}}">
+                                                    </div>
+
+                                                    {{if eq $btn.Kind "toggle"}}
+                                                    <div class="col-lg-4">
+                                                        <label class="form-label small">Название в состоянии ON</label>
+                                                        <input type="text" class="form-control form-control-sm keyboard-label-on" value="{{$btn.LabelOn}}">
+                                                    </div>
+                                                    {{end}}
+
+                                                    <div class="col-sm-4 col-lg-2">
+                                                        <label class="form-label small">Ряд</label>
+                                                        <input type="number" class="form-control form-control-sm keyboard-row" value="{{$btn.Row}}">
+                                                    </div>
+                                                    <div class="col-sm-4 col-lg-2">
+                                                        <label class="form-label small">Позиция</label>
+                                                        <input type="number" class="form-control form-control-sm keyboard-position" value="{{$btn.Position}}">
+                                                    </div>
+                                                    <div class="col-sm-4 col-lg-2">
+                                                        <div class="form-check mt-4">
+                                                            <input class="form-check-input keyboard-visible" type="checkbox" {{if $btn.Visible}}checked{{end}}>
+                                                            <label class="form-check-label small">Видима</label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {{end}}
+                                        {{else}}
+                                            <div class="keyboard-empty">У этого экрана нет редактируемых кнопок. Можно менять только текст и изображение.</div>
+                                        {{end}}
+                                    </div>
+                                </section>
+                            </div>
+
+                            <div class="message-editor__footer">
+                                <button class="btn btn-primary" onclick="saveMessage('{{.Key}}')">Сохранить экран</button>
+                                <span id="saved-{{.Key}}" class="message-save-indicator">Сохранено</span>
+                            </div>
+                        </div>
+                    </article>
+                    {{end}}
+                </div>
+            </div>
+        </section>
+    </div>
 </div>
 
 <script>
+const messageWorkspace = document.querySelector('.message-workspace');
+const messageSectionButtons = Array.from(document.querySelectorAll('[data-section-nav]'));
+const messageCards = Array.from(document.querySelectorAll('[data-screen-card]'));
+const messageSearchInput = document.getElementById('message-search');
+const messageStageTitle = document.getElementById('message-stage-title');
+const messageStageDescription = document.getElementById('message-stage-description');
+const messageStageCount = document.getElementById('message-stage-count');
+const messageEmpty = document.getElementById('message-empty');
+const messageEmptyCopy = document.getElementById('message-empty-copy');
+
+let activeMessageSection = messageWorkspace ? messageWorkspace.dataset.defaultSection : '';
+
+function getSectionButton(sectionId) {
+    return messageSectionButtons.find((button) => button.dataset.sectionId === sectionId);
+}
+
+function updateSectionHeader() {
+    const sectionButton = getSectionButton(activeMessageSection);
+    if (!sectionButton) return;
+
+    messageStageTitle.textContent = sectionButton.dataset.sectionTitle;
+    messageStageDescription.textContent = sectionButton.dataset.sectionDescription;
+}
+
+function closeEditors(exceptKey = '') {
+    document.querySelectorAll('[data-editor-toggle]').forEach((button) => {
+        const key = button.dataset.key;
+        const editor = document.getElementById('editor-' + key);
+        const shouldStayOpen = exceptKey !== '' && key === exceptKey;
+        if (!editor) return;
+
+        editor.classList.toggle('d-none', !shouldStayOpen);
+        button.textContent = shouldStayOpen ? 'Свернуть' : 'Редактировать';
+    });
+}
+
+function updateStageCount(visibleCount) {
+    messageStageCount.textContent = `${visibleCount} экранов`;
+}
+
+function applyMessageFilters() {
+    const query = (messageSearchInput?.value || '').trim().toLowerCase();
+    let visibleCount = 0;
+
+    messageCards.forEach((card) => {
+        const matchesSection = !activeMessageSection || card.dataset.sectionId === activeMessageSection;
+        const haystack = card.dataset.search || '';
+        const matchesSearch = query === '' || haystack.includes(query);
+        const isVisible = matchesSection && matchesSearch;
+        card.classList.toggle('d-none', !isVisible);
+        if (isVisible) visibleCount++;
+    });
+
+    updateStageCount(visibleCount);
+    const hasVisibleCards = visibleCount > 0;
+    messageEmpty.classList.toggle('is-visible', !hasVisibleCards);
+
+    if (!hasVisibleCards) {
+        messageEmptyCopy.textContent = query
+            ? 'По текущему запросу ничего не найдено. Попробуйте другое название, ключ или откройте соседний раздел.'
+            : 'В этом разделе пока нет экранов. Выберите другой раздел слева.';
+    }
+}
+
+function setActiveSection(sectionId) {
+    activeMessageSection = sectionId;
+    messageSectionButtons.forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.sectionId === sectionId);
+    });
+    updateSectionHeader();
+    closeEditors();
+    applyMessageFilters();
+}
+
+function updateImagePreview(key, url) {
+    const previewWrap = document.getElementById('preview-wrap-' + key);
+    const preview = document.getElementById('preview-' + key);
+    const badge = document.getElementById('card-image-badge-' + key);
+    const normalizedUrl = (url || '').trim();
+
+    if (!previewWrap || !preview || !badge) return;
+
+    if (normalizedUrl) {
+        preview.src = normalizedUrl;
+        previewWrap.classList.add('is-visible');
+        badge.classList.remove('d-none');
+    } else {
+        preview.removeAttribute('src');
+        previewWrap.classList.remove('is-visible');
+        badge.classList.add('d-none');
+    }
+}
+
+function updateCardPreview(key) {
+    const textarea = document.getElementById('text-' + key);
+    const preview = document.getElementById('card-preview-' + key);
+    const varsBadge = document.getElementById('card-vars-badge-' + key);
+    if (!textarea || !preview || !varsBadge) return;
+
+    const compact = textarea.value.trim().replace(/\s+/g, ' ');
+    preview.textContent = compact ? (compact.length > 140 ? compact.slice(0, 140) + '…' : compact) : 'Текст пока пустой.';
+    varsBadge.classList.toggle('d-none', !textarea.value.includes(String.fromCharCode(123, 123)));
+}
+
 async function uploadFile(key) {
     const file = document.getElementById('file-' + key).files[0];
     if (!file) return;
@@ -114,9 +907,10 @@ async function uploadFile(key) {
     if (response.ok) {
         const { url } = await response.json();
         document.getElementById('img-' + key).value = url;
+        updateImagePreview(key, url);
         status.textContent = '✓ Загружено';
     } else {
-        status.textContent = '✗ Ошибка загрузки';
+        status.textContent = 'Ошибка загрузки';
     }
 }
 
@@ -163,6 +957,9 @@ async function saveMessage(key) {
     });
 
     if (response.ok) {
+        updateCardPreview(key);
+        updateImagePreview(key, imageURL);
+
         const marker = document.getElementById('saved-' + key);
         marker.style.display = 'inline';
         setTimeout(() => {
@@ -174,5 +971,39 @@ async function saveMessage(key) {
     const errorText = await response.text();
     alert(errorText || 'Ошибка сохранения');
 }
+
+document.addEventListener('click', (event) => {
+    const sectionButton = event.target.closest('[data-section-nav]');
+    if (sectionButton) {
+        setActiveSection(sectionButton.dataset.sectionId);
+        return;
+    }
+
+    const toggleButton = event.target.closest('[data-editor-toggle]');
+    if (!toggleButton) return;
+
+    const key = toggleButton.dataset.key;
+    const editor = document.getElementById('editor-' + key);
+    const willOpen = editor.classList.contains('d-none');
+
+    if (willOpen) {
+        closeEditors(key);
+    } else {
+        closeEditors();
+    }
+});
+
+document.querySelectorAll('.message-image-input').forEach((input) => {
+    input.addEventListener('input', () => {
+        updateImagePreview(input.dataset.key, input.value);
+    });
+});
+
+if (messageSearchInput) {
+    messageSearchInput.addEventListener('input', applyMessageFilters);
+}
+
+updateSectionHeader();
+applyMessageFilters();
 </script>
 {{end}}
