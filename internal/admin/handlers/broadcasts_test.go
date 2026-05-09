@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"html/template"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -113,6 +114,50 @@ func TestBroadcastsHandlerCreateEnqueuesTask(t *testing.T) {
 	}
 	if payload["id"].(float64) != 42 {
 		t.Fatalf("unexpected response id: %#v", payload["id"])
+	}
+}
+
+func TestBroadcastsHandlerCreateAcceptsMultipartForm(t *testing.T) {
+	queue := &fakeBroadcastTaskClient{}
+	store := &fakeBroadcastStore{
+		createFn: func(_ context.Context, params repository.CreateBroadcastParams) (*repository.Broadcast, error) {
+			if params.AudienceFilter != repository.BroadcastAudienceAll {
+				t.Fatalf("unexpected audience: %q", params.AudienceFilter)
+			}
+			if params.Text != "hello from multipart" {
+				t.Fatalf("unexpected text: %q", params.Text)
+			}
+			return &repository.Broadcast{
+				ID:              7,
+				TotalRecipients: 1,
+			}, nil
+		},
+	}
+	handler := &BroadcastsHandler{repo: store, asynqClient: queue}
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("audience_filter", repository.BroadcastAudienceAll); err != nil {
+		t.Fatalf("write audience field: %v", err)
+	}
+	if err := writer.WriteField("text", "hello from multipart"); err != nil {
+		t.Fatalf("write text field: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/broadcasts", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if len(queue.tasks) != 1 {
+		t.Fatalf("expected one task, got %d", len(queue.tasks))
 	}
 }
 

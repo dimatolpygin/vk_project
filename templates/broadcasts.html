@@ -466,15 +466,20 @@ if (broadcastForm) {
         event.preventDefault();
         broadcastFormStatus.textContent = 'Создаю рассылку и ставлю в очередь...';
 
-        const formData = new FormData();
-        formData.append('audience_filter', broadcastForm.elements.audience_filter.value);
-        formData.append('text', broadcastForm.elements.text.value);
-        formData.append('image_url', broadcastImageURL.value);
+        const audienceField = broadcastForm.elements.namedItem('audience_filter');
+        const textField = broadcastForm.elements.namedItem('text');
+        const formData = new URLSearchParams();
+        formData.set('audience_filter', audienceField ? audienceField.value : '');
+        formData.set('text', textField ? textField.value : '');
+        formData.set('image_url', broadcastImageURL.value);
 
         const response = await fetch('/admin/broadcasts', {
             method: 'POST',
             body: formData,
-            headers: { 'Accept': 'application/json' }
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+            }
         });
         const payload = await response.json().catch(() => ({}));
 

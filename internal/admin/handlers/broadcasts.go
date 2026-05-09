@@ -18,6 +18,7 @@ import (
 )
 
 const broadcastsPageSize = 20
+const broadcastCreateFormMaxMemory = 10 << 20
 
 type broadcastStore interface {
 	List(ctx context.Context, limit int) ([]*repository.Broadcast, error)
@@ -101,7 +102,7 @@ func (h *BroadcastsHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BroadcastsHandler) Create(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
+	if err := parseBroadcastCreateRequest(r); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "Не удалось прочитать форму рассылки.")
 		return
 	}
@@ -310,4 +311,13 @@ func writeJSONError(w http.ResponseWriter, statusCode int, message string) {
 		"status": "error",
 		"error":  message,
 	})
+}
+
+func parseBroadcastCreateRequest(r *http.Request) error {
+	contentType := strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Type")))
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		return r.ParseMultipartForm(broadcastCreateFormMaxMemory)
+	}
+
+	return r.ParseForm()
 }
