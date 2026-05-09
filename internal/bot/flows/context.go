@@ -13,20 +13,24 @@ import (
 // ─── Shared types ────────────────────────────────────────────────────────────
 
 const (
-	StepWelcome            = "welcome"
-	StepFreeGenStart       = "free_gen_start"
-	StepAwaitingGender     = "awaiting_gender"
-	StepAwaitingPhoto      = "awaiting_photo"
-	StepAwaitingPrompt     = "awaiting_prompt"
-	StepAwaitingPhotoEdit  = "awaiting_photo_edit"
-	StepAwaitingEditPrompt = "awaiting_edit_prompt"
-	StepAwaitingResultEdit = "awaiting_result_edit"
-	StepMainMenu           = "main_menu"
-	StepAfterGen           = "after_gen"
-	StepTariffs            = "tariffs"
-	StepSettings           = "settings"
-	StepCoupleMenu         = "couple_menu"
-	StepAwaitingSavedPhoto = "awaiting_saved_photo"
+	StepWelcome                = "welcome"
+	StepFreeGenStart           = "free_gen_start"
+	StepAwaitingGender         = "awaiting_gender"
+	StepAwaitingPhoto          = "awaiting_photo"
+	StepAwaitingPrompt         = "awaiting_prompt"
+	StepAwaitingPhotoEdit      = "awaiting_photo_edit"
+	StepAwaitingEditPrompt     = "awaiting_edit_prompt"
+	StepAwaitingResultEdit     = "awaiting_result_edit"
+	StepMainMenu               = "main_menu"
+	StepAfterGen               = "after_gen"
+	StepTariffs                = "tariffs"
+	StepSettings               = "settings"
+	StepCoupleMenu             = "couple_menu"
+	StepAwaitingSavedPhoto     = "awaiting_saved_photo"
+	StepReadyPromptsCategories = "ready_prompts_categories"
+	StepReadyPromptsPrompts    = "ready_prompts_prompts"
+	StepCoupleCategories       = "couple_categories"
+	StepCouplePrompts          = "couple_prompts"
 )
 
 type User struct {
@@ -68,6 +72,8 @@ type State struct {
 	PromptType   string `json:"prompt_type,omitempty"`
 	TemplateID   int    `json:"template_id,omitempty"`
 	CategoryID   int    `json:"category_id,omitempty"`
+	CategoryPage int    `json:"category_page,omitempty"`
+	PromptPage   int    `json:"prompt_page,omitempty"`
 	GenerationID int64  `json:"generation_id,omitempty"`
 	Model        string `json:"model,omitempty"`
 	CustomPrompt string `json:"custom_prompt,omitempty"`
@@ -87,6 +93,7 @@ type CallbackData struct {
 	TariffID   int
 	CategoryID int
 	PromptID   int
+	Page       int
 }
 
 type Context struct {
@@ -131,6 +138,20 @@ type StateMgr interface {
 	Reset(ctx context.Context, vkID int64) error
 }
 
+type MessageReader interface {
+	Get(ctx context.Context, key string) (*repository.Message, error)
+}
+
+type CategoryReader interface {
+	ListActive(ctx context.Context, gender string) ([]*repository.Category, error)
+	ListActiveCouple(ctx context.Context) ([]*repository.Category, error)
+}
+
+type PromptReader interface {
+	ListByCategory(ctx context.Context, categoryID int, gender string) ([]*repository.Prompt, error)
+	GetByID(ctx context.Context, id int) (*repository.Prompt, error)
+}
+
 // ─── Deps ────────────────────────────────────────────────────────────────────
 
 type Deps struct {
@@ -140,9 +161,9 @@ type Deps struct {
 	GenRepo       *repository.GenerationRepo
 	TariffRepo    *repository.TariffRepo
 	OrderRepo     *repository.OrderRepo
-	MsgRepo       *repository.MessageRepo
-	CatRepo       *repository.CategoryRepo
-	PromptRepo    *repository.PromptRepo
+	MsgRepo       MessageReader
+	CatRepo       CategoryReader
+	PromptRepo    PromptReader
 	RefRepo       *repository.ReferralRepo
 	StatsRepo     *repository.StatsRepo
 	ActivityRepo  *repository.ActivityRepo

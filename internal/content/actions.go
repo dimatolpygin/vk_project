@@ -92,6 +92,18 @@ var actionAdminMeta = map[string]ActionAdminMeta{
 		Description: "Выбор конкретного готового стиля или шаблона.",
 		Order:       140,
 	},
+	"ready_prompts_page": {
+		SectionID:   "styles",
+		Title:       "Листалка категорий готовых стилей",
+		Description: "Переключение страниц списка категорий в разделе готовых стилей.",
+		Order:       145,
+	},
+	"prompts_page": {
+		SectionID:   "styles",
+		Title:       "Листалка шаблонов",
+		Description: "Переключение страниц списка шаблонов внутри выбранной категории.",
+		Order:       146,
+	},
 	"custom_prompt": {
 		SectionID:   "generation",
 		Title:       "Свой промпт",
@@ -115,6 +127,12 @@ var actionAdminMeta = map[string]ActionAdminMeta{
 		Title:       "Парное фото",
 		Description: "Запуск сценария для парных или семейных фото.",
 		Order:       180,
+	},
+	"couple_page": {
+		SectionID:   "generation",
+		Title:       "Листалка парных категорий",
+		Description: "Переключение страниц категорий в разделе парных и семейных фото.",
+		Order:       181,
 	},
 	"saved_photo": {
 		SectionID:   "saved_photo",

@@ -20,9 +20,27 @@ type ScreenOptions struct {
 }
 
 func sendScreen(ctx context.Context, d *Deps, vkID int64, key string, opts ScreenOptions) error {
-	msg, err := d.MsgRepo.Get(ctx, key)
-	if err != nil {
-		return err
+	var (
+		msg *repository.Message
+		err error
+	)
+	if d.MsgRepo != nil {
+		msg, err = d.MsgRepo.Get(ctx, key)
+		if err != nil {
+			return err
+		}
+	} else if def, ok := content.Definition(key); ok {
+		msg = &repository.Message{
+			Key:      key,
+			Text:     def.DefaultText,
+			Keyboard: def.Keyboard,
+		}
+	} else {
+		msg = &repository.Message{
+			Key:      key,
+			Text:     key,
+			Keyboard: content.Keyboard{Inline: true},
+		}
 	}
 
 	text, err := content.RenderText(msg.Text, opts.Data)
@@ -75,6 +93,18 @@ func categoryRows(categories []*repository.Category) [][]KbBtn {
 	return rows
 }
 
+func categoryButtons(categories []*repository.Category) []KbBtn {
+	buttons := make([]KbBtn, 0, len(categories))
+	for _, category := range categories {
+		payload, _ := jsonMarshal(map[string]any{"type": "select_category", "category_id": category.ID})
+		buttons = append(buttons, KbBtn{
+			Action: KbAction{Type: "callback", Label: category.Name, Payload: payload},
+			Color:  "primary",
+		})
+	}
+	return buttons
+}
+
 func promptRows(prompts []*repository.Prompt) [][]KbBtn {
 	rows := make([][]KbBtn, 0, len(prompts))
 	for _, prompt := range prompts {
@@ -85,6 +115,95 @@ func promptRows(prompts []*repository.Prompt) [][]KbBtn {
 		}})
 	}
 	return rows
+}
+
+func promptButtons(prompts []*repository.Prompt) []KbBtn {
+	buttons := make([]KbBtn, 0, len(prompts))
+	for _, prompt := range prompts {
+		payload, _ := jsonMarshal(map[string]any{"type": "select_prompt", "prompt_id": prompt.ID})
+		buttons = append(buttons, KbBtn{
+			Action: KbAction{Type: "callback", Label: prompt.Name, Payload: payload},
+			Color:  "primary",
+		})
+	}
+	return buttons
+}
+
+const (
+	paginatedColumns     = 2
+	paginatedRowsPerPage = 2
+)
+
+func buildPaginatedRows(buttons []KbBtn, page int, pagerType string, pagerExtra map[string]any) ([][]KbBtn, int, int) {
+	perPage := paginatedColumns * paginatedRowsPerPage
+	if perPage <= 0 {
+		perPage = 1
+	}
+
+	totalPages := 1
+	if len(buttons) > 0 {
+		totalPages = (len(buttons) + perPage - 1) / perPage
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	start := (page - 1) * perPage
+	end := start + perPage
+	if end > len(buttons) {
+		end = len(buttons)
+	}
+
+	rows := make([][]KbBtn, 0, paginatedRowsPerPage+1)
+	for i := start; i < end; i += paginatedColumns {
+		rowEnd := i + paginatedColumns
+		if rowEnd > end {
+			rowEnd = end
+		}
+		row := make([]KbBtn, rowEnd-i)
+		copy(row, buttons[i:rowEnd])
+		rows = append(rows, row)
+	}
+
+	if pagerRow := buildPagerRow(page, totalPages, pagerType, pagerExtra); len(pagerRow) > 0 {
+		rows = append(rows, pagerRow)
+	}
+
+	return rows, page, totalPages
+}
+
+func buildPagerRow(page, totalPages int, pagerType string, pagerExtra map[string]any) []KbBtn {
+	if totalPages <= 1 || pagerType == "" {
+		return nil
+	}
+
+	row := make([]KbBtn, 0, 2)
+	if page > 1 {
+		row = append(row, pagerButton("⬅️ Назад", pagerType, page-1, pagerExtra))
+	}
+	if page < totalPages {
+		row = append(row, pagerButton("Вперёд ➡️", pagerType, page+1, pagerExtra))
+	}
+	return row
+}
+
+func pagerButton(label, pagerType string, page int, pagerExtra map[string]any) KbBtn {
+	payloadData := map[string]any{
+		"type": pagerType,
+		"page": page,
+	}
+	for key, value := range pagerExtra {
+		payloadData[key] = value
+	}
+	payload, _ := jsonMarshal(payloadData)
+	return KbBtn{
+		Action: KbAction{Type: "callback", Label: label, Payload: payload},
+		Color:  "secondary",
+	}
 }
 
 func jsonMarshal(v any) (string, error) {

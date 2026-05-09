@@ -57,6 +57,7 @@ type CallbackPayload struct {
 	TariffID   int    `json:"tariff_id,omitempty"`
 	CategoryID int    `json:"category_id,omitempty"`
 	PromptID   int    `json:"prompt_id,omitempty"`
+	Page       int    `json:"page,omitempty"`
 }
 
 type Handler struct {
@@ -190,6 +191,7 @@ func (h *Handler) handleCallback(ctx context.Context, raw json.RawMessage) {
 			TariffID:   cbPayload.TariffID,
 			CategoryID: cbPayload.CategoryID,
 			PromptID:   cbPayload.PromptID,
+			Page:       cbPayload.Page,
 		},
 	}
 
@@ -226,6 +228,7 @@ func (h *Handler) handleMessagePayload(ctx context.Context, msg VKMessage, user 
 			TariffID:   cbPayload.TariffID,
 			CategoryID: cbPayload.CategoryID,
 			PromptID:   cbPayload.PromptID,
+			Page:       cbPayload.Page,
 		},
 	}
 

@@ -20,6 +20,10 @@ func (r *Registry) HandleMessage(ctx context.Context, fc *Context) {
 		HandleWelcome(ctx, fc, r.d)
 	case StepAfterGen:
 		HandleAfterGen(ctx, fc, r.d)
+	case StepReadyPromptsCategories, StepReadyPromptsPrompts:
+		HandleReadyPromptsBrowse(ctx, fc, r.d)
+	case StepCoupleCategories, StepCouplePrompts:
+		HandleCoupleBrowse(ctx, fc, r.d)
 	case StepAwaitingPhoto:
 		HandleAwaitingPhoto(ctx, fc, r.d)
 	case StepAwaitingSavedPhoto:
@@ -69,8 +73,12 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleMainMenu(ctx, fc, r.d)
 	case "ready_prompts":
 		HandleReadyPromptsMenu(ctx, fc, r.d)
+	case "ready_prompts_page":
+		HandleReadyPromptsPage(ctx, fc, r.d)
 	case "select_category":
 		HandleSelectCategory(ctx, fc, r.d)
+	case "prompts_page":
+		HandlePromptsPage(ctx, fc, r.d)
 	case "select_prompt":
 		HandleSelectPrompt(ctx, fc, r.d)
 	case "custom_prompt":
@@ -81,6 +89,8 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleEditResultStart(ctx, fc, r.d)
 	case "couple":
 		HandleCoupleStart(ctx, fc, r.d)
+	case "couple_page":
+		HandleCouplePage(ctx, fc, r.d)
 	case "saved_photo":
 		HandleSavedPhotoStart(ctx, fc, r.d)
 	case "saved_photo_upload":

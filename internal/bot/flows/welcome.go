@@ -29,6 +29,29 @@ func HandleWelcome(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func HandleBack(ctx context.Context, fc *Context, d *Deps) {
+	if fc.State.Step == StepReadyPromptsPrompts {
+		if err := showReadyPromptsCategoryPage(ctx, fc, d, normalizePage(fc.State.CategoryPage)); err != nil {
+			log.Error().Err(err).Int64("vk_id", fc.VkID).Int("page", fc.State.CategoryPage).Msg("ошибка возврата к категориям готовых промтов")
+		}
+		return
+	}
+
+	if fc.State.Step == StepCouplePrompts {
+		if err := showCoupleCategoryPage(ctx, fc, d, normalizePage(fc.State.CategoryPage)); err != nil {
+			log.Error().Err(err).Int64("vk_id", fc.VkID).Int("page", fc.State.CategoryPage).Msg("ошибка возврата к парным категориям")
+		}
+		return
+	}
+
+	if fc.State.Step == StepReadyPromptsCategories || fc.State.Step == StepCoupleCategories {
+		if fc.User.Status == "paid" || fc.User.HasGens() {
+			HandleMainMenu(ctx, fc, d)
+		} else {
+			HandleWelcome(ctx, fc, d)
+		}
+		return
+	}
+
 	if fc.State.Step == StepSettings {
 		if fc.User.Status == "paid" || fc.User.HasGens() {
 			HandleMainMenu(ctx, fc, d)
