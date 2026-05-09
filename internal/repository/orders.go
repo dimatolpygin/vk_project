@@ -123,8 +123,8 @@ func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID strin
 		WHERE referred_vk_id = $1 AND bonus_given = false
 		RETURNING referrer_vk_id`, order.UserVKID).
 		Scan(&result.ReferrerVKID)
-	switch {
-	case err == nil:
+	switch err {
+	case nil:
 		result.BonusGranted = true
 		if _, err := tx.Exec(ctx, `
 			UPDATE users
@@ -132,7 +132,7 @@ func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID strin
 			WHERE vk_id = $1`, result.ReferrerVKID, referralBonusGens); err != nil {
 			return nil, err
 		}
-	case err == pgx.ErrNoRows:
+	case pgx.ErrNoRows:
 		// no referral bonus for this payment
 	default:
 		return nil, err
