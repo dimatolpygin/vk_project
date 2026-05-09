@@ -81,18 +81,6 @@ func tariffRows(tariffs []*repository.Tariff) [][]KbBtn {
 	return rows
 }
 
-func categoryRows(categories []*repository.Category) [][]KbBtn {
-	rows := make([][]KbBtn, 0, len(categories))
-	for _, category := range categories {
-		payload, _ := jsonMarshal(map[string]any{"type": "select_category", "category_id": category.ID})
-		rows = append(rows, []KbBtn{{
-			Action: KbAction{Type: "callback", Label: category.Name, Payload: payload},
-			Color:  "primary",
-		}})
-	}
-	return rows
-}
-
 func categoryButtons(categories []*repository.Category) []KbBtn {
 	buttons := make([]KbBtn, 0, len(categories))
 	for _, category := range categories {
@@ -103,18 +91,6 @@ func categoryButtons(categories []*repository.Category) []KbBtn {
 		})
 	}
 	return buttons
-}
-
-func promptRows(prompts []*repository.Prompt) [][]KbBtn {
-	rows := make([][]KbBtn, 0, len(prompts))
-	for _, prompt := range prompts {
-		payload, _ := jsonMarshal(map[string]any{"type": "select_prompt", "prompt_id": prompt.ID})
-		rows = append(rows, []KbBtn{{
-			Action: KbAction{Type: "callback", Label: prompt.Name, Payload: payload},
-			Color:  "primary",
-		}})
-	}
-	return rows
 }
 
 func promptButtons(prompts []*repository.Prompt) []KbBtn {
