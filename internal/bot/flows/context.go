@@ -171,6 +171,7 @@ type Deps struct {
 	WaveSpeed     *wavespeed.Client
 	Yukassa       *yukassa.Client
 	VKClient      *vkgroup.Client
+	VKGroupID     int64
 	VKGroupURL    string
 	DefaultModel  string
 	BotWebhookURL string

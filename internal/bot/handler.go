@@ -9,6 +9,11 @@ import (
 	"vk_neuro_bot/internal/repository"
 )
 
+type userStore interface {
+	GetByVKID(ctx context.Context, vkID int64) (*repository.User, error)
+	CreateWithReferralCode(ctx context.Context, vkID int64, username, firstName, referralCode string) (*repository.User, error)
+}
+
 type VKEvent struct {
 	Type    string          `json:"type"`
 	Object  json.RawMessage `json:"object"`
@@ -25,6 +30,7 @@ type VKMessage struct {
 	FromID      int64          `json:"from_id"`
 	PeerID      int64          `json:"peer_id"`
 	Text        string         `json:"text"`
+	Ref         string         `json:"ref"`
 	Attachments []VKAttachment `json:"attachments"`
 	Payload     string         `json:"payload"`
 }
@@ -61,16 +67,16 @@ type CallbackPayload struct {
 }
 
 type Handler struct {
-	state     *StateManager
+	state     flows.StateMgr
 	sender    *Sender
-	userRepo  *repository.UserRepo
+	userRepo  userStore
 	statsRepo *repository.StatsRepo
 	activity  *repository.ActivityRepo
 	registry  *flows.Registry
 }
 
 func NewHandler(
-	state *StateManager,
+	state flows.StateMgr,
 	sender *Sender,
 	userRepo *repository.UserRepo,
 	statsRepo *repository.StatsRepo,
@@ -111,7 +117,7 @@ func (h *Handler) handleMessage(ctx context.Context, raw json.RawMessage) {
 		return
 	}
 
-	user := h.ensureUser(ctx, vkID, "", "")
+	user := h.ensureUser(ctx, vkID, "", "", msg.Ref)
 	if user == nil {
 		return
 	}
@@ -165,7 +171,7 @@ func (h *Handler) handleCallback(ctx context.Context, raw json.RawMessage) {
 	}
 
 	vkID := obj.UserID
-	user := h.ensureUser(ctx, vkID, "", "")
+	user := h.ensureUser(ctx, vkID, "", "", "")
 	if user == nil {
 		return
 	}
@@ -245,14 +251,14 @@ func (h *Handler) answerCallbackEvent(ctx context.Context, obj *MessageEventObje
 	}
 }
 
-func (h *Handler) ensureUser(ctx context.Context, vkID int64, username, firstName string) *repository.User {
+func (h *Handler) ensureUser(ctx context.Context, vkID int64, username, firstName, referralCode string) *repository.User {
 	user, err := h.userRepo.GetByVKID(ctx, vkID)
 	if err != nil {
 		log.Error().Err(err).Int64("vk_id", vkID).Msg("failed to fetch user")
 		return nil
 	}
 	if user == nil {
-		user, err = h.userRepo.Create(ctx, vkID, username, firstName, nil)
+		user, err = h.userRepo.CreateWithReferralCode(ctx, vkID, username, firstName, referralCode)
 		if err != nil {
 			log.Error().Err(err).Int64("vk_id", vkID).Msg("failed to create user")
 			return nil
@@ -262,6 +268,17 @@ func (h *Handler) ensureUser(ctx context.Context, vkID int64, username, firstNam
 			UserVKID:  vkID,
 			EventType: repository.ActivityEventUserRegistered,
 		})
+		if user.ReferredBy != nil {
+			h.recordActivity(ctx, repository.ActivityEvent{
+				UserVKID:  vkID,
+				EventType: repository.ActivityEventReferralCreated,
+				ActionKey: "referral",
+				ScreenKey: "welcome",
+				Meta: map[string]any{
+					"referrer_vk_id": *user.ReferredBy,
+				},
+			})
+		}
 	}
 	return user
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -102,6 +103,64 @@ func (r *UserRepo) Create(ctx context.Context, vkID int64, username, firstName s
 			&u.Status, &u.CreatedAt, &u.UpdatedAt,
 			&u.PrefModel, &u.PrefResolution, &u.PrefAspectRatio)
 	return u, err
+}
+
+func (r *UserRepo) CreateWithReferralCode(ctx context.Context, vkID int64, username, firstName, referralCode string) (*User, error) {
+	referralCode = strings.TrimSpace(referralCode)
+	if referralCode == "" {
+		return r.Create(ctx, vkID, username, firstName, nil)
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var (
+		referredBy   *int64
+		referrerVKID int64
+	)
+	err = tx.QueryRow(ctx, `SELECT vk_id FROM users WHERE referral_code = $1`, referralCode).Scan(&referrerVKID)
+	switch {
+	case err == nil && referrerVKID != vkID:
+		referredBy = &referrerVKID
+	case err == pgx.ErrNoRows:
+		referredBy = nil
+	case err != nil:
+		return nil, err
+	}
+
+	code := genReferralCode()
+	u := &User{}
+	err = tx.QueryRow(ctx, `
+		INSERT INTO users (vk_id, username, first_name, referral_code, referred_by)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, vk_id, COALESCE(username,''), COALESCE(first_name,''), gender, referral_code,
+		          referred_by, free_gens, paid_gens, subscribed, saved_photo_url, use_saved_photo, status,
+		          created_at, updated_at, pref_model, pref_resolution, pref_aspect_ratio`,
+		vkID, username, firstName, code, referredBy).
+		Scan(&u.ID, &u.VKID, &u.Username, &u.FirstName, &u.Gender, &u.ReferralCode,
+			&u.ReferredBy, &u.FreeGens, &u.PaidGens, &u.Subscribed, &u.SavedPhotoURL, &u.UseSavedPhoto,
+			&u.Status, &u.CreatedAt, &u.UpdatedAt,
+			&u.PrefModel, &u.PrefResolution, &u.PrefAspectRatio)
+	if err != nil {
+		return nil, err
+	}
+
+	if referredBy != nil {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO referrals (referrer_vk_id, referred_vk_id)
+			VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+			referrerVKID, vkID); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return u, nil
 }
 
 func (r *UserRepo) GetByReferralCode(ctx context.Context, code string) (*User, error) {

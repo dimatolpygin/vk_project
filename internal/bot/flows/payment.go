@@ -9,6 +9,12 @@ import (
 	"vk_neuro_bot/internal/yukassa"
 )
 
+const referralBonusGens = 2
+
+type paymentSettler interface {
+	SettleSuccessfulPayment(ctx context.Context, paymentID string, userVKID int64, tariffID int) (*repository.PaymentSettlementResult, error)
+}
+
 func HandleShowTariffs(ctx context.Context, fc *Context, d *Deps) {
 	tariffs, err := d.TariffRepo.ListActive(ctx)
 	if err != nil || len(tariffs) == 0 {
@@ -39,7 +45,7 @@ func HandleBuyTariff(ctx context.Context, fc *Context, d *Deps) {
 
 	order, err := d.OrderRepo.Create(ctx, fc.VkID, tariffID, tariff.Price)
 	if err != nil {
-		log.Error().Err(err).Msg("не удалось создать заказ")
+		log.Error().Err(err).Msg("РЅРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ Р·Р°РєР°Р·")
 		_ = sendScreen(ctx, d, fc.VkID, "payment_order_error", ScreenOptions{})
 		return
 	}
@@ -52,7 +58,7 @@ func HandleBuyTariff(ctx context.Context, fc *Context, d *Deps) {
 		ReturnURL: fmt.Sprintf("%s/vk/return", d.BotWebhookURL),
 	})
 	if err != nil {
-		log.Error().Err(err).Msg("ошибка создания платежа ЮKassa")
+		log.Error().Err(err).Msg("РѕС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ РїР»Р°С‚РµР¶Р° Р®Kassa")
 		_ = sendScreen(ctx, d, fc.VkID, "payment_link_error", ScreenOptions{})
 		return
 	}
@@ -62,42 +68,39 @@ func HandleBuyTariff(ctx context.Context, fc *Context, d *Deps) {
 		Data: map[string]any{
 			"TariffName":  tariff.Name,
 			"Description": tariff.Description,
-			"Price":       fmt.Sprintf("%.0f₽", tariff.Price),
+			"Price":       fmt.Sprintf("%.0fв‚Ѕ", tariff.Price),
 		},
 		Links: map[string]string{"payment_url": payment.PaymentURL},
 	})
 }
 
 func ProcessSuccessfulPayment(ctx context.Context, d *Deps, paymentID string, userVKID int64, tariffID int) error {
-	if err := d.OrderRepo.SetStatus(ctx, paymentID, "succeeded"); err != nil {
+	return processSuccessfulPayment(ctx, d, d.OrderRepo, paymentID, userVKID, tariffID)
+}
+
+func processSuccessfulPayment(ctx context.Context, d *Deps, settler paymentSettler, paymentID string, userVKID int64, tariffID int) error {
+	result, err := settler.SettleSuccessfulPayment(ctx, paymentID, userVKID, tariffID)
+	if err != nil {
 		return err
 	}
-
-	tariff, err := d.TariffRepo.GetByID(ctx, tariffID)
-	if err != nil || tariff == nil {
-		return fmt.Errorf("тариф %d не найден", tariffID)
+	if result == nil || result.AlreadyProcessed {
+		return nil
 	}
 
-	if err := d.UserRepo.AddPaidGens(ctx, userVKID, tariff.GensCount); err != nil {
-		return err
-	}
-	trackEvent(ctx, d, userVKID, repository.ActivityEventPaymentSucceeded, "buy_tariff", "payment_success", map[string]any{
+	trackEvent(ctx, d, result.UserVKID, repository.ActivityEventPaymentSucceeded, "buy_tariff", "payment_success", map[string]any{
 		"payment_id": paymentID,
-		"tariff_id":  tariffID,
-		"gens_count": tariff.GensCount,
-		"amount":     tariff.Price,
+		"tariff_id":  result.TariffID,
+		"gens_count": result.PaidGensAdded,
 	})
 
-	ref, err := d.RefRepo.GiveBonus(ctx, userVKID)
-	if err == nil && ref != nil {
-		_ = d.UserRepo.AddFreeGens(ctx, ref.ReferrerVKID, 2)
-		trackEvent(ctx, d, ref.ReferrerVKID, repository.ActivityEventReferralBonusAwarded, "referral", "referral_bonus_awarded", map[string]any{
-			"referred_vk_id": userVKID,
-			"bonus_gens":     2,
+	if result.BonusGranted {
+		trackEvent(ctx, d, result.ReferrerVKID, repository.ActivityEventReferralBonusAwarded, "referral", "referral_bonus_awarded", map[string]any{
+			"referred_vk_id": result.UserVKID,
+			"bonus_gens":     referralBonusGens,
 		})
-		_ = sendScreen(ctx, d, ref.ReferrerVKID, "referral_bonus_awarded", ScreenOptions{})
+		_ = sendScreen(ctx, d, result.ReferrerVKID, "referral_bonus_awarded", ScreenOptions{})
 	}
 
-	_ = sendScreen(ctx, d, userVKID, "payment_success", ScreenOptions{})
+	_ = sendScreen(ctx, d, result.UserVKID, "payment_success", ScreenOptions{})
 	return nil
 }

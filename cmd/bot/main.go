@@ -125,6 +125,7 @@ func main() {
 		WaveSpeed:     wsClient,
 		Yukassa:       ykClient,
 		VKClient:      vkClient,
+		VKGroupID:     cfg.VKGroupID,
 		VKGroupURL:    fmt.Sprintf("https://vk.com/club%d", cfg.VKGroupID),
 		DefaultModel:  cfg.WavespeedModel,
 		BotWebhookURL: cfg.BotWebhookURL,
