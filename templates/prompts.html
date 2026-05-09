@@ -99,6 +99,51 @@
         overflow: visible;
     }
 
+    .prompt-sidebar__filters {
+        display: grid;
+        gap: .75rem;
+        margin-bottom: 1rem;
+    }
+
+    .prompt-sidebar__search {
+        position: relative;
+    }
+
+    .prompt-sidebar__search i {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+    }
+
+    .prompt-sidebar__search input,
+    .prompt-sidebar__gender select {
+        width: 100%;
+        border: 1px solid var(--pl-border);
+        border-radius: 16px;
+        background: #fbfdff;
+        color: var(--pl-text);
+        font-size: .9rem;
+        font-weight: 600;
+        transition: border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .prompt-sidebar__search input {
+        padding: .85rem 1rem .85rem 2.7rem;
+    }
+
+    .prompt-sidebar__gender select {
+        padding: .85rem 1rem;
+    }
+
+    .prompt-sidebar__search input:focus,
+    .prompt-sidebar__gender select:focus {
+        outline: none;
+        border-color: #bfdbfe;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+    }
+
     .prompt-sidebar__list {
         position: relative;
         display: flex;
@@ -330,63 +375,59 @@
         display: block;
     }
 
-    .prompt-card__preview::after {
-        content: "";
-        position: absolute;
-        inset: auto 0 0;
-        height: 60%;
-        background: linear-gradient(180deg, rgba(15, 23, 42, 0) 0%, rgba(15, 23, 42, 0.28) 100%);
-        pointer-events: none;
-    }
-
-    .prompt-card__preview-tag {
-        position: absolute;
-        left: 1rem;
-        bottom: .9rem;
-        z-index: 1;
-        padding: .38rem .7rem;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.92);
-        color: #1e293b;
-        font-size: .72rem;
-        font-weight: 800;
-        letter-spacing: .02em;
-        text-transform: uppercase;
+    .prompt-card__preview--empty {
+        background:
+            radial-gradient(circle at top left, rgba(255, 255, 255, 0.82), transparent 36%),
+            linear-gradient(145deg, #e0f2fe 0%, #dbeafe 48%, #ede9fe 100%);
     }
 
     .prompt-card__placeholder {
         position: absolute;
         inset: 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-end;
-        padding: 1rem;
-        background:
-            radial-gradient(circle at top left, rgba(255, 255, 255, 0.7), transparent 45%),
-            linear-gradient(145deg, #e0f2fe 0%, #dbeafe 50%, #ede9fe 100%);
+        display: grid;
+        place-items: center;
     }
 
-    .prompt-card__placeholder-title {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 54px;
-        height: 54px;
-        margin-bottom: .75rem;
-        border-radius: 18px;
+    .prompt-card__placeholder-art {
+        position: relative;
+        width: 74px;
+        height: 74px;
+        display: grid;
+        place-items: center;
+        border-radius: 24px;
         background: rgba(255, 255, 255, 0.72);
-        color: #1d4ed8;
-        font-size: 1.2rem;
-        font-weight: 800;
-        box-shadow: 0 12px 30px rgba(59, 130, 246, 0.12);
+        color: #2563eb;
+        font-size: 1.7rem;
+        box-shadow: 0 18px 40px rgba(59, 130, 246, 0.16);
     }
 
-    .prompt-card__placeholder-text {
+    .prompt-card__placeholder-art::before,
+    .prompt-card__placeholder-art::after {
+        content: "";
+        position: absolute;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.46);
+    }
+
+    .prompt-card__placeholder-art::before {
+        width: 102px;
+        height: 102px;
+    }
+
+    .prompt-card__placeholder-art::after {
+        width: 132px;
+        height: 132px;
+        opacity: .7;
+    }
+
+    .prompt-card__placeholder-art i {
         position: relative;
         z-index: 1;
-        color: rgba(15, 23, 42, 0.75);
-        font-size: .78rem;
-        font-weight: 700;
+    }
+
+    .prompt-card__meta {
+        display: flex;
+        align-items: center;
     }
 
     .prompt-card__body {
@@ -709,6 +750,21 @@
                 </button>
             </div>
             <div class="prompt-sidebar__body">
+                <div class="prompt-sidebar__filters">
+                    <div class="prompt-sidebar__search">
+                        <i class="bi bi-search"></i>
+                        <input type="search" id="categorySearchInput" placeholder="Поиск категории...">
+                    </div>
+                    <div class="prompt-sidebar__gender">
+                        <select id="categoryGenderFilter" aria-label="Фильтр категорий по полу">
+                            <option value="all">Все категории</option>
+                            <option value="any">Любой</option>
+                            <option value="male">Мужской</option>
+                            <option value="female">Женский</option>
+                            <option value="couple">Парный</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="prompt-sidebar__list" id="categoryList"></div>
             </div>
         </aside>
@@ -789,7 +845,7 @@
                     <textarea class="form-control" id="promptText" rows="6" placeholder="Опишите сцену, свет, стиль и детали..."></textarea>
                 </div>
                 <div class="row g-3">
-                    <div class="col-md-6">
+                    <div class="col-md-6" id="promptGenderWrap">
                         <label class="form-label" for="promptGender">Пол</label>
                         <select class="form-select" id="promptGender">
                             <option value="any">Любой</option>
@@ -798,7 +854,7 @@
                             <option value="couple">Парный</option>
                         </select>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-6" id="promptSortWrap">
                         <label class="form-label" for="promptSort">Порядок</label>
                         <input type="number" class="form-control" id="promptSort" value="0">
                     </div>
@@ -826,6 +882,8 @@ const genderMeta = {
 let categories = [];
 let currentCatId = null;
 let currentSearch = '';
+let currentCategorySearch = '';
+let currentCategoryGender = 'all';
 let promptCache = new Map();
 let categoryCounts = new Map();
 let catModal = null;
@@ -844,6 +902,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('categoryList').addEventListener('click', handleCategoryListClick);
     document.getElementById('categoryList').addEventListener('show.bs.dropdown', handleCategoryDropdownShow);
     document.getElementById('categoryList').addEventListener('hide.bs.dropdown', handleCategoryDropdownHide);
+    document.getElementById('categorySearchInput').addEventListener('input', handleCategoryFilterInput);
+    document.getElementById('categoryGenderFilter').addEventListener('change', handleCategoryFilterInput);
     document.getElementById('promptStage').addEventListener('click', handlePromptStageClick);
     document.getElementById('promptStage').addEventListener('input', handlePromptStageInput);
 
@@ -923,6 +983,13 @@ function sortPrompts(a, b) {
     return a.name.localeCompare(b.name, 'ru');
 }
 
+function sortCategories(a, b) {
+    if (a.sort_order !== b.sort_order) {
+        return a.sort_order - b.sort_order;
+    }
+    return a.name.localeCompare(b.name, 'ru');
+}
+
 function renderSidebar() {
     const list = document.getElementById('categoryList');
     if (!categories.length) {
@@ -940,7 +1007,23 @@ function renderSidebar() {
         return;
     }
 
-    list.innerHTML = categories.map(category => {
+    const filteredCategories = getFilteredCategories();
+    if (!filteredCategories.length) {
+        list.innerHTML = `
+            <div class="prompt-empty prompt-empty--compact">
+                <div class="prompt-empty__card">
+                    <div class="prompt-empty__icon"><i class="bi bi-funnel"></i></div>
+                    <h3 class="prompt-empty__title">Ничего не найдено</h3>
+                    <p class="prompt-empty__text">Измените поисковый запрос или сбросьте фильтр по полу, чтобы снова увидеть все категории.</p>
+                    <div class="prompt-empty__actions">
+                        <button type="button" class="btn btn-light" data-action="clear-category-filters">Сбросить фильтры</button>
+                    </div>
+                </div>
+            </div>`;
+        return;
+    }
+
+    list.innerHTML = filteredCategories.map(category => {
         const meta = getGenderMeta(category.gender);
         const isActive = currentCatId === category.id ? ' is-active' : '';
         const count = categoryCounts.get(category.id) ?? 0;
@@ -1077,14 +1160,14 @@ function renderPromptGrid() {
 
 function renderPromptCard(prompt) {
     const meta = getGenderMeta(prompt.gender);
+    const previewClass = prompt.preview_url ? '' : ' prompt-card__preview--empty';
     return `
         <article class="prompt-card">
-            <div class="prompt-card__preview">
+            <div class="prompt-card__preview${previewClass}">
                 ${renderPromptPreview(prompt)}
-                <span class="prompt-card__preview-tag">${escapeHtml(meta.previewLabel)}</span>
             </div>
             <div class="prompt-card__body">
-                <div>
+                <div class="prompt-card__meta">
                     <span class="library-chip ${meta.chipClass}">${escapeHtml(meta.label)}</span>
                 </div>
                 <h3 class="prompt-card__title">${escapeHtml(prompt.name)}</h3>
@@ -1110,8 +1193,9 @@ function renderPromptPreview(prompt) {
 
     return `
         <div class="prompt-card__placeholder">
-            <div class="prompt-card__placeholder-title">${escapeHtml(getInitials(prompt.name))}</div>
-            <div class="prompt-card__placeholder-text">Превью ещё не добавлено</div>
+            <div class="prompt-card__placeholder-art" aria-hidden="true">
+                <i class="bi bi-image"></i>
+            </div>
         </div>`;
 }
 
@@ -1143,6 +1227,16 @@ function handleCategoryListClick(event) {
     const deleteButton = event.target.closest('[data-action="delete-category"]');
     if (deleteButton) {
         deleteCategory(Number(deleteButton.dataset.categoryId));
+        return;
+    }
+
+    const clearFiltersButton = event.target.closest('[data-action="clear-category-filters"]');
+    if (clearFiltersButton) {
+        currentCategorySearch = '';
+        currentCategoryGender = 'all';
+        document.getElementById('categorySearchInput').value = '';
+        document.getElementById('categoryGenderFilter').value = 'all';
+        renderSidebar();
     }
 }
 
@@ -1183,6 +1277,12 @@ function handlePromptStageInput(event) {
     renderPromptGrid();
 }
 
+function handleCategoryFilterInput() {
+    currentCategorySearch = document.getElementById('categorySearchInput').value;
+    currentCategoryGender = document.getElementById('categoryGenderFilter').value;
+    renderSidebar();
+}
+
 function openCategoryModal(category = null) {
     const isEdit = Boolean(category);
     document.getElementById('catId').value = isEdit ? category.id : '';
@@ -1211,6 +1311,8 @@ function openPromptModal(prompt = null) {
     document.getElementById('promptText').value = isEdit ? prompt.prompt : '';
     document.getElementById('promptGender').value = isEdit ? prompt.gender : 'any';
     document.getElementById('promptSort').value = isEdit ? String(prompt.sort_order) : '0';
+    document.getElementById('promptSortWrap').style.display = isEdit ? '' : 'none';
+    document.getElementById('promptGenderWrap').className = isEdit ? 'col-md-6' : 'col-md-12';
     document.getElementById('promptCategoryLabel').textContent = category ? category.name : 'Не выбрана';
     document.getElementById('promptModalTitle').textContent = isEdit ? 'Редактировать промт' : 'Новый промт';
     document.getElementById('promptModalSubtitle').textContent = isEdit
@@ -1363,6 +1465,26 @@ async function deletePrompt(id) {
 
 function getCurrentCategory() {
     return getCategoryById(currentCatId);
+}
+
+function getFilteredCategories() {
+    const query = currentCategorySearch.trim().toLowerCase();
+    return categories
+        .slice()
+        .sort(sortCategories)
+        .filter(category => {
+            if (currentCategoryGender !== 'all' && category.gender !== currentCategoryGender) {
+                return false;
+            }
+
+            if (!query) {
+                return true;
+            }
+
+            const meta = getGenderMeta(category.gender);
+            const haystack = `${category.name} ${meta.label}`.toLowerCase();
+            return haystack.includes(query);
+        });
 }
 
 function getCategoryById(id) {
