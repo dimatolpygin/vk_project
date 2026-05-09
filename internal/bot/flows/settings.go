@@ -24,7 +24,7 @@ func HandleSettings(ctx context.Context, fc *Context, d *Deps) {
 
 	_ = sendScreen(ctx, d, fc.VkID, "settings_overview", ScreenOptions{
 		Data: map[string]any{
-			"TotalGens":   fc.User.FreeGens + fc.User.PaidGens,
+			"TotalGens":   fc.User.TotalGens(),
 			"ModelName":   ModelDisplayName(currentModel(fc, d)),
 			"Resolution":  currentResolution(fc),
 			"AspectRatio": currentAspectRatioLabel(fc),
@@ -61,7 +61,10 @@ func HandleFormat(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func HandleBalance(ctx context.Context, fc *Context, d *Deps) {
-	tariffs, _ := d.TariffRepo.ListActive(ctx)
+	var tariffs []*repository.Tariff
+	if d.TariffRepo != nil {
+		tariffs, _ = d.TariffRepo.ListActive(ctx)
+	}
 	_ = d.State.Set(ctx, fc.VkID, &State{
 		Step:        StepTariffs,
 		PrevStep:    StepSettings,
@@ -72,8 +75,7 @@ func HandleBalance(ctx context.Context, fc *Context, d *Deps) {
 	})
 	_ = sendScreen(ctx, d, fc.VkID, "settings_balance", ScreenOptions{
 		Data: map[string]any{
-			"FreeGens": fc.User.FreeGens,
-			"PaidGens": fc.User.PaidGens,
+			"TotalGens": fc.User.TotalGens(),
 		},
 		PrefixRows: tariffRows(tariffs),
 	})

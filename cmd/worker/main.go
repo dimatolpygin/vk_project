@@ -74,7 +74,7 @@ func main() {
 		workerStorage = s3Client
 	}
 
-	generateHandler := worker.NewGenerateHandler(genRepo, userRepo, sender, wsClient, workerStorage, rdb)
+	generateHandler := worker.NewGenerateHandler(genRepo, sender, wsClient, workerStorage, rdb)
 	asynqClient := worker.NewAsynqClient(cfg.RedisAddr, cfg.RedisPassword)
 	defer func() { _ = asynqClient.Close() }()
 	broadcastHandler := worker.NewBroadcastHandler(broadcastRepo, sender, asynqClient)

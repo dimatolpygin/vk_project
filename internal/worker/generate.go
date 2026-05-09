@@ -23,43 +23,49 @@ type PhotoStorage interface {
 }
 
 type GenerateHandler struct {
-	genRepo  *repository.GenerationRepo
-	userRepo *repository.UserRepo
-	sender   MessageSender
-	ws       *wavespeed.Client
-	storage  PhotoStorage
-	rdb      *redis.Client
+	genRepo *repository.GenerationRepo
+	sender  MessageSender
+	ws      *wavespeed.Client
+	storage PhotoStorage
+	rdb     *redis.Client
 }
 
 func NewGenerateHandler(
 	genRepo *repository.GenerationRepo,
-	userRepo *repository.UserRepo,
 	sender MessageSender,
 	ws *wavespeed.Client,
 	storage PhotoStorage,
 	rdb *redis.Client,
 ) *GenerateHandler {
 	return &GenerateHandler{
-		genRepo:  genRepo,
-		userRepo: userRepo,
-		sender:   sender,
-		ws:       ws,
-		storage:  storage,
-		rdb:      rdb,
+		genRepo: genRepo,
+		sender:  sender,
+		ws:      ws,
+		storage: storage,
+		rdb:     rdb,
 	}
 }
 
 func (h *GenerateHandler) ProcessTask(ctx context.Context, task *asynq.Task) error {
 	payload, err := ParseGeneratePayload(task.Payload())
 	if err != nil {
-		return fmt.Errorf("генерация: ошибка парсинга payload: %w", err)
+		return fmt.Errorf("generation: parse payload: %w", err)
+	}
+
+	refundGeneration := func() {
+		if h.genRepo == nil {
+			return
+		}
+		if err := h.genRepo.RefundGenerationCharge(ctx, payload.GenerationID); err != nil {
+			log.Error().Err(err).Int64("generation_id", payload.GenerationID).Msg("failed to refund generation charge")
+		}
 	}
 
 	log.Info().
 		Int64("generation_id", payload.GenerationID).
 		Int64("user_vk_id", payload.UserVKID).
 		Str("model", payload.Model).
-		Msg("начинаю генерацию")
+		Msg("starting generation")
 
 	taskID, err := h.ws.Submit(ctx, wavespeed.SubmitRequest{
 		Images:       payload.Images,
@@ -71,47 +77,50 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, task *asynq.Task) err
 	})
 	if err != nil {
 		_ = h.genRepo.SetFailed(ctx, payload.GenerationID, err.Error())
+		refundGeneration()
 		_ = h.sender.SendScreenText(ctx, payload.UserVKID, "worker_submit_error", nil)
 		return fmt.Errorf("%w: wavespeed submit: %v", asynq.SkipRetry, err)
 	}
 
 	if err := h.genRepo.SetWavespeedTaskID(ctx, payload.GenerationID, taskID); err != nil {
-		log.Error().Err(err).Msg("не удалось сохранить task_id")
+		log.Error().Err(err).Msg("failed to save wavespeed task id")
 	}
 
-	log.Info().Str("task_id", taskID).Msg("задача отправлена в WaveSpeed, жду результат")
+	log.Info().Str("task_id", taskID).Msg("generation submitted to wavespeed")
 
 	status, err := h.ws.PollUntilDone(ctx, taskID, 3*time.Second, 100)
 	if err != nil {
 		_ = h.genRepo.SetFailed(ctx, payload.GenerationID, err.Error())
+		refundGeneration()
 		_ = h.sender.SendScreenText(ctx, payload.UserVKID, "worker_generation_failed", nil)
 		return fmt.Errorf("%w: wavespeed poll: %v", asynq.SkipRetry, err)
 	}
 
 	if len(status.Outputs) == 0 {
 		_ = h.genRepo.SetFailed(ctx, payload.GenerationID, "нет выходных данных")
+		refundGeneration()
 		_ = h.sender.SendScreenText(ctx, payload.UserVKID, "worker_no_output", nil)
-		return fmt.Errorf("%w: wavespeed: нет выходных данных", asynq.SkipRetry)
+		return fmt.Errorf("%w: wavespeed: no outputs", asynq.SkipRetry)
 	}
 
 	outputURL := status.Outputs[0]
 	if h.storage != nil {
 		key := fmt.Sprintf("generation_users/%d/%d.png", payload.UserVKID, payload.GenerationID)
 		if _, err := h.storage.UploadFromURL(ctx, key, outputURL); err != nil {
-			log.Error().Err(err).Msg("не удалось загрузить результат в S3")
+			log.Error().Err(err).Msg("failed to upload result to s3")
 		} else {
 			outputURL = h.storage.PublicURL(key)
 		}
 	}
 
 	if err := h.genRepo.SetCompleted(ctx, payload.GenerationID, outputURL); err != nil {
-		log.Error().Err(err).Msg("не удалось сохранить output_photo_url")
+		log.Error().Err(err).Msg("failed to save generation output url")
 	}
 
 	log.Info().
 		Int64("generation_id", payload.GenerationID).
 		Str("output_url", outputURL).
-		Msg("генерация завершена, отправляю фото")
+		Msg("generation completed, sending photo")
 
 	if h.rdb != nil {
 		key := fmt.Sprintf("gen_result:%d", payload.GenerationID)
@@ -119,12 +128,10 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, task *asynq.Task) err
 	}
 
 	if err := h.sender.SendPhotoResult(ctx, payload.UserVKID, outputURL, payload.Model, payload.Resolution, payload.AspectRatio); err != nil {
-		log.Error().Err(err).Int64("generation_id", payload.GenerationID).Msg("не удалось отправить фото после 2 попыток, возвращаю генерацию")
-		if h.userRepo != nil {
-			_ = h.userRepo.RefundGen(ctx, payload.UserVKID)
-		}
+		log.Error().Err(err).Int64("generation_id", payload.GenerationID).Msg("failed to send generated photo to vk, refunding generation")
+		refundGeneration()
 		_ = h.sender.SendScreenText(ctx, payload.UserVKID, "worker_vk_upload_error", nil)
-		return fmt.Errorf("%w: отправка фото: %v", asynq.SkipRetry, err)
+		return fmt.Errorf("%w: send photo: %v", asynq.SkipRetry, err)
 	}
 
 	return nil

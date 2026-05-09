@@ -229,7 +229,7 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 	"settings_balance": {
 		SectionID:   "settings",
 		Title:       "Баланс генераций",
-		Description: "Экран с остатком бесплатных и платных генераций.",
+		Description: "Экран с общим доступным балансом генераций пользователя.",
 		Order:       50,
 		Keywords:    []string{"баланс", "генерации", "остаток"},
 	},

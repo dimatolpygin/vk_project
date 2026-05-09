@@ -47,7 +47,14 @@ type User struct {
 	PrefAspectRatio string
 }
 
-func (u *User) HasGens() bool { return u.FreeGens > 0 || u.PaidGens > 0 }
+func (u *User) TotalGens() int {
+	if u == nil {
+		return 0
+	}
+	return u.FreeGens + u.PaidGens
+}
+
+func (u *User) HasGens() bool { return u.TotalGens() > 0 }
 
 // copyPrefs копирует Model, Resolution, AspectRatio из src в dst и возвращает dst.
 func copyPrefs(dst *State, src *State) *State {
@@ -152,6 +159,11 @@ type PromptReader interface {
 	GetByID(ctx context.Context, id int) (*repository.Prompt, error)
 }
 
+type TariffReader interface {
+	ListActive(ctx context.Context) ([]*repository.Tariff, error)
+	GetByID(ctx context.Context, id int) (*repository.Tariff, error)
+}
+
 // ─── Deps ────────────────────────────────────────────────────────────────────
 
 type Deps struct {
@@ -159,7 +171,7 @@ type Deps struct {
 	State         StateMgr
 	UserRepo      *repository.UserRepo
 	GenRepo       *repository.GenerationRepo
-	TariffRepo    *repository.TariffRepo
+	TariffRepo    TariffReader
 	OrderRepo     *repository.OrderRepo
 	MsgRepo       MessageReader
 	CatRepo       CategoryReader

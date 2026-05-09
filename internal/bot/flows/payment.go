@@ -16,6 +16,11 @@ type paymentSettler interface {
 }
 
 func HandleShowTariffs(ctx context.Context, fc *Context, d *Deps) {
+	if d.TariffRepo == nil {
+		_ = sendScreen(ctx, d, fc.VkID, "payment_unavailable", ScreenOptions{})
+		return
+	}
+
 	tariffs, err := d.TariffRepo.ListActive(ctx)
 	if err != nil || len(tariffs) == 0 {
 		_ = sendScreen(ctx, d, fc.VkID, "payment_unavailable", ScreenOptions{})
@@ -31,6 +36,11 @@ func HandleShowTariffs(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func HandleBuyTariff(ctx context.Context, fc *Context, d *Deps) {
+	if d.TariffRepo == nil {
+		_ = sendScreen(ctx, d, fc.VkID, "payment_unavailable", ScreenOptions{})
+		return
+	}
+
 	tariffID := fc.Callback.TariffID
 	if tariffID == 0 {
 		_ = sendScreen(ctx, d, fc.VkID, "payment_invalid_tariff", ScreenOptions{})

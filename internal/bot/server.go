@@ -150,7 +150,13 @@ func (s *Server) handleWavespeedWebhook(w http.ResponseWriter, r *http.Request) 
 		}
 		outputURL := event.Outputs[0]
 		_ = s.flowDeps.GenRepo.SetCompleted(r.Context(), gen.ID, outputURL)
-		_ = s.flowDeps.Sender.SendPhotoResult(r.Context(), gen.UserVKID, outputURL, gen.Model, "", "")
+		if err := s.flowDeps.Sender.SendPhotoResult(r.Context(), gen.UserVKID, outputURL, gen.Model, "", ""); err != nil {
+			log.Error().Err(err).Int64("generation_id", gen.ID).Msg("failed to send webhook generation result")
+			_ = s.flowDeps.GenRepo.RefundGenerationCharge(r.Context(), gen.ID)
+			_ = s.flowDeps.Sender.SendScreenText(r.Context(), gen.UserVKID, "worker_vk_upload_error", nil)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		wsSt, err2 := s.flowDeps.State.Get(r.Context(), gen.UserVKID)
 		if err2 != nil || wsSt == nil {
 			wsSt = &flows.State{}

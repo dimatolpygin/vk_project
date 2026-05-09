@@ -180,26 +180,6 @@ func (r *UserRepo) GetByReferralCode(ctx context.Context, code string) (*User, e
 	return u, err
 }
 
-func (r *UserRepo) DecrementGens(ctx context.Context, vkID int64) error {
-	_, err := r.db.Exec(ctx, `
-		UPDATE users SET
-			free_gens  = CASE WHEN paid_gens = 0 AND free_gens > 0 THEN free_gens - 1 ELSE free_gens END,
-			paid_gens  = CASE WHEN paid_gens > 0 THEN paid_gens - 1 ELSE paid_gens END,
-			updated_at = now()
-		WHERE vk_id = $1`, vkID)
-	return err
-}
-
-func (r *UserRepo) RefundGen(ctx context.Context, vkID int64) error {
-	_, err := r.db.Exec(ctx, `
-		UPDATE users SET
-			paid_gens  = CASE WHEN status = 'paid' THEN paid_gens + 1 ELSE paid_gens END,
-			free_gens  = CASE WHEN status != 'paid' THEN free_gens + 1 ELSE free_gens END,
-			updated_at = now()
-		WHERE vk_id = $1`, vkID)
-	return err
-}
-
 func (r *UserRepo) AddPaidGens(ctx context.Context, vkID int64, count int) error {
 	_, err := r.db.Exec(ctx, `
 		UPDATE users SET paid_gens = paid_gens + $2, status = 'paid', updated_at = now()

@@ -2,6 +2,7 @@ package flows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -177,6 +178,10 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func startGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, prompt, promptType, waitKey string, waitData map[string]any) {
+	createAndEnqueueGeneration(ctx, fc, d, promptType, photoURL, prompt, waitKey, "free_gen", waitData)
+}
+
+func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, generationType, photoURL, prompt, waitKey, activityActionKey string, waitData map[string]any) {
 	model := fc.State.Model
 	if model == "" {
 		model = fc.User.PrefModel
@@ -185,21 +190,24 @@ func startGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, prompt
 		model = d.DefaultModel
 	}
 
-	gen, err := d.GenRepo.Create(ctx, fc.VkID, promptType, prompt, model, &photoURL)
-	if err != nil {
+	gen, err := d.GenRepo.CreateChargedGeneration(ctx, fc.VkID, generationType, prompt, model, &photoURL)
+	switch {
+	case errors.Is(err, repository.ErrNoGenerationsAvailable):
+		_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
+		return
+	case err != nil:
 		log.Error().Err(err).Msg("не удалось создать запись генерации")
 		_ = sendScreen(ctx, d, fc.VkID, "generation_error", ScreenOptions{})
 		return
 	}
 
-	trackEvent(ctx, d, fc.VkID, repository.ActivityEventGenerationStarted, "free_gen", waitKey, map[string]any{
+	trackEvent(ctx, d, fc.VkID, repository.ActivityEventGenerationStarted, activityActionKey, waitKey, map[string]any{
 		"generation_id": gen.ID,
-		"prompt_type":   promptType,
+		"prompt_type":   generationType,
 		"model":         model,
 		"resolution":    currentResolution(fc),
 		"aspect_ratio":  currentAspectRatio(fc),
 	})
-	_ = d.UserRepo.DecrementGens(ctx, fc.VkID)
 	_ = d.State.SetStep(ctx, fc.VkID, StepMainMenu)
 	_ = sendScreen(ctx, d, fc.VkID, waitKey, ScreenOptions{Data: waitData})
 
@@ -222,6 +230,10 @@ func startGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, prompt
 	)
 	if _, err := d.AsynqClient.Enqueue(task); err != nil {
 		log.Error().Err(err).Msg("не удалось поставить задачу в очередь")
+		_ = d.GenRepo.SetFailed(ctx, gen.ID, err.Error())
+		if refundErr := d.GenRepo.RefundGenerationCharge(ctx, gen.ID); refundErr != nil {
+			log.Error().Err(refundErr).Int64("generation_id", gen.ID).Msg("не удалось вернуть генерацию после enqueue error")
+		}
 		_ = sendScreen(ctx, d, fc.VkID, "generation_start_error", ScreenOptions{})
 	}
 }

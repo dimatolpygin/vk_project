@@ -127,7 +127,7 @@ var screenDefinitions = map[string]ScreenDefinition{
 	"saved_photo_upload_prompt": screen("saved_photo_upload_prompt", "📤 Отправьте фото — оно сохранится и будет использоваться по умолчанию:",
 		callback("back", "back", "◀️ Назад", "secondary", 0, 0),
 	),
-	"settings_balance": screen("settings_balance", "💳 Баланс\n\n🔹 Бесплатных: {{.FreeGens}}\n🔸 Платных: {{.PaidGens}}\n\nПополнить баланс:",
+	"settings_balance": screen("settings_balance", "💳 Баланс\n\n🎯 Доступно генераций: {{.TotalGens}}\n\nПополнить баланс:",
 		callback("back", "back", "◀️ Назад", "secondary", 100, 0),
 	),
 	"settings_format": screen("settings_format", "📐 Выбери формат изображения:",
