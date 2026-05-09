@@ -313,6 +313,7 @@
                     <div>
                         <label class="form-label small text-muted">URL загруженного фото</label>
                         <input type="text" id="broadcast-image-url" name="image_url" class="form-control" readonly placeholder="Не выбрано">
+                        <input type="hidden" id="broadcast-image-upload-state" name="image_upload_state" value="none">
                     </div>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-outline-secondary btn-sm" id="broadcast-clear-image">Убрать фото</button>
@@ -326,7 +327,7 @@
 
                 <div id="broadcast-form-status" class="broadcasts-upload__status"></div>
 
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" id="broadcast-submit">
                     <i class="bi bi-send"></i>
                     Запустить рассылку
                 </button>
@@ -413,6 +414,11 @@ const broadcastFormStatus = document.getElementById('broadcast-form-status');
 const broadcastPreview = document.getElementById('broadcast-preview');
 const broadcastPreviewImage = document.getElementById('broadcast-preview-image');
 const broadcastClearImage = document.getElementById('broadcast-clear-image');
+const broadcastSubmitButton = document.getElementById('broadcast-submit');
+const broadcastImageUploadState = document.getElementById('broadcast-image-upload-state');
+let broadcastUploadController = null;
+let broadcastPreviewObjectURL = '';
+let broadcastSubmitInFlight = false;
 
 function updateBroadcastPreview(url) {
     const normalizedUrl = (url || '').trim();
@@ -425,24 +431,94 @@ function updateBroadcastPreview(url) {
     broadcastPreview.classList.add('is-visible');
 }
 
+function revokeBroadcastPreviewObjectURL() {
+    if (!broadcastPreviewObjectURL) return;
+    URL.revokeObjectURL(broadcastPreviewObjectURL);
+    broadcastPreviewObjectURL = '';
+}
+
+function setBroadcastImageUploadStateValue(value) {
+    if (broadcastImageUploadState) {
+        broadcastImageUploadState.value = value;
+    }
+}
+
+function getBroadcastImageUploadStateValue() {
+    return broadcastImageUploadState ? broadcastImageUploadState.value : 'none';
+}
+
+function hasSelectedBroadcastImage() {
+    return !!(broadcastImageFile && broadcastImageFile.files && broadcastImageFile.files.length);
+}
+
+function syncBroadcastFormState() {
+    const hasIncompleteImage = hasSelectedBroadcastImage() && getBroadcastImageUploadStateValue() !== 'ready';
+    const isUploading = getBroadcastImageUploadStateValue() === 'uploading';
+    if (broadcastSubmitButton) {
+        broadcastSubmitButton.disabled = broadcastSubmitInFlight || hasIncompleteImage || isUploading;
+    }
+}
+
 async function uploadBroadcastImage(file) {
-    if (!file) return;
-
-    broadcastUploadStatus.textContent = 'Загружаю фото...';
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const response = await fetch('/admin/upload', { method: 'POST', body: formData });
-    const payload = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-        broadcastUploadStatus.textContent = payload.error || 'Ошибка загрузки';
+    if (!file) {
+        broadcastImageURL.value = '';
+        setBroadcastImageUploadStateValue('none');
+        syncBroadcastFormState();
         return;
     }
 
-    broadcastImageURL.value = payload.url || '';
-    broadcastUploadStatus.textContent = '✓ Фото загружено';
-    updateBroadcastPreview(payload.url || '');
+    if (broadcastUploadController) {
+        broadcastUploadController.abort();
+    }
+
+    const controller = new AbortController();
+    broadcastUploadController = controller;
+    revokeBroadcastPreviewObjectURL();
+    broadcastPreviewObjectURL = URL.createObjectURL(file);
+    updateBroadcastPreview(broadcastPreviewObjectURL);
+    broadcastImageURL.value = '';
+    broadcastFormStatus.textContent = '';
+    broadcastUploadStatus.textContent = 'Загружаю фото в S3...';
+    setBroadcastImageUploadStateValue('uploading');
+    syncBroadcastFormState();
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch('/admin/upload', {
+            method: 'POST',
+            body: formData,
+            signal: controller.signal,
+            headers: { 'Accept': 'application/json' }
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            broadcastImageURL.value = '';
+            broadcastUploadStatus.textContent = payload.error || 'Ошибка загрузки фото';
+            setBroadcastImageUploadStateValue('failed');
+            return;
+        }
+
+        broadcastImageURL.value = payload.url || '';
+        revokeBroadcastPreviewObjectURL();
+        broadcastUploadStatus.textContent = '✓ Фото загружено';
+        updateBroadcastPreview(payload.url || '');
+        setBroadcastImageUploadStateValue('ready');
+    } catch (error) {
+        if (error && error.name === 'AbortError') {
+            return;
+        }
+        broadcastImageURL.value = '';
+        broadcastUploadStatus.textContent = 'Не удалось загрузить фото';
+        setBroadcastImageUploadStateValue('failed');
+    } finally {
+        if (broadcastUploadController === controller) {
+            broadcastUploadController = null;
+        }
+        syncBroadcastFormState();
+    }
 }
 
 if (broadcastImageFile) {
@@ -454,16 +530,37 @@ if (broadcastImageFile) {
 
 if (broadcastClearImage) {
     broadcastClearImage.addEventListener('click', () => {
+        if (broadcastUploadController) {
+            broadcastUploadController.abort();
+            broadcastUploadController = null;
+        }
+        revokeBroadcastPreviewObjectURL();
         broadcastImageFile.value = '';
         broadcastImageURL.value = '';
         broadcastUploadStatus.textContent = '';
+        broadcastFormStatus.textContent = '';
+        setBroadcastImageUploadStateValue('none');
         updateBroadcastPreview('');
+        syncBroadcastFormState();
     });
 }
 
 if (broadcastForm) {
     broadcastForm.addEventListener('submit', async (event) => {
         event.preventDefault();
+        if (getBroadcastImageUploadStateValue() === 'uploading') {
+            broadcastFormStatus.textContent = 'Дождитесь завершения загрузки фото перед запуском рассылки.';
+            syncBroadcastFormState();
+            return;
+        }
+        if (hasSelectedBroadcastImage() && getBroadcastImageUploadStateValue() !== 'ready') {
+            broadcastFormStatus.textContent = 'Фото ещё не загружено. Дождитесь загрузки или уберите вложение.';
+            syncBroadcastFormState();
+            return;
+        }
+
+        broadcastSubmitInFlight = true;
+        syncBroadcastFormState();
         broadcastFormStatus.textContent = 'Создаю рассылку и ставлю в очередь...';
 
         const audienceField = broadcastForm.elements.namedItem('audience_filter');
@@ -472,26 +569,34 @@ if (broadcastForm) {
         formData.set('audience_filter', audienceField ? audienceField.value : '');
         formData.set('text', textField ? textField.value : '');
         formData.set('image_url', broadcastImageURL.value);
+        formData.set('image_upload_state', getBroadcastImageUploadStateValue());
 
-        const response = await fetch('/admin/broadcasts', {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        try {
+            const response = await fetch('/admin/broadcasts', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+                }
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                broadcastFormStatus.textContent = payload.error || 'Не удалось запустить рассылку';
+                return;
             }
-        });
-        const payload = await response.json().catch(() => ({}));
 
-        if (!response.ok) {
-            broadcastFormStatus.textContent = payload.error || 'Не удалось запустить рассылку';
-            return;
+            broadcastFormStatus.textContent = '✓ Рассылка поставлена в очередь';
+            window.location.reload();
+        } finally {
+            broadcastSubmitInFlight = false;
+            syncBroadcastFormState();
         }
-
-        broadcastFormStatus.textContent = '✓ Рассылка поставлена в очередь';
-        window.location.reload();
     });
 }
+
+syncBroadcastFormState();
 
 function updateBroadcastCard(card, payload) {
     card.dataset.live = (payload.status === 'queued' || payload.status === 'processing') ? 'true' : 'false';

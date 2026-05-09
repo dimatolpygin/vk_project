@@ -20,6 +20,13 @@ import (
 const broadcastsPageSize = 20
 const broadcastCreateFormMaxMemory = 10 << 20
 
+const (
+	broadcastImageUploadStateNone      = "none"
+	broadcastImageUploadStateUploading = "uploading"
+	broadcastImageUploadStateReady     = "ready"
+	broadcastImageUploadStateFailed    = "failed"
+)
+
 type broadcastStore interface {
 	List(ctx context.Context, limit int) ([]*repository.Broadcast, error)
 	CreateWithSnapshot(ctx context.Context, params repository.CreateBroadcastParams) (*repository.Broadcast, error)
@@ -122,6 +129,12 @@ func (h *BroadcastsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var imageURL *string
 	if rawURL := strings.TrimSpace(r.FormValue("image_url")); rawURL != "" {
 		imageURL = &rawURL
+	}
+
+	imageUploadState := normalizeBroadcastImageUploadState(r.FormValue("image_upload_state"))
+	if errMessage := validateBroadcastImageUploadState(imageUploadState, imageURL); errMessage != "" {
+		writeJSONError(w, http.StatusBadRequest, errMessage)
+		return
 	}
 
 	broadcast, err := h.repo.CreateWithSnapshot(r.Context(), repository.CreateBroadcastParams{
@@ -320,4 +333,37 @@ func parseBroadcastCreateRequest(r *http.Request) error {
 	}
 
 	return r.ParseForm()
+}
+
+func normalizeBroadcastImageUploadState(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", broadcastImageUploadStateNone:
+		return broadcastImageUploadStateNone
+	case broadcastImageUploadStateUploading:
+		return broadcastImageUploadStateUploading
+	case broadcastImageUploadStateReady:
+		return broadcastImageUploadStateReady
+	case broadcastImageUploadStateFailed:
+		return broadcastImageUploadStateFailed
+	default:
+		return strings.ToLower(strings.TrimSpace(value))
+	}
+}
+
+func validateBroadcastImageUploadState(state string, imageURL *string) string {
+	switch state {
+	case broadcastImageUploadStateNone:
+		return ""
+	case broadcastImageUploadStateUploading:
+		return "Дождитесь завершения загрузки фото перед запуском рассылки."
+	case broadcastImageUploadStateFailed:
+		return "Фото не удалось загрузить. Уберите вложение или повторите загрузку."
+	case broadcastImageUploadStateReady:
+		if imageURL == nil || strings.TrimSpace(*imageURL) == "" {
+			return "Фото ещё не готово. Дождитесь загрузки или уберите вложение."
+		}
+		return ""
+	default:
+		return "Неизвестное состояние загрузки фото."
+	}
 }

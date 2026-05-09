@@ -94,6 +94,7 @@ func TestBroadcastsHandlerCreateEnqueuesTask(t *testing.T) {
 	form.Set("audience_filter", repository.BroadcastAudiencePaid)
 	form.Set("text", "hello")
 	form.Set("image_url", "https://example.com/image.png")
+	form.Set("image_upload_state", broadcastImageUploadStateReady)
 
 	req := httptest.NewRequest(http.MethodPost, "/admin/broadcasts", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -114,6 +115,62 @@ func TestBroadcastsHandlerCreateEnqueuesTask(t *testing.T) {
 	}
 	if payload["id"].(float64) != 42 {
 		t.Fatalf("unexpected response id: %#v", payload["id"])
+	}
+}
+
+func TestBroadcastsHandlerCreateRejectsUploadingImage(t *testing.T) {
+	store := &fakeBroadcastStore{
+		createFn: func(context.Context, repository.CreateBroadcastParams) (*repository.Broadcast, error) {
+			t.Fatal("create should not be called while image upload is in progress")
+			return nil, nil
+		},
+	}
+	handler := &BroadcastsHandler{repo: store, asynqClient: &fakeBroadcastTaskClient{}}
+
+	form := url.Values{}
+	form.Set("audience_filter", repository.BroadcastAudienceAll)
+	form.Set("text", "hello")
+	form.Set("image_upload_state", broadcastImageUploadStateUploading)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/broadcasts", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "Дождитесь завершения загрузки фото") {
+		t.Fatalf("unexpected body: %s", rr.Body.String())
+	}
+}
+
+func TestBroadcastsHandlerCreateRejectsImageWithoutUploadedURL(t *testing.T) {
+	store := &fakeBroadcastStore{
+		createFn: func(context.Context, repository.CreateBroadcastParams) (*repository.Broadcast, error) {
+			t.Fatal("create should not be called without uploaded image URL")
+			return nil, nil
+		},
+	}
+	handler := &BroadcastsHandler{repo: store, asynqClient: &fakeBroadcastTaskClient{}}
+
+	form := url.Values{}
+	form.Set("audience_filter", repository.BroadcastAudienceAll)
+	form.Set("text", "hello")
+	form.Set("image_upload_state", broadcastImageUploadStateReady)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/broadcasts", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "Фото ещё не готово") {
+		t.Fatalf("unexpected body: %s", rr.Body.String())
 	}
 }
 

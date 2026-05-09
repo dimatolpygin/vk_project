@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 type s3Uploader interface {
@@ -24,6 +26,8 @@ func NewUploadHandler(storage s3Uploader) *UploadHandler {
 }
 
 func (h *UploadHandler) Upload(w http.ResponseWriter, r *http.Request) {
+	startedAt := time.Now()
+
 	if h.storage == nil {
 		http.Error(w, "S3 не настроен", http.StatusServiceUnavailable)
 		return
@@ -63,12 +67,32 @@ func (h *UploadHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	key := fmt.Sprintf("admin_uploads/%d_%s", time.Now().Unix(), header.Filename)
+	uploadStartedAt := time.Now()
 	if _, err := h.storage.Upload(r.Context(), key, data, ct); err != nil {
+		log.Error().
+			Err(err).
+			Str("filename", header.Filename).
+			Int("size_bytes", len(data)).
+			Str("content_type", ct).
+			Dur("upload_elapsed", time.Since(uploadStartedAt)).
+			Dur("request_elapsed", time.Since(startedAt)).
+			Msg("admin upload to storage failed")
 		http.Error(w, "ошибка загрузки в S3", http.StatusInternalServerError)
 		return
 	}
 
 	url := h.storage.PublicURL(key)
+	logEvent := log.Info()
+	if uploadElapsed := time.Since(uploadStartedAt); uploadElapsed > 5*time.Second {
+		logEvent = log.Warn()
+	}
+	logEvent.
+		Str("filename", header.Filename).
+		Int("size_bytes", len(data)).
+		Str("content_type", ct).
+		Dur("upload_elapsed", time.Since(uploadStartedAt)).
+		Dur("request_elapsed", time.Since(startedAt)).
+		Msg("admin upload stored in storage")
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"url": url})
 }
