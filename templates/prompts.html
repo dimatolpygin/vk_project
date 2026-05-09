@@ -48,6 +48,7 @@
     }
 
     .prompt-library__shell {
+        position: relative;
         display: grid;
         grid-template-columns: minmax(290px, 340px) minmax(0, 1fr);
         gap: 1.5rem;
@@ -63,7 +64,9 @@
     }
 
     .prompt-sidebar {
-        overflow: hidden;
+        position: relative;
+        z-index: 4;
+        overflow: visible;
     }
 
     .prompt-sidebar__header,
@@ -93,9 +96,11 @@
 
     .prompt-sidebar__body {
         padding: 0 1rem 1rem;
+        overflow: visible;
     }
 
     .prompt-sidebar__list {
+        position: relative;
         display: flex;
         flex-direction: column;
         gap: .75rem;
@@ -103,6 +108,7 @@
 
     .category-card {
         position: relative;
+        z-index: 0;
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         gap: .6rem;
@@ -133,6 +139,10 @@
         background: var(--pl-primary-soft);
         border-color: #cfe0ff;
         box-shadow: 0 14px 26px rgba(59, 130, 246, 0.12);
+    }
+
+    .category-card.is-menu-open {
+        z-index: 24;
     }
 
     .category-card.is-active::before {
@@ -220,6 +230,8 @@
     }
 
     .prompt-stage {
+        position: relative;
+        z-index: 1;
         min-height: 680px;
         overflow: hidden;
     }
@@ -607,6 +619,7 @@
     }
 
     .dropdown-menu {
+        z-index: 1056;
         border: 1px solid rgba(226, 232, 240, 0.9);
         border-radius: 16px;
         box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
@@ -829,12 +842,30 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
     document.getElementById('savePromptBtn').addEventListener('click', savePrompt);
     document.getElementById('categoryList').addEventListener('click', handleCategoryListClick);
+    document.getElementById('categoryList').addEventListener('show.bs.dropdown', handleCategoryDropdownShow);
+    document.getElementById('categoryList').addEventListener('hide.bs.dropdown', handleCategoryDropdownHide);
     document.getElementById('promptStage').addEventListener('click', handlePromptStageClick);
     document.getElementById('promptStage').addEventListener('input', handlePromptStageInput);
 
     renderSidebar();
     renderPromptStage();
 });
+
+function handleCategoryDropdownShow(event) {
+    const card = event.target.closest('.category-card');
+    if (!card) {
+        return;
+    }
+    card.classList.add('is-menu-open');
+}
+
+function handleCategoryDropdownHide(event) {
+    const card = event.target.closest('.category-card');
+    if (!card) {
+        return;
+    }
+    card.classList.remove('is-menu-open');
+}
 
 function normalizeCategory(category) {
     return {

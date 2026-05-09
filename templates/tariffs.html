@@ -1,102 +1,740 @@
 {{define "content"}}
-<div class="d-flex justify-content-end mb-3">
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#tariffModal" onclick="resetForm()">
-        + Новый тариф
-    </button>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap');
+
+    .tariffs-workspace {
+        --tw-surface: #ffffff;
+        --tw-surface-soft: #f8fbff;
+        --tw-border: #dbe5f0;
+        --tw-border-strong: #c8d7e6;
+        --tw-text: #0f172a;
+        --tw-muted: #64748b;
+        --tw-primary: #0f766e;
+        --tw-primary-soft: #ecfeff;
+        --tw-primary-deep: #115e59;
+        --tw-accent: #1d4ed8;
+        --tw-accent-soft: #eff6ff;
+        --tw-shadow: 0 20px 42px rgba(15, 23, 42, 0.08);
+        --tw-shadow-soft: 0 14px 30px rgba(15, 23, 42, 0.05);
+        font-family: "Manrope", sans-serif;
+        color: var(--tw-text);
+    }
+
+    .tariffs-workspace__intro {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .tariffs-workspace__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .38rem .72rem;
+        border-radius: 999px;
+        background: var(--tw-primary-soft);
+        color: var(--tw-primary-deep);
+        font-size: .76rem;
+        font-weight: 800;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+
+    .tariffs-workspace__title {
+        margin: .8rem 0 0;
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -.04em;
+    }
+
+    .tariffs-workspace__subtitle {
+        max-width: 760px;
+        margin: .75rem 0 0;
+        color: var(--tw-muted);
+        font-size: .95rem;
+        line-height: 1.65;
+    }
+
+    .tariffs-workspace__cta .btn {
+        border-radius: 18px;
+        padding: .9rem 1.15rem;
+        font-weight: 700;
+        box-shadow: 0 12px 24px rgba(15, 118, 110, 0.14);
+    }
+
+    .tariffs-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .tariffs-summary-card,
+    .tariffs-panel,
+    .tariff-row,
+    .tariff-empty,
+    .tariff-modal .modal-content {
+        border: 1px solid var(--tw-border);
+        border-radius: 26px;
+        background: var(--tw-surface);
+        box-shadow: var(--tw-shadow-soft);
+    }
+
+    .tariffs-summary-card {
+        padding: 1.1rem 1.15rem;
+        background: linear-gradient(180deg, #fcfffe 0%, #ffffff 100%);
+    }
+
+    .tariffs-summary-card__label {
+        color: var(--tw-muted);
+        font-size: .78rem;
+        font-weight: 800;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+
+    .tariffs-summary-card__value {
+        margin-top: .5rem;
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -.04em;
+    }
+
+    .tariffs-summary-card__hint {
+        margin-top: .35rem;
+        color: var(--tw-muted);
+        font-size: .86rem;
+        line-height: 1.5;
+    }
+
+    .tariffs-panel {
+        padding: 1.2rem;
+    }
+
+    .tariffs-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .tariffs-toolbar__title {
+        margin: 0;
+        font-size: 1.08rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .tariffs-toolbar__copy {
+        margin-top: .35rem;
+        color: var(--tw-muted);
+        font-size: .88rem;
+        line-height: 1.55;
+    }
+
+    .tariffs-toolbar__meta {
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+        flex-wrap: wrap;
+    }
+
+    .tariffs-chip,
+    .tariff-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .38rem .72rem;
+        border-radius: 999px;
+        font-size: .77rem;
+        font-weight: 800;
+        letter-spacing: .03em;
+    }
+
+    .tariffs-chip {
+        border: 1px solid var(--tw-border);
+        background: #fbfdff;
+        color: var(--tw-muted);
+    }
+
+    .tariffs-list {
+        display: grid;
+        gap: .95rem;
+    }
+
+    .tariffs-list__head,
+    .tariff-row {
+        display: grid;
+        grid-template-columns: minmax(0, 2.4fr) minmax(220px, 1fr) minmax(220px, 1fr) auto;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .tariffs-list__head {
+        padding: 0 .4rem;
+        color: var(--tw-muted);
+        font-size: .76rem;
+        font-weight: 800;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+
+    .tariff-row {
+        padding: 1.05rem 1.1rem;
+        background: linear-gradient(180deg, #ffffff 0%, #fcfeff 100%);
+    }
+
+    .tariff-main {
+        display: flex;
+        gap: .95rem;
+        align-items: flex-start;
+        min-width: 0;
+    }
+
+    .tariff-main__icon {
+        width: 52px;
+        height: 52px;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        border-radius: 18px;
+        background: linear-gradient(160deg, #def7f2 0%, #eff6ff 100%);
+        color: var(--tw-primary);
+        font-size: 1.1rem;
+    }
+
+    .tariff-main__title {
+        font-size: 1.02rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .tariff-main__copy {
+        margin-top: .3rem;
+        color: var(--tw-muted);
+        font-size: .88rem;
+        line-height: 1.58;
+    }
+
+    .tariff-main__badges {
+        display: flex;
+        gap: .45rem;
+        flex-wrap: wrap;
+        margin-top: .65rem;
+    }
+
+    .tariff-badge {
+        border: 1px solid var(--tw-border);
+        background: #f8fbff;
+        color: var(--tw-muted);
+    }
+
+    .tariff-badge--active {
+        border-color: #b8ddd6;
+        background: #effcf9;
+        color: #0f766e;
+    }
+
+    .tariff-badge--muted {
+        border-color: #e2e8f0;
+        background: #f8fafc;
+        color: #64748b;
+    }
+
+    .tariff-metric-group {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .75rem;
+    }
+
+    .tariff-metric {
+        padding: .9rem 1rem;
+        border: 1px solid var(--tw-border);
+        border-radius: 18px;
+        background: #fbfdff;
+    }
+
+    .tariff-metric__label {
+        color: var(--tw-muted);
+        font-size: .76rem;
+        font-weight: 800;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+
+    .tariff-metric__value {
+        margin-top: .45rem;
+        font-size: 1.35rem;
+        font-weight: 800;
+        letter-spacing: -.03em;
+    }
+
+    .tariff-meta {
+        display: grid;
+        gap: .75rem;
+    }
+
+    .tariff-status-card {
+        padding: .95rem 1rem;
+        border: 1px solid var(--tw-border);
+        border-radius: 18px;
+        background: #fbfdff;
+    }
+
+    .tariff-status-card__label {
+        color: var(--tw-muted);
+        font-size: .76rem;
+        font-weight: 800;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+
+    .tariff-status-card__value {
+        margin-top: .5rem;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .tariff-status-card__hint {
+        margin-top: .3rem;
+        color: var(--tw-muted);
+        font-size: .82rem;
+        line-height: 1.5;
+    }
+
+    .tariff-actions {
+        display: flex;
+        flex-direction: column;
+        gap: .6rem;
+        align-items: stretch;
+    }
+
+    .tariff-actions .btn {
+        min-width: 136px;
+        border-radius: 14px;
+        font-weight: 700;
+    }
+
+    .tariff-empty {
+        padding: 3rem 1.5rem;
+        text-align: center;
+        background: linear-gradient(180deg, #fcfffe 0%, #ffffff 100%);
+    }
+
+    .tariff-empty__icon {
+        width: 74px;
+        height: 74px;
+        display: grid;
+        place-items: center;
+        margin: 0 auto 1rem;
+        border-radius: 24px;
+        background: linear-gradient(160deg, #def7f2 0%, #eff6ff 100%);
+        color: var(--tw-primary);
+        font-size: 1.55rem;
+    }
+
+    .tariff-empty__title {
+        margin: 0;
+        font-size: 1.18rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .tariff-empty__copy {
+        max-width: 480px;
+        margin: .75rem auto 0;
+        color: var(--tw-muted);
+        font-size: .92rem;
+        line-height: 1.65;
+    }
+
+    .tariff-empty__actions {
+        margin-top: 1.2rem;
+    }
+
+    .tariff-modal .modal-dialog {
+        max-width: 720px;
+    }
+
+    .tariff-modal .modal-content {
+        overflow: hidden;
+    }
+
+    .tariff-modal .modal-header,
+    .tariff-modal .modal-footer {
+        padding: 1.2rem 1.3rem;
+        border-color: var(--tw-border);
+    }
+
+    .tariff-modal .modal-body {
+        padding: 1.3rem;
+        background: linear-gradient(180deg, #fcfffe 0%, #ffffff 100%);
+    }
+
+    .tariff-modal .modal-title {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .tariff-modal__subtitle {
+        margin-top: .35rem;
+        color: var(--tw-muted);
+        font-size: .86rem;
+        line-height: 1.55;
+    }
+
+    .tariff-modal__hint {
+        margin-bottom: 1rem;
+        padding: .95rem 1rem;
+        border: 1px solid #dbeafe;
+        border-radius: 18px;
+        background: #f8fbff;
+        color: #475569;
+        font-size: .88rem;
+        line-height: 1.55;
+    }
+
+    .tariff-modal .form-label {
+        font-size: .82rem;
+        font-weight: 800;
+        color: var(--tw-muted);
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    .tariff-modal .form-control {
+        border-radius: 16px;
+        border-color: var(--tw-border);
+        padding: .88rem 1rem;
+        font-weight: 600;
+        background: #fbfdff;
+    }
+
+    .tariff-modal .form-control:focus {
+        border-color: #bfdbfe;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+    }
+
+    .tariff-modal__switch {
+        padding: 1rem;
+        border: 1px solid var(--tw-border);
+        border-radius: 18px;
+        background: #fbfdff;
+    }
+
+    .tariff-modal .btn {
+        border-radius: 14px;
+        font-weight: 700;
+    }
+
+    @media (max-width: 1199.98px) {
+        .tariffs-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .tariffs-list__head,
+        .tariff-row {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .tariffs-list__head {
+            display: none;
+        }
+
+        .tariff-actions {
+            flex-direction: row;
+            justify-content: flex-start;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .tariffs-workspace__intro,
+        .tariffs-toolbar {
+            flex-direction: column;
+        }
+
+        .tariffs-summary-grid,
+        .tariff-metric-group {
+            grid-template-columns: 1fr;
+        }
+
+        .tariff-row {
+            padding: 1rem;
+        }
+
+        .tariff-actions {
+            flex-direction: column;
+        }
+
+        .tariffs-workspace__cta,
+        .tariffs-workspace__cta .btn {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="tariffs-workspace">
+    <section class="tariffs-workspace__intro">
+        <div>
+            <span class="tariffs-workspace__kicker"><i class="bi bi-wallet2"></i> Монетизация</span>
+            <h1 class="tariffs-workspace__title">Тарифы</h1>
+            <p class="tariffs-workspace__subtitle">
+                Управляйте пакетами генераций для оплаты: цены, наполнение, порядок показа и видимость для пользователей.
+            </p>
+        </div>
+        <div class="tariffs-workspace__cta">
+            <button type="button" class="btn btn-primary" id="openTariffCreateBtn">
+                <i class="bi bi-plus-lg me-2"></i>Добавить тариф
+            </button>
+        </div>
+    </section>
+
+    <section class="tariffs-summary-grid">
+        <article class="tariffs-summary-card">
+            <div class="tariffs-summary-card__label">Всего тарифов</div>
+            <div class="tariffs-summary-card__value">{{.Summary.TotalCount}}</div>
+            <div class="tariffs-summary-card__hint">Все предложения в каталоге оплаты.</div>
+        </article>
+        <article class="tariffs-summary-card">
+            <div class="tariffs-summary-card__label">Активных</div>
+            <div class="tariffs-summary-card__value">{{.Summary.ActiveCount}}</div>
+            <div class="tariffs-summary-card__hint">Сейчас доступны пользователям.</div>
+        </article>
+        <article class="tariffs-summary-card">
+            <div class="tariffs-summary-card__label">Скрытых</div>
+            <div class="tariffs-summary-card__value">{{.Summary.HiddenCount}}</div>
+            <div class="tariffs-summary-card__hint">Остаются в админке, но не показываются в боте.</div>
+        </article>
+        <article class="tariffs-summary-card">
+            <div class="tariffs-summary-card__label">Стартовая цена</div>
+            <div class="tariffs-summary-card__value">{{.Summary.StartingPrice}}</div>
+            <div class="tariffs-summary-card__hint">{{.Summary.StartingPriceHint}}</div>
+        </article>
+    </section>
+
+    <section class="tariffs-panel">
+        <div class="tariffs-toolbar">
+            <div>
+                <h2 class="tariffs-toolbar__title">Пакеты генераций</h2>
+                <div class="tariffs-toolbar__copy">
+                    Список отсортирован в том порядке, в котором предложения используются в оплате и внутренних сценариях.
+                </div>
+            </div>
+            <div class="tariffs-toolbar__meta">
+                <span class="tariffs-chip"><i class="bi bi-grid-1x2"></i>{{.VisibleCount}} в списке</span>
+                <span class="tariffs-chip"><i class="bi bi-lightning-charge"></i>{{.Summary.ActiveCount}} доступны сейчас</span>
+            </div>
+        </div>
+
+        {{if .Tariffs}}
+        <div class="tariffs-list__head">
+            <div>Тариф</div>
+            <div>Стоимость и объём</div>
+            <div>Статус и порядок</div>
+            <div>Действия</div>
+        </div>
+
+        <div class="tariffs-list" id="tariffList">
+            {{range .Tariffs}}
+            <article class="tariff-row">
+                <div class="tariff-main">
+                    <div class="tariff-main__icon"><i class="bi bi-stars"></i></div>
+                    <div class="min-w-0">
+                        <div class="tariff-main__title">{{.Name}}</div>
+                        <div class="tariff-main__copy">
+                            {{if .HasDescription}}{{.Description}}{{else}}Описание пока не добавлено. Пользователь увидит только название и цену пакета.{{end}}
+                        </div>
+                        <div class="tariff-main__badges">
+                            <span class="tariff-badge">ID #{{.ID}}</span>
+                            <span class="tariff-badge">Порядок {{.SortOrder}}</span>
+                            <span class="tariff-badge tariff-badge--{{.StatusClass}}">{{.StatusLabel}}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tariff-metric-group">
+                    <div class="tariff-metric">
+                        <div class="tariff-metric__label">Цена</div>
+                        <div class="tariff-metric__value">{{.PriceLabel}}</div>
+                    </div>
+                    <div class="tariff-metric">
+                        <div class="tariff-metric__label">Генерации</div>
+                        <div class="tariff-metric__value">{{.GensCount}}</div>
+                    </div>
+                </div>
+
+                <div class="tariff-meta">
+                    <div class="tariff-status-card">
+                        <div class="tariff-status-card__label">Статус</div>
+                        <div class="tariff-status-card__value">{{.StatusLabel}}</div>
+                        <div class="tariff-status-card__hint">{{.StatusHint}}</div>
+                    </div>
+                </div>
+
+                <div class="tariff-actions">
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary btn-sm"
+                        data-action="edit"
+                        data-id="{{.ID}}"
+                        data-name="{{.Name}}"
+                        data-description="{{.Description}}"
+                        data-price="{{.PriceInput}}"
+                        data-gens="{{.GensCount}}"
+                        data-sort="{{.SortOrder}}"
+                        data-active="{{if .IsActive}}true{{else}}false{{end}}">
+                        <i class="bi bi-pencil-square me-2"></i>Редактировать
+                    </button>
+                    <button type="button" class="btn btn-outline-danger btn-sm" data-action="delete" data-id="{{.ID}}">
+                        <i class="bi bi-trash3 me-2"></i>Удалить
+                    </button>
+                </div>
+            </article>
+            {{end}}
+        </div>
+        {{else}}
+        <div class="tariff-empty">
+            <div class="tariff-empty__icon"><i class="bi bi-wallet2"></i></div>
+            <h3 class="tariff-empty__title">Тарифов пока нет</h3>
+            <p class="tariff-empty__copy">
+                Добавьте первый пакет генераций, чтобы подготовить оплату для пользователей и настроить порядок отображения предложений.
+            </p>
+            <div class="tariff-empty__actions">
+                <button type="button" class="btn btn-primary" id="openTariffCreateEmptyBtn">
+                    <i class="bi bi-plus-lg me-2"></i>Создать тариф
+                </button>
+            </div>
+        </div>
+        {{end}}
+    </section>
 </div>
 
-<div class="card">
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0" id="tariffsTable">
-            <thead class="table-light">
-                <tr>
-                    <th>ID</th>
-                    <th>Название</th>
-                    <th>Описание</th>
-                    <th>Цена</th>
-                    <th>Генераций</th>
-                    <th>Порядок</th>
-                    <th>Активен</th>
-                    <th>Действия</th>
-                </tr>
-            </thead>
-            <tbody>
-                {{range .Tariffs}}
-                <tr>
-                    <td>{{.ID}}</td>
-                    <td>{{.Name}}</td>
-                    <td>{{.Description}}</td>
-                    <td>{{printf "%.0f" .Price}} ₽</td>
-                    <td>{{.GensCount}}</td>
-                    <td>{{.SortOrder}}</td>
-                    <td>
-                        {{if .IsActive}}<span class="badge bg-success">Да</span>
-                        {{else}}<span class="badge bg-secondary">Нет</span>{{end}}
-                    </td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-secondary"
-                            onclick='editTariff({{.ID}}, {{.Name | js}}, {{.Description | js}}, {{.Price}}, {{.GensCount}}, {{.SortOrder}}, {{.IsActive}})'>
-                            ✏️
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger"
-                            onclick="deleteTariff({{.ID}})">🗑</button>
-                    </td>
-                </tr>
-                {{end}}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- Modal -->
-<div class="modal fade" id="tariffModal" tabindex="-1">
+<div class="modal fade tariff-modal" id="tariffModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalTitle">Тариф</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div>
+                    <h5 class="modal-title" id="tariffModalTitle">Новый тариф</h5>
+                    <div class="tariff-modal__subtitle" id="tariffModalSubtitle">
+                        Создайте пакет генераций с понятной ценой и количеством генераций для оплаты.
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="tariffId">
-                <div class="mb-3">
-                    <label class="form-label">Название</label>
-                    <input type="text" class="form-control" id="tariffName">
+                <div class="tariff-modal__hint">
+                    Название и описание помогают администратору ориентироваться в пакетах, а цена, количество генераций и порядок определяют поведение оплаты.
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Описание</label>
-                    <input type="text" class="form-control" id="tariffDesc">
+                    <label class="form-label" for="tariffName">Название</label>
+                    <input type="text" class="form-control" id="tariffName" placeholder="Например, Стандарт">
                 </div>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Цена (₽)</label>
-                        <input type="number" class="form-control" id="tariffPrice">
+                <div class="mb-3">
+                    <label class="form-label" for="tariffDesc">Описание</label>
+                    <input type="text" class="form-control" id="tariffDesc" placeholder="Коротко опишите, что входит в пакет">
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label" for="tariffPrice">Цена</label>
+                        <input type="number" class="form-control" id="tariffPrice" min="0" step="1" placeholder="499">
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Генераций</label>
-                        <input type="number" class="form-control" id="tariffGens">
+                    <div class="col-md-4">
+                        <label class="form-label" for="tariffGens">Генерации</label>
+                        <input type="number" class="form-control" id="tariffGens" min="0" step="1" placeholder="20">
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Порядок</label>
-                        <input type="number" class="form-control" id="tariffSort" value="0">
+                    <div class="col-md-4">
+                        <label class="form-label" for="tariffSort">Порядок</label>
+                        <input type="number" class="form-control" id="tariffSort" min="0" step="1" value="0">
                     </div>
                 </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="tariffActive" checked>
-                    <label class="form-check-label">Активен</label>
+                <div class="tariff-modal__switch mt-3">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="tariffActive" checked>
+                        <label class="form-check-label fw-semibold" for="tariffActive">Тариф активен</label>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        Неактивные тарифы остаются в админке, но не должны показываться пользователям в оплате.
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-primary" onclick="saveTariff()">Сохранить</button>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveTariffBtn">Сохранить</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-function resetForm() {
+let tariffModal = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    tariffModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('tariffModal'));
+
+    document.getElementById('openTariffCreateBtn').addEventListener('click', openCreateTariffModal);
+    document.getElementById('saveTariffBtn').addEventListener('click', saveTariff);
+
+    const emptyCreateButton = document.getElementById('openTariffCreateEmptyBtn');
+    if (emptyCreateButton) {
+        emptyCreateButton.addEventListener('click', openCreateTariffModal);
+    }
+
+    const tariffList = document.getElementById('tariffList');
+    if (tariffList) {
+        tariffList.addEventListener('click', handleTariffListClick);
+    }
+});
+
+function handleTariffListClick(event) {
+    const button = event.target.closest('button[data-action]');
+    if (!button) {
+        return;
+    }
+
+    const action = button.dataset.action;
+    if (action === 'edit') {
+        openEditTariffModal(button);
+        return;
+    }
+    if (action === 'delete') {
+        deleteTariff(button.dataset.id);
+    }
+}
+
+function openCreateTariffModal() {
+    resetTariffForm();
+    document.getElementById('tariffModalTitle').textContent = 'Новый тариф';
+    document.getElementById('tariffModalSubtitle').textContent = 'Создайте пакет генераций с понятной ценой и количеством генераций для оплаты.';
+    tariffModal.show();
+}
+
+function openEditTariffModal(button) {
+    resetTariffForm();
+
+    document.getElementById('tariffModalTitle').textContent = 'Редактировать тариф';
+    document.getElementById('tariffModalSubtitle').textContent = 'Обновите параметры пакета, чтобы синхронизировать предложение с текущей оплатой.';
+
+    document.getElementById('tariffId').value = button.dataset.id ?? '';
+    document.getElementById('tariffName').value = button.dataset.name ?? '';
+    document.getElementById('tariffDesc').value = button.dataset.description ?? '';
+    document.getElementById('tariffPrice').value = button.dataset.price ?? '';
+    document.getElementById('tariffGens').value = button.dataset.gens ?? '';
+    document.getElementById('tariffSort').value = button.dataset.sort ?? '0';
+    document.getElementById('tariffActive').checked = parseBoolean(button.dataset.active);
+
+    tariffModal.show();
+}
+
+function resetTariffForm() {
     document.getElementById('tariffId').value = '';
-    document.getElementById('modalTitle').textContent = 'Новый тариф';
     document.getElementById('tariffName').value = '';
     document.getElementById('tariffDesc').value = '';
     document.getElementById('tariffPrice').value = '';
@@ -105,40 +743,57 @@ function resetForm() {
     document.getElementById('tariffActive').checked = true;
 }
 
-function editTariff(id, name, desc, price, gens, sort, active) {
-    document.getElementById('tariffId').value = id;
-    document.getElementById('modalTitle').textContent = 'Редактировать тариф';
-    document.getElementById('tariffName').value = name;
-    document.getElementById('tariffDesc').value = desc;
-    document.getElementById('tariffPrice').value = price;
-    document.getElementById('tariffGens').value = gens;
-    document.getElementById('tariffSort').value = sort;
-    document.getElementById('tariffActive').checked = active;
-    new bootstrap.Modal(document.getElementById('tariffModal')).show();
+function parseBoolean(value) {
+    return value === 'true' || value === '1';
 }
 
 async function saveTariff() {
+    const saveButton = document.getElementById('saveTariffBtn');
+    saveButton.disabled = true;
+
     const id = document.getElementById('tariffId').value;
     const body = {
         name: document.getElementById('tariffName').value,
         description: document.getElementById('tariffDesc').value,
         price: parseFloat(document.getElementById('tariffPrice').value),
-        gens_count: parseInt(document.getElementById('tariffGens').value),
-        sort_order: parseInt(document.getElementById('tariffSort').value),
+        gens_count: parseInt(document.getElementById('tariffGens').value, 10),
+        sort_order: parseInt(document.getElementById('tariffSort').value, 10),
         is_active: document.getElementById('tariffActive').checked,
     };
+
     const url = id ? `/admin/tariffs/${id}` : '/admin/tariffs';
     const method = id ? 'PUT' : 'POST';
-    const resp = await fetch(url, {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-    if (resp.ok) location.reload();
-    else alert('Ошибка сохранения');
+
+    try {
+        const resp = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+
+        if (resp.ok) {
+            location.reload();
+            return;
+        }
+
+        alert('Не удалось сохранить тариф.');
+    } finally {
+        saveButton.disabled = false;
+    }
 }
 
 async function deleteTariff(id) {
-    if (!confirm('Удалить тариф?')) return;
-    const resp = await fetch(`/admin/tariffs/${id}`, {method: 'DELETE'});
-    if (resp.ok) location.reload();
-    else alert('Ошибка удаления');
+    if (!confirm('Удалить тариф?')) {
+        return;
+    }
+
+    const resp = await fetch(`/admin/tariffs/${id}`, { method: 'DELETE' });
+    if (resp.ok) {
+        location.reload();
+        return;
+    }
+
+    alert('Не удалось удалить тариф.');
 }
 </script>
 {{end}}
