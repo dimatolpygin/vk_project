@@ -67,6 +67,7 @@ func main() {
 	tariffRepo := repository.NewTariffRepo(pool)
 	orderRepo := repository.NewOrderRepo(pool)
 	msgRepo := repository.NewMessageRepo(pool)
+	broadcastRepo := repository.NewBroadcastRepo(pool)
 	catRepo := repository.NewCategoryRepo(pool)
 	promptRepo := repository.NewPromptRepo(pool)
 	refRepo := repository.NewReferralRepo(pool)
@@ -105,7 +106,7 @@ func main() {
 
 	// Bot deps
 	stateMgr := bot.NewStateManager(rdb)
-	sender := bot.NewSender(vkClient, msgRepo, userRepo, stateMgr)
+	sender := bot.NewSender(vkClient, msgRepo, userRepo, broadcastRepo, stateMgr)
 
 	deps := &flows.Deps{
 		Sender:        sender,
@@ -137,7 +138,8 @@ func main() {
 	// Admin server
 	adminServer := admin.NewServer(
 		cfg.AdminLogin, cfg.AdminPassword,
-		userRepo, tariffRepo, msgRepo, catRepo, promptRepo, statsRepo, orderRepo, rdb,
+		userRepo, tariffRepo, msgRepo, broadcastRepo, catRepo, promptRepo, statsRepo, orderRepo, rdb,
+		asynqClient,
 		adminStorage,
 	)
 

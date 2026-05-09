@@ -1,0 +1,535 @@
+{{define "content"}}
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap');
+
+    .broadcasts-workspace {
+        --bw-surface: #ffffff;
+        --bw-surface-soft: #f8fbff;
+        --bw-border: #dbe5f0;
+        --bw-border-strong: #c7d8ea;
+        --bw-text: #0f172a;
+        --bw-muted: #64748b;
+        --bw-primary: #0f766e;
+        --bw-primary-soft: #ecfeff;
+        --bw-accent: #1d4ed8;
+        --bw-shadow-soft: 0 12px 28px rgba(15, 23, 42, 0.05);
+        font-family: "Manrope", sans-serif;
+        color: var(--bw-text);
+    }
+
+    .broadcasts-intro {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .broadcasts-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .38rem .72rem;
+        border-radius: 999px;
+        background: var(--bw-primary-soft);
+        color: var(--bw-primary);
+        font-size: .76rem;
+        font-weight: 800;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+
+    .broadcasts-title {
+        margin: .8rem 0 0;
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -.04em;
+    }
+
+    .broadcasts-subtitle {
+        max-width: 760px;
+        margin: .75rem 0 0;
+        color: var(--bw-muted);
+        font-size: .95rem;
+        line-height: 1.65;
+    }
+
+    .broadcasts-layout {
+        display: grid;
+        grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+        gap: 1rem;
+    }
+
+    .broadcasts-panel,
+    .broadcast-item {
+        border: 1px solid var(--bw-border);
+        border-radius: 26px;
+        background: var(--bw-surface);
+        box-shadow: var(--bw-shadow-soft);
+    }
+
+    .broadcasts-panel {
+        padding: 1.2rem;
+    }
+
+    .broadcasts-panel__title {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .broadcasts-panel__copy {
+        margin-top: .4rem;
+        color: var(--bw-muted);
+        font-size: .88rem;
+        line-height: 1.55;
+    }
+
+    .broadcast-form {
+        display: grid;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .broadcast-form .form-control,
+    .broadcast-form .form-select {
+        border-radius: 16px;
+        border-color: var(--bw-border);
+        background: #fbfdff;
+        font-weight: 600;
+    }
+
+    .broadcasts-upload {
+        display: grid;
+        gap: .75rem;
+    }
+
+    .broadcasts-upload__status {
+        min-height: 1.2rem;
+        font-size: .85rem;
+        color: var(--bw-muted);
+    }
+
+    .broadcasts-preview {
+        display: none;
+        padding: .6rem;
+        border: 1px dashed var(--bw-border-strong);
+        border-radius: 18px;
+        background: #fbfdff;
+    }
+
+    .broadcasts-preview.is-visible {
+        display: block;
+    }
+
+    .broadcasts-preview img {
+        width: 100%;
+        max-height: 240px;
+        object-fit: cover;
+        border-radius: 14px;
+        display: block;
+    }
+
+    .broadcasts-list {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .broadcast-item {
+        padding: 1.15rem;
+    }
+
+    .broadcast-item__head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .broadcast-item__title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    .broadcast-item__meta,
+    .broadcast-item__timeline,
+    .broadcast-item__error {
+        margin-top: .45rem;
+        color: var(--bw-muted);
+        font-size: .86rem;
+        line-height: 1.55;
+    }
+
+    .broadcast-item__chips {
+        display: flex;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+    .broadcast-item__chips .badge {
+        padding: .5rem .75rem;
+        border-radius: 999px;
+        font-weight: 700;
+    }
+
+    .broadcast-item__body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 220px;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .broadcast-item__stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .75rem;
+    }
+
+    .broadcast-stat {
+        padding: .9rem 1rem;
+        border: 1px solid var(--bw-border);
+        border-radius: 18px;
+        background: var(--bw-surface-soft);
+    }
+
+    .broadcast-stat__label {
+        color: var(--bw-muted);
+        font-size: .76rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+
+    .broadcast-stat__value {
+        margin-top: .35rem;
+        font-size: 1.2rem;
+        font-weight: 800;
+    }
+
+    .broadcast-item__progress {
+        padding: 1rem;
+        border: 1px solid var(--bw-border);
+        border-radius: 20px;
+        background: linear-gradient(180deg, #fcfffe 0%, #ffffff 100%);
+    }
+
+    .broadcast-item__progress-value {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .75rem;
+        font-weight: 800;
+    }
+
+    .broadcast-item__bar {
+        margin-top: .75rem;
+        height: 10px;
+        border-radius: 999px;
+        background: #e8eef5;
+        overflow: hidden;
+    }
+
+    .broadcast-item__bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #0f766e 0%, #2563eb 100%);
+    }
+
+    .broadcasts-empty {
+        padding: 3rem 1.5rem;
+        border: 1px dashed var(--bw-border-strong);
+        border-radius: 26px;
+        background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
+        text-align: center;
+    }
+
+    .broadcasts-empty i {
+        font-size: 1.5rem;
+        color: var(--bw-accent);
+    }
+
+    @media (max-width: 1199px) {
+        .broadcasts-layout,
+        .broadcast-item__body {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 767px) {
+        .broadcasts-intro,
+        .broadcast-item__head {
+            flex-direction: column;
+        }
+
+        .broadcast-item__stats {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="broadcasts-workspace">
+    <div class="broadcasts-intro">
+        <div>
+            <span class="broadcasts-kicker">
+                <i class="bi bi-megaphone"></i>
+                Массовые рассылки
+            </span>
+            <h2 class="broadcasts-title">Сообщения по всей базе</h2>
+            <p class="broadcasts-subtitle">
+                Создавайте рассылки для всей базы, только `free` или только `paid` пользователей. Первая версия поддерживает два формата: текст и текст с фото.
+            </p>
+        </div>
+    </div>
+
+    <div class="broadcasts-layout">
+        <section class="broadcasts-panel">
+            <h3 class="broadcasts-panel__title">Новая рассылка</h3>
+            <p class="broadcasts-panel__copy">После запуска рассылка сразу делает snapshot аудитории и уходит в фон через `asynq`.</p>
+
+            <form id="broadcast-form" class="broadcast-form" novalidate>
+                <div>
+                    <label class="form-label small text-muted">Аудитория</label>
+                    <select name="audience_filter" class="form-select">
+                        <option value="all">Вся база</option>
+                        <option value="free">Только free</option>
+                        <option value="paid">Только paid</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label small text-muted">Текст</label>
+                    <textarea name="text" class="form-control" rows="8" placeholder="Например: Сегодня добавили новые промты и улучшили качество генераций." required></textarea>
+                </div>
+
+                <div class="broadcasts-upload">
+                    <div>
+                        <label class="form-label small text-muted">Фото для вложения</label>
+                        <input type="file" id="broadcast-image-file" class="form-control" accept="image/*">
+                    </div>
+                    <div>
+                        <label class="form-label small text-muted">URL загруженного фото</label>
+                        <input type="text" id="broadcast-image-url" name="image_url" class="form-control" readonly placeholder="Не выбрано">
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="broadcast-clear-image">Убрать фото</button>
+                    </div>
+                    <div id="broadcast-upload-status" class="broadcasts-upload__status"></div>
+                </div>
+
+                <div id="broadcast-preview" class="broadcasts-preview">
+                    <img id="broadcast-preview-image" alt="Превью вложения рассылки">
+                </div>
+
+                <div id="broadcast-form-status" class="broadcasts-upload__status"></div>
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-send"></i>
+                    Запустить рассылку
+                </button>
+            </form>
+        </section>
+
+        <section class="broadcasts-panel">
+            <h3 class="broadcasts-panel__title">Последние рассылки</h3>
+            <p class="broadcasts-panel__copy">Для активных записей страница автоматически обновляет прогресс и итоговые числа доставки.</p>
+
+            {{if .Broadcasts}}
+            <div class="broadcasts-list" id="broadcasts-list">
+                {{range .Broadcasts}}
+                <article class="broadcast-item" data-broadcast-id="{{.ID}}" data-live="{{if .LiveUpdates}}true{{else}}false{{end}}">
+                    <div class="broadcast-item__head">
+                        <div>
+                            <h4 class="broadcast-item__title">Рассылка #{{.ID}}</h4>
+                            <div class="broadcast-item__meta">{{.TextPreview}}</div>
+                            <div class="broadcast-item__timeline">
+                                Создана: {{.CreatedAt}} · Старт: <span data-field="started_at">{{.StartedAt}}</span> · Завершение: <span data-field="completed_at">{{.CompletedAt}}</span>
+                            </div>
+                            <div class="broadcast-item__error {{if not .LastError}}d-none{{end}}" data-field="last_error_wrap">
+                                Последняя ошибка: <span data-field="last_error">{{.LastError}}</span>
+                            </div>
+                        </div>
+
+                        <div class="broadcast-item__chips">
+                            <span class="badge text-bg-light border">{{.AudienceLabel}}</span>
+                            {{if .HasImage}}<span class="badge text-bg-light border">С фото</span>{{else}}<span class="badge text-bg-light border">Только текст</span>{{end}}
+                            <span class="badge text-bg-{{.StatusClass}}" data-field="status_badge">{{.StatusLabel}}</span>
+                        </div>
+                    </div>
+
+                    <div class="broadcast-item__body">
+                        <div class="broadcast-item__stats">
+                            <div class="broadcast-stat">
+                                <div class="broadcast-stat__label">Всего получателей</div>
+                                <div class="broadcast-stat__value" data-field="total">{{.TotalRecipients}}</div>
+                            </div>
+                            <div class="broadcast-stat">
+                                <div class="broadcast-stat__label">Отправлено</div>
+                                <div class="broadcast-stat__value" data-field="sent">{{.SentCount}}</div>
+                            </div>
+                            <div class="broadcast-stat">
+                                <div class="broadcast-stat__label">Ошибок</div>
+                                <div class="broadcast-stat__value" data-field="failed">{{.FailedCount}}</div>
+                            </div>
+                            <div class="broadcast-stat">
+                                <div class="broadcast-stat__label">Осталось</div>
+                                <div class="broadcast-stat__value" data-field="remaining">{{.RemainingCount}}</div>
+                            </div>
+                        </div>
+
+                        <div class="broadcast-item__progress">
+                            <div class="broadcast-item__progress-value">
+                                <span>Прогресс</span>
+                                <span><span data-field="progress">{{.ProgressPercent}}</span>%</span>
+                            </div>
+                            <div class="broadcast-item__bar">
+                                <div class="broadcast-item__bar-fill" data-field="progress_bar" style="width: {{.ProgressPercent}}%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+                {{end}}
+            </div>
+            {{else}}
+            <div class="broadcasts-empty">
+                <i class="bi bi-megaphone"></i>
+                <h3 class="mt-3 mb-2 fw-bold">Рассылок пока нет</h3>
+                <p class="mb-0 text-muted">Создайте первую кампанию справа: она появится здесь сразу после постановки в очередь.</p>
+            </div>
+            {{end}}
+        </section>
+    </div>
+</div>
+
+<script>
+const broadcastForm = document.getElementById('broadcast-form');
+const broadcastImageFile = document.getElementById('broadcast-image-file');
+const broadcastImageURL = document.getElementById('broadcast-image-url');
+const broadcastUploadStatus = document.getElementById('broadcast-upload-status');
+const broadcastFormStatus = document.getElementById('broadcast-form-status');
+const broadcastPreview = document.getElementById('broadcast-preview');
+const broadcastPreviewImage = document.getElementById('broadcast-preview-image');
+const broadcastClearImage = document.getElementById('broadcast-clear-image');
+
+function updateBroadcastPreview(url) {
+    const normalizedUrl = (url || '').trim();
+    if (!normalizedUrl) {
+        broadcastPreview.classList.remove('is-visible');
+        broadcastPreviewImage.removeAttribute('src');
+        return;
+    }
+    broadcastPreviewImage.src = normalizedUrl;
+    broadcastPreview.classList.add('is-visible');
+}
+
+async function uploadBroadcastImage(file) {
+    if (!file) return;
+
+    broadcastUploadStatus.textContent = 'Загружаю фото...';
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/admin/upload', { method: 'POST', body: formData });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        broadcastUploadStatus.textContent = payload.error || 'Ошибка загрузки';
+        return;
+    }
+
+    broadcastImageURL.value = payload.url || '';
+    broadcastUploadStatus.textContent = '✓ Фото загружено';
+    updateBroadcastPreview(payload.url || '');
+}
+
+if (broadcastImageFile) {
+    broadcastImageFile.addEventListener('change', () => {
+        const file = broadcastImageFile.files[0];
+        void uploadBroadcastImage(file);
+    });
+}
+
+if (broadcastClearImage) {
+    broadcastClearImage.addEventListener('click', () => {
+        broadcastImageFile.value = '';
+        broadcastImageURL.value = '';
+        broadcastUploadStatus.textContent = '';
+        updateBroadcastPreview('');
+    });
+}
+
+if (broadcastForm) {
+    broadcastForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        broadcastFormStatus.textContent = 'Создаю рассылку и ставлю в очередь...';
+
+        const formData = new FormData();
+        formData.append('audience_filter', broadcastForm.elements.audience_filter.value);
+        formData.append('text', broadcastForm.elements.text.value);
+        formData.append('image_url', broadcastImageURL.value);
+
+        const response = await fetch('/admin/broadcasts', {
+            method: 'POST',
+            body: formData,
+            headers: { 'Accept': 'application/json' }
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            broadcastFormStatus.textContent = payload.error || 'Не удалось запустить рассылку';
+            return;
+        }
+
+        broadcastFormStatus.textContent = '✓ Рассылка поставлена в очередь';
+        window.location.reload();
+    });
+}
+
+function updateBroadcastCard(card, payload) {
+    card.dataset.live = (payload.status === 'queued' || payload.status === 'processing') ? 'true' : 'false';
+
+    const statusBadge = card.querySelector('[data-field="status_badge"]');
+    statusBadge.textContent = payload.status_label;
+    statusBadge.className = `badge text-bg-${payload.status_class}`;
+
+    card.querySelector('[data-field="total"]').textContent = payload.total_recipients;
+    card.querySelector('[data-field="sent"]').textContent = payload.sent_count;
+    card.querySelector('[data-field="failed"]').textContent = payload.failed_count;
+    card.querySelector('[data-field="remaining"]').textContent = payload.remaining_count;
+    card.querySelector('[data-field="progress"]').textContent = payload.progress_percent;
+    card.querySelector('[data-field="progress_bar"]').style.width = `${payload.progress_percent}%`;
+    card.querySelector('[data-field="started_at"]').textContent = payload.started_at;
+    card.querySelector('[data-field="completed_at"]').textContent = payload.completed_at;
+
+    const errorWrap = card.querySelector('[data-field="last_error_wrap"]');
+    const errorText = card.querySelector('[data-field="last_error"]');
+    if (payload.last_error) {
+        errorText.textContent = payload.last_error;
+        errorWrap.classList.remove('d-none');
+    } else {
+        errorText.textContent = '';
+        errorWrap.classList.add('d-none');
+    }
+}
+
+async function pollBroadcastStatuses() {
+    const liveCards = Array.from(document.querySelectorAll('.broadcast-item[data-live="true"]'));
+    if (!liveCards.length) return;
+
+    await Promise.all(liveCards.map(async (card) => {
+        const id = card.dataset.broadcastId;
+        const response = await fetch(`/admin/broadcasts/${id}`);
+        if (!response.ok) return;
+        const payload = await response.json();
+        updateBroadcastCard(card, payload);
+    }));
+}
+
+setInterval(() => {
+    void pollBroadcastStatuses();
+}, 5000);
+</script>
+{{end}}

@@ -51,6 +51,7 @@ func main() {
 	genRepo := repository.NewGenerationRepo(pool)
 	msgRepo := repository.NewMessageRepo(pool)
 	userRepo := repository.NewUserRepo(pool)
+	broadcastRepo := repository.NewBroadcastRepo(pool)
 	if err := msgRepo.WaitForKeyboardSchema(ctx, 30*time.Second); err != nil {
 		log.Fatal().Err(err).Msg("не удалось дождаться миграции content-экранов")
 	}
@@ -60,7 +61,7 @@ func main() {
 	vkClient := vkgroup.New(cfg.VKGroupToken, cfg.VKGroupID)
 	wsClient := wavespeed.New(cfg.WavespeedAPIKey)
 	stateMgr := bot.NewStateManager(rdb)
-	sender := bot.NewSender(vkClient, msgRepo, userRepo, stateMgr)
+	sender := bot.NewSender(vkClient, msgRepo, userRepo, broadcastRepo, stateMgr)
 
 	var s3Client *s3.Client
 	if sc, err := s3.New(cfg.S3Endpoint, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Region); err != nil {
@@ -74,10 +75,14 @@ func main() {
 	}
 
 	generateHandler := worker.NewGenerateHandler(genRepo, userRepo, sender, wsClient, workerStorage, rdb)
+	asynqClient := worker.NewAsynqClient(cfg.RedisAddr, cfg.RedisPassword)
+	defer func() { _ = asynqClient.Close() }()
+	broadcastHandler := worker.NewBroadcastHandler(broadcastRepo, sender, asynqClient)
 
 	srv := worker.NewAsynqServer(cfg.RedisAddr, cfg.RedisPassword)
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(worker.TaskGenerate, generateHandler.ProcessTask)
+	mux.HandleFunc(worker.TaskBroadcastProcess, broadcastHandler.ProcessTask)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

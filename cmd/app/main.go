@@ -66,6 +66,7 @@ func main() {
 	tariffRepo := repository.NewTariffRepo(pool)
 	orderRepo := repository.NewOrderRepo(pool)
 	msgRepo := repository.NewMessageRepo(pool)
+	broadcastRepo := repository.NewBroadcastRepo(pool)
 	catRepo := repository.NewCategoryRepo(pool)
 	promptRepo := repository.NewPromptRepo(pool)
 	refRepo := repository.NewReferralRepo(pool)
@@ -105,7 +106,7 @@ func main() {
 
 	// Bot
 	stateMgr := bot.NewStateManager(rdb)
-	sender := bot.NewSender(vkClient, msgRepo, userRepo, stateMgr)
+	sender := bot.NewSender(vkClient, msgRepo, userRepo, broadcastRepo, stateMgr)
 
 	deps := &flows.Deps{
 		Sender:        sender,
@@ -136,7 +137,8 @@ func main() {
 
 	adminServer := admin.NewServer(
 		cfg.AdminLogin, cfg.AdminPassword,
-		userRepo, tariffRepo, msgRepo, catRepo, promptRepo, statsRepo, orderRepo, rdb,
+		userRepo, tariffRepo, msgRepo, broadcastRepo, catRepo, promptRepo, statsRepo, orderRepo, rdb,
+		asynqClient,
 		adminStorage,
 	)
 
@@ -161,7 +163,9 @@ func main() {
 		workerStorage = s3Client
 	}
 	generateHandler := worker.NewGenerateHandler(genRepo, userRepo, sender, wsClient, workerStorage, rdb)
+	broadcastHandler := worker.NewBroadcastHandler(broadcastRepo, sender, asynqClient)
 	mux.HandleFunc(worker.TaskGenerate, generateHandler.ProcessTask)
+	mux.HandleFunc(worker.TaskBroadcastProcess, broadcastHandler.ProcessTask)
 
 	go func() {
 		log.Info().Str("addr", botHTTP.Addr).Msg("бот запущен")

@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
 	"vk_neuro_bot/internal/admin/handlers"
 	"vk_neuro_bot/internal/repository"
@@ -26,11 +27,13 @@ func NewServer(
 	users *repository.UserRepo,
 	tariffs *repository.TariffRepo,
 	msgs *repository.MessageRepo,
+	broadcasts *repository.BroadcastRepo,
 	cats *repository.CategoryRepo,
 	prompts *repository.PromptRepo,
 	stats *repository.StatsRepo,
 	orders *repository.OrderRepo,
 	rdb *redis.Client,
+	asynqClient *asynq.Client,
 	storage Storage,
 ) *Server {
 	s := &Server{}
@@ -42,6 +45,7 @@ func NewServer(
 	uh := handlers.NewUsersHandler(users, orders, rdb)
 	th := handlers.NewTariffsHandler(tariffs)
 	mh := handlers.NewMessagesHandler(msgs)
+	bh := handlers.NewBroadcastsHandler(broadcasts, asynqClient)
 	ch := handlers.NewCategoriesHandler(cats, prompts)
 	sh := handlers.NewStatsHandler(stats)
 	uploadH := handlers.NewUploadHandler(storage)
@@ -67,6 +71,10 @@ func NewServer(
 		r.Get("/messages", mh.List)
 		r.Post("/messages", mh.Upsert)
 		r.Get("/messages/{key}", mh.Get)
+
+		r.Get("/broadcasts", bh.List)
+		r.Post("/broadcasts", bh.Create)
+		r.Get("/broadcasts/{id}", bh.Get)
 
 		r.Get("/categories", ch.ListCategories)
 		r.Post("/categories", ch.CreateCategory)

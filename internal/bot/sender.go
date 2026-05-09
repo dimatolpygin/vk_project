@@ -20,20 +20,22 @@ import (
 )
 
 type Sender struct {
-	vk       *vkgroup.Client
-	msgRepo  *repository.MessageRepo
-	userRepo *repository.UserRepo
-	stateMgr flows.StateMgr
-	http     *http.Client
+	vk            *vkgroup.Client
+	msgRepo       *repository.MessageRepo
+	userRepo      *repository.UserRepo
+	broadcastRepo *repository.BroadcastRepo
+	stateMgr      flows.StateMgr
+	http          *http.Client
 }
 
-func NewSender(vk *vkgroup.Client, msgRepo *repository.MessageRepo, userRepo *repository.UserRepo, stateMgr flows.StateMgr) *Sender {
+func NewSender(vk *vkgroup.Client, msgRepo *repository.MessageRepo, userRepo *repository.UserRepo, broadcastRepo *repository.BroadcastRepo, stateMgr flows.StateMgr) *Sender {
 	return &Sender{
-		vk:       vk,
-		msgRepo:  msgRepo,
-		userRepo: userRepo,
-		stateMgr: stateMgr,
-		http:     &http.Client{Timeout: 30 * time.Second},
+		vk:            vk,
+		msgRepo:       msgRepo,
+		userRepo:      userRepo,
+		broadcastRepo: broadcastRepo,
+		stateMgr:      stateMgr,
+		http:          &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -79,6 +81,24 @@ func (s *Sender) SendPhoto(ctx context.Context, vkID int64, photoURL, caption, k
 		Text:       caption,
 		Attachment: attachment,
 		Keyboard:   kbJSON,
+		RandomID:   uniqueID(),
+	})
+}
+
+func (s *Sender) SendBroadcast(ctx context.Context, vkID int64, text string, imageURL *string, broadcastID int64) error {
+	if imageURL == nil || *imageURL == "" {
+		return s.SendText(ctx, vkID, text, "")
+	}
+
+	attachment, err := s.resolveBroadcastAttachment(ctx, vkID, *imageURL, broadcastID)
+	if err != nil {
+		return err
+	}
+
+	return s.vk.SendMessage(ctx, vkgroup.SendMessageParams{
+		PeerID:     vkID,
+		Text:       text,
+		Attachment: attachment,
 		RandomID:   uniqueID(),
 	})
 }
@@ -206,6 +226,28 @@ func (s *Sender) resolveAttachment(ctx context.Context, vkID int64, imageURL, ca
 			log.Warn().Err(err).Str("cache_key", cacheKey).Msg("не удалось сохранить vk_attachment в БД")
 		}
 	}
+	return attachment, nil
+}
+
+func (s *Sender) resolveBroadcastAttachment(ctx context.Context, vkID int64, imageURL string, broadcastID int64) (string, error) {
+	if broadcastID > 0 && s.broadcastRepo != nil {
+		attachment, err := s.broadcastRepo.GetVKAttachment(ctx, broadcastID)
+		if err == nil && attachment != nil && *attachment != "" {
+			return *attachment, nil
+		}
+	}
+
+	attachment, err := s.uploadPhotoFromURL(ctx, vkID, imageURL)
+	if err != nil {
+		return "", err
+	}
+
+	if broadcastID > 0 && s.broadcastRepo != nil {
+		if err := s.broadcastRepo.SetVKAttachment(ctx, broadcastID, attachment); err != nil {
+			log.Warn().Err(err).Int64("broadcast_id", broadcastID).Msg("не удалось сохранить vk_attachment рассылки")
+		}
+	}
+
 	return attachment, nil
 }
 

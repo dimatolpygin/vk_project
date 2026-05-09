@@ -3,6 +3,7 @@ package worker
 import "encoding/json"
 
 const TaskGenerate = "generation:process"
+const TaskBroadcastProcess = "broadcast:process"
 
 type GeneratePayload struct {
 	GenerationID int64    `json:"generation_id"`
@@ -21,5 +22,19 @@ func (p GeneratePayload) Bytes() ([]byte, error) {
 
 func ParseGeneratePayload(data []byte) (*GeneratePayload, error) {
 	var p GeneratePayload
+	return &p, json.Unmarshal(data, &p)
+}
+
+type BroadcastPayload struct {
+	BroadcastID int64 `json:"broadcast_id"`
+	BatchSize   int   `json:"batch_size,omitempty"`
+}
+
+func (p BroadcastPayload) Bytes() ([]byte, error) {
+	return json.Marshal(p)
+}
+
+func ParseBroadcastPayload(data []byte) (*BroadcastPayload, error) {
+	var p BroadcastPayload
 	return &p, json.Unmarshal(data, &p)
 }

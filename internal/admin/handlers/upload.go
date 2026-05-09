@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -45,10 +46,20 @@ func (h *UploadHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ошибка чтения файла", http.StatusInternalServerError)
 		return
 	}
+	if len(data) == 0 {
+		http.Error(w, "файл пустой", http.StatusBadRequest)
+		return
+	}
 
-	ct := header.Header.Get("Content-Type")
-	if ct == "" {
-		ct = "image/jpeg"
+	ct := http.DetectContentType(data)
+	if ct == "application/octet-stream" {
+		if headerCT := header.Header.Get("Content-Type"); headerCT != "" {
+			ct = headerCT
+		}
+	}
+	if ct == "" || !strings.HasPrefix(strings.ToLower(ct), "image/") {
+		http.Error(w, "доступны только image-файлы", http.StatusBadRequest)
+		return
 	}
 
 	key := fmt.Sprintf("admin_uploads/%d_%s", time.Now().Unix(), header.Filename)
