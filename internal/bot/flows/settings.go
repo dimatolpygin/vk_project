@@ -22,12 +22,16 @@ func HandleSettings(ctx context.Context, fc *Context, d *Deps) {
 		Model:       fc.State.Model,
 	})
 
+	referralCount, referralLink := referralStatus(ctx, fc, d)
+
 	_ = sendScreen(ctx, d, fc.VkID, "settings_overview", ScreenOptions{
 		Data: map[string]any{
-			"TotalGens":   fc.User.TotalGens(),
-			"ModelName":   ModelDisplayName(currentModel(fc, d)),
-			"Resolution":  currentResolution(fc),
-			"AspectRatio": currentAspectRatioLabel(fc),
+			"TotalGens":     fc.User.TotalGens(),
+			"ModelName":     ModelDisplayName(currentModel(fc, d)),
+			"Resolution":    currentResolution(fc),
+			"AspectRatio":   currentAspectRatioLabel(fc),
+			"ReferralCount": referralCount,
+			"ReferralLink":  referralLink,
 		},
 	})
 }

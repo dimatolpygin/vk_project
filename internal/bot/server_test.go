@@ -45,6 +45,7 @@ func (f *fakeServerSender) SendPhotoResult(context.Context, int64, string, strin
 
 type fakeServerOrderStore struct {
 	settleCalls  []string
+	settleHints  []int
 	cancelCalls  []string
 	settleResult *repository.PaymentSettlementResult
 	cancelResult *repository.PaymentCancellationResult
@@ -60,8 +61,9 @@ func (f *fakeServerOrderStore) SetPaymentID(context.Context, int64, string) erro
 	return nil
 }
 
-func (f *fakeServerOrderStore) SettleSuccessfulPayment(_ context.Context, paymentID string) (*repository.PaymentSettlementResult, error) {
+func (f *fakeServerOrderStore) SettleSuccessfulPayment(_ context.Context, paymentID string, paidGensHint int) (*repository.PaymentSettlementResult, error) {
 	f.settleCalls = append(f.settleCalls, paymentID)
+	f.settleHints = append(f.settleHints, paidGensHint)
 	return f.settleResult, f.settleErr
 }
 
@@ -81,7 +83,8 @@ func TestHandleYukassaWebhookProcessesSucceededEvent(t *testing.T) {
 			"id":     "pay_1",
 			"status": "succeeded",
 			"metadata": map[string]any{
-				"order_id": "3",
+				"order_id":   "3",
+				"gens_count": "10",
 			},
 		})
 	}))
@@ -106,7 +109,7 @@ func TestHandleYukassaWebhookProcessesSucceededEvent(t *testing.T) {
 		OrderRepo: orderRepo,
 	})
 
-	body := `{"type":"notification","event":"payment.succeeded","object":{"id":"pay_1","status":"succeeded","metadata":{"order_id":"3"}}}`
+	body := `{"type":"notification","event":"payment.succeeded","object":{"id":"pay_1","status":"succeeded","metadata":{"order_id":"3","gens_count":"10"}}}`
 	req := httptest.NewRequest(http.MethodPost, "/webhook/yukassa", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 
@@ -118,11 +121,17 @@ func TestHandleYukassaWebhookProcessesSucceededEvent(t *testing.T) {
 	if len(orderRepo.settleCalls) != 1 || orderRepo.settleCalls[0] != "pay_1" {
 		t.Fatalf("expected settle call for pay_1, got %#v", orderRepo.settleCalls)
 	}
+	if len(orderRepo.settleHints) != 1 || orderRepo.settleHints[0] != 10 {
+		t.Fatalf("expected settle hint 10, got %#v", orderRepo.settleHints)
+	}
 	if len(orderRepo.cancelCalls) != 0 {
 		t.Fatalf("expected no cancel calls, got %#v", orderRepo.cancelCalls)
 	}
 	if len(sender.screens) != 1 || sender.screens[0].Key != "payment_success" {
 		t.Fatalf("expected payment_success screen, got %#v", sender.screens)
+	}
+	if !strings.Contains(sender.screens[0].Text, "10") {
+		t.Fatalf("expected success screen to mention 10 generations, got %#v", sender.screens[0])
 	}
 }
 

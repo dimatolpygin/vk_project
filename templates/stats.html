@@ -458,7 +458,7 @@ const compactNumber = (value, valueType) => {
 const formatAxisValue = (value, valueType) => {
     const normalized = Number.isInteger(value) ? value : Number(value.toFixed(1));
     if (valueType === 'money') {
-        return `${normalized} в‚Ѕ`;
+        return `${Math.round(normalized)} ₽`;
     }
     return String(normalized);
 };
@@ -467,11 +467,27 @@ const getMaxSeriesValue = (points) => {
     return points.reduce((max, point) => Math.max(max, Number(point.value) || 0), 0);
 };
 
+const getNiceMoneyStep = (maxValue) => {
+    if (maxValue <= 0) {
+        return 1;
+    }
+
+    const roughStep = maxValue / 6;
+    const magnitude = 10 ** Math.floor(Math.log10(roughStep || 1));
+    const normalized = roughStep / magnitude;
+
+    if (normalized <= 1) return magnitude;
+    if (normalized <= 2) return 2 * magnitude;
+    if (normalized <= 5) return 5 * magnitude;
+    return 10 * magnitude;
+};
+
 for (const chartMeta of statsCharts) {
     const canvas = document.getElementById(chartMeta.id);
     if (!canvas) continue;
     const maxValue = getMaxSeriesValue(chartMeta.data);
     const shouldUseUnitSteps = chartMeta.data.every((point) => Number.isInteger(Number(point.value))) && maxValue <= 8;
+    const moneyStepSize = chartMeta.valueType === 'money' ? getNiceMoneyStep(maxValue) : undefined;
 
     new Chart(canvas, {
         type: 'line',
@@ -523,8 +539,9 @@ for (const chartMeta of statsCharts) {
                     suggestedMax: maxValue === 0 ? 1 : undefined,
                     ticks: {
                         color: '#64748b',
-                        precision: shouldUseUnitSteps ? 0 : undefined,
-                        stepSize: shouldUseUnitSteps ? 1 : undefined,
+                        precision: chartMeta.valueType === 'money' || shouldUseUnitSteps ? 0 : undefined,
+                        stepSize: chartMeta.valueType === 'money' ? moneyStepSize : (shouldUseUnitSteps ? 1 : undefined),
+                        maxTicksLimit: chartMeta.valueType === 'money' ? 6 : undefined,
                         callback: (value) => formatAxisValue(value, chartMeta.valueType)
                     },
                     grid: {

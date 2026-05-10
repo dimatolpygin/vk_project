@@ -71,6 +71,7 @@ func (c *Client) SetHTTPClient(client *http.Client) {
 type PaymentRequest struct {
 	Amount                 float64
 	TariffID               int
+	GensCount              int
 	UserVKID               int64
 	OrderID                int64
 	ReturnURL              string
@@ -304,9 +305,10 @@ func (c *Client) buildCreatePaymentPayload(req PaymentRequest) createPaymentPayl
 		},
 		Description: description,
 		Metadata: map[string]string{
-			"order_id":  fmt.Sprintf("%d", req.OrderID),
-			"tariff_id": fmt.Sprintf("%d", req.TariffID),
-			"vk_id":     fmt.Sprintf("%d", req.UserVKID),
+			"order_id":   fmt.Sprintf("%d", req.OrderID),
+			"tariff_id":  fmt.Sprintf("%d", req.TariffID),
+			"gens_count": fmt.Sprintf("%d", req.GensCount),
+			"vk_id":      fmt.Sprintf("%d", req.UserVKID),
 		},
 	}
 

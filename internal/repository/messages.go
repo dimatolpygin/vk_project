@@ -113,7 +113,7 @@ func (r *MessageRepo) EnsureDefaults(ctx context.Context) error {
 		}
 	}
 
-	rows, err := r.db.Query(ctx, `SELECT key, buttons::text, keyboard::text FROM messages`)
+	rows, err := r.db.Query(ctx, `SELECT key, text, buttons::text, keyboard::text FROM messages`)
 	if err != nil {
 		return err
 	}
@@ -121,9 +121,10 @@ func (r *MessageRepo) EnsureDefaults(ctx context.Context) error {
 
 	for rows.Next() {
 		var key string
+		var text string
 		var legacyButtonsJSON *[]byte
 		var keyboardJSON *[]byte
-		if err := rows.Scan(&key, &legacyButtonsJSON, &keyboardJSON); err != nil {
+		if err := rows.Scan(&key, &text, &legacyButtonsJSON, &keyboardJSON); err != nil {
 			return err
 		}
 
@@ -132,15 +133,35 @@ func (r *MessageRepo) EnsureDefaults(ctx context.Context) error {
 			_ = json.Unmarshal(*keyboardJSON, &current)
 		}
 		canonical := hydrateKeyboard(key, legacyButtonsJSON, keyboardJSON)
-		if reflect.DeepEqual(current, canonical) {
+		upgradedText := upgradedDefaultMessageText(key, text)
+		keyboardChanged := !reflect.DeepEqual(current, canonical)
+		textChanged := upgradedText != text
+
+		if !keyboardChanged && !textChanged {
 			continue
 		}
-		payload, err := json.Marshal(canonical)
-		if err != nil {
-			return err
-		}
-		if _, err := r.db.Exec(ctx, `UPDATE messages SET keyboard = $2, updated_at = now() WHERE key = $1`, key, payload); err != nil {
-			return err
+
+		switch {
+		case keyboardChanged && textChanged:
+			payload, err := json.Marshal(canonical)
+			if err != nil {
+				return err
+			}
+			if _, err := r.db.Exec(ctx, `UPDATE messages SET text = $2, keyboard = $3, updated_at = now() WHERE key = $1`, key, upgradedText, payload); err != nil {
+				return err
+			}
+		case keyboardChanged:
+			payload, err := json.Marshal(canonical)
+			if err != nil {
+				return err
+			}
+			if _, err := r.db.Exec(ctx, `UPDATE messages SET keyboard = $2, updated_at = now() WHERE key = $1`, key, payload); err != nil {
+				return err
+			}
+		case textChanged:
+			if _, err := r.db.Exec(ctx, `UPDATE messages SET text = $2, updated_at = now() WHERE key = $1`, key, upgradedText); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -206,4 +227,22 @@ func hydrateKeyboard(key string, legacyButtonsJSON, keyboardJSON *[]byte) conten
 		return def.Keyboard
 	}
 	return content.Keyboard{Inline: true}
+}
+
+func upgradedDefaultMessageText(key, text string) string {
+	legacyText, ok := legacyDefaultMessageTexts[key]
+	if !ok || text != legacyText {
+		return text
+	}
+
+	def, ok := content.Definition(key)
+	if !ok {
+		return text
+	}
+	return def.DefaultText
+}
+
+var legacyDefaultMessageTexts = map[string]string{
+	"payment_success":   "🎉 Оплата прошла успешно!\n\nДобро пожаловать в мир нейрофотосессий! Твои генерации зачислены.",
+	"settings_overview": "⚙️ Настройки\n\n🎯 Баланс генераций: {{.TotalGens}}\n🤖 Модель: {{.ModelName}}\n🔧 Качество: {{.Resolution}}\n📐 Формат: {{.AspectRatio}}",
 }

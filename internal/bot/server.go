@@ -189,7 +189,7 @@ func (s *Server) handleYukassaWebhook(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "payment status mismatch", http.StatusInternalServerError)
 			return
 		}
-		if err := flows.ProcessSuccessfulPayment(r.Context(), s.flowDeps, paymentID); err != nil {
+		if err := flows.ProcessSuccessfulPaymentWithMetadata(r.Context(), s.flowDeps, paymentID, metadata); err != nil {
 			handledErr = err
 			http.Error(w, "failed to process payment", http.StatusInternalServerError)
 			return

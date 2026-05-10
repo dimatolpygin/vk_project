@@ -60,7 +60,7 @@ func (r *OrderRepo) SetPaymentID(ctx context.Context, orderID int64, paymentID s
 	return err
 }
 
-func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID string) (*PaymentSettlementResult, error) {
+func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID string, paidGensHint int) (*PaymentSettlementResult, error) {
 	const referralBonusGens = 2
 
 	tx, err := r.db.Begin(ctx)
@@ -95,11 +95,15 @@ func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID strin
 		return result, nil
 	}
 
-	if err := tx.QueryRow(ctx, `SELECT gens_count FROM tariffs WHERE id = $1`, order.TariffID).Scan(&result.PaidGensAdded); err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("tariff %d not found for payment %s", order.TariffID, paymentID)
+	if paidGensHint > 0 {
+		result.PaidGensAdded = paidGensHint
+	} else {
+		if err := tx.QueryRow(ctx, `SELECT gens_count FROM tariffs WHERE id = $1`, order.TariffID).Scan(&result.PaidGensAdded); err != nil {
+			if err == pgx.ErrNoRows {
+				return nil, fmt.Errorf("tariff %d not found for payment %s", order.TariffID, paymentID)
+			}
+			return nil, err
 		}
-		return nil, err
 	}
 
 	if _, err := tx.Exec(ctx, `UPDATE orders SET status = 'succeeded' WHERE yukassa_payment_id = $1`, paymentID); err != nil {

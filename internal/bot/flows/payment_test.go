@@ -2,19 +2,22 @@ package flows
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"vk_neuro_bot/internal/repository"
 )
 
 type fakePaymentSettler struct {
-	paymentID string
-	result    *repository.PaymentSettlementResult
-	err       error
+	paymentID    string
+	paidGensHint int
+	result       *repository.PaymentSettlementResult
+	err          error
 }
 
-func (f *fakePaymentSettler) SettleSuccessfulPayment(_ context.Context, paymentID string) (*repository.PaymentSettlementResult, error) {
+func (f *fakePaymentSettler) SettleSuccessfulPayment(_ context.Context, paymentID string, paidGensHint int) (*repository.PaymentSettlementResult, error) {
 	f.paymentID = paymentID
+	f.paidGensHint = paidGensHint
 	return f.result, f.err
 }
 
@@ -42,12 +45,15 @@ func TestProcessSuccessfulPaymentSendsBonusAndSuccessScreens(t *testing.T) {
 		},
 	}
 
-	if err := processSuccessfulPayment(context.Background(), &Deps{Sender: sender}, settler, "pay_1"); err != nil {
+	if err := processSuccessfulPayment(context.Background(), &Deps{Sender: sender}, settler, "pay_1", map[string]any{"gens_count": "30"}); err != nil {
 		t.Fatalf("processSuccessfulPayment returned error: %v", err)
 	}
 
 	if settler.paymentID != "pay_1" {
 		t.Fatalf("unexpected payment id: %+v", settler)
+	}
+	if settler.paidGensHint != 30 {
+		t.Fatalf("expected gens_count hint 30, got %d", settler.paidGensHint)
 	}
 	if len(sender.screens) != 2 {
 		t.Fatalf("expected 2 screens, got %d", len(sender.screens))
@@ -57,6 +63,9 @@ func TestProcessSuccessfulPaymentSendsBonusAndSuccessScreens(t *testing.T) {
 	}
 	if sender.screens[1].Key != "payment_success" {
 		t.Fatalf("expected second screen payment success, got %q", sender.screens[1].Key)
+	}
+	if got := sender.screens[1].Text; !strings.Contains(got, "30") {
+		t.Fatalf("expected paid gens count in success screen, got %q", got)
 	}
 }
 
@@ -71,7 +80,7 @@ func TestProcessSuccessfulPaymentIgnoresDuplicateWebhook(t *testing.T) {
 		},
 	}
 
-	if err := processSuccessfulPayment(context.Background(), &Deps{Sender: sender}, settler, "pay_2"); err != nil {
+	if err := processSuccessfulPayment(context.Background(), &Deps{Sender: sender}, settler, "pay_2", nil); err != nil {
 		t.Fatalf("processSuccessfulPayment returned error: %v", err)
 	}
 	if len(sender.screens) != 0 {
@@ -127,5 +136,24 @@ func TestBuildReferralLinkUsesCommunityBotDeepLink(t *testing.T) {
 	want := "https://vk.me/club229805415?ref=ref_qm7e6euq"
 	if got != want {
 		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestGensCountFromPaymentMetadataSupportsSeveralTypes(t *testing.T) {
+	cases := []struct {
+		name     string
+		metadata map[string]any
+		want     int
+	}{
+		{name: "string", metadata: map[string]any{"gens_count": "12"}, want: 12},
+		{name: "int", metadata: map[string]any{"gens_count": 7}, want: 7},
+		{name: "float", metadata: map[string]any{"gens_count": 5.0}, want: 5},
+		{name: "invalid", metadata: map[string]any{"gens_count": "oops"}, want: 0},
+	}
+
+	for _, tc := range cases {
+		if got := gensCountFromPaymentMetadata(tc.metadata); got != tc.want {
+			t.Fatalf("%s: expected %d, got %d", tc.name, tc.want, got)
+		}
 	}
 }

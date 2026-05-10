@@ -3,6 +3,7 @@ package flows
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -13,7 +14,7 @@ import (
 const referralBonusGens = 2
 
 type paymentSettler interface {
-	SettleSuccessfulPayment(ctx context.Context, paymentID string) (*repository.PaymentSettlementResult, error)
+	SettleSuccessfulPayment(ctx context.Context, paymentID string, paidGensHint int) (*repository.PaymentSettlementResult, error)
 }
 
 type paymentCanceler interface {
@@ -105,6 +106,7 @@ func HandleBuyTariff(ctx context.Context, fc *Context, d *Deps) {
 	payment, err := d.Yukassa.CreatePayment(ctx, yukassa.PaymentRequest{
 		Amount:                 tariff.Price,
 		TariffID:               tariffID,
+		GensCount:              tariff.GensCount,
 		UserVKID:               fc.VkID,
 		OrderID:                order.ID,
 		ReturnURL:              returnURL,
@@ -152,11 +154,17 @@ func HandleBuyTariff(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func ProcessSuccessfulPayment(ctx context.Context, d *Deps, paymentID string) error {
-	return processSuccessfulPayment(ctx, d, d.OrderRepo, paymentID)
+	return ProcessSuccessfulPaymentWithMetadata(ctx, d, paymentID, nil)
 }
 
-func processSuccessfulPayment(ctx context.Context, d *Deps, settler paymentSettler, paymentID string) error {
-	result, err := settler.SettleSuccessfulPayment(ctx, paymentID)
+func ProcessSuccessfulPaymentWithMetadata(ctx context.Context, d *Deps, paymentID string, paymentMetadata map[string]any) error {
+	return processSuccessfulPayment(ctx, d, d.OrderRepo, paymentID, paymentMetadata)
+}
+
+func processSuccessfulPayment(ctx context.Context, d *Deps, settler paymentSettler, paymentID string, paymentMetadata map[string]any) error {
+	paidGensHint := gensCountFromPaymentMetadata(paymentMetadata)
+
+	result, err := settler.SettleSuccessfulPayment(ctx, paymentID, paidGensHint)
 	if err != nil {
 		return err
 	}
@@ -178,7 +186,16 @@ func processSuccessfulPayment(ctx context.Context, d *Deps, settler paymentSettl
 		_ = sendScreen(ctx, d, result.ReferrerVKID, "referral_bonus_awarded", ScreenOptions{})
 	}
 
-	_ = sendScreen(ctx, d, result.UserVKID, "payment_success", ScreenOptions{})
+	screenGensCount := result.PaidGensAdded
+	if screenGensCount <= 0 {
+		screenGensCount = paidGensHint
+	}
+
+	_ = sendScreen(ctx, d, result.UserVKID, "payment_success", ScreenOptions{
+		Data: map[string]any{
+			"GensCount": screenGensCount,
+		},
+	})
 	return nil
 }
 
@@ -205,4 +222,37 @@ func buildPaymentReturnURL(publicBaseURL string) string {
 		return ""
 	}
 	return strings.TrimRight(publicBaseURL, "/") + "/vk/return"
+}
+
+func gensCountFromPaymentMetadata(metadata map[string]any) int {
+	if len(metadata) == 0 {
+		return 0
+	}
+
+	rawValue, ok := metadata["gens_count"]
+	if !ok {
+		return 0
+	}
+
+	switch value := rawValue.(type) {
+	case int:
+		if value > 0 {
+			return value
+		}
+	case int64:
+		if value > 0 {
+			return int(value)
+		}
+	case float64:
+		if value > 0 {
+			return int(value)
+		}
+	case string:
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err == nil && parsed > 0 {
+			return parsed
+		}
+	}
+
+	return 0
 }

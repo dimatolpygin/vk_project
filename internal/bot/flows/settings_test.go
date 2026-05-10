@@ -27,6 +27,9 @@ func TestHandleSettingsDisplaysTotalBalance(t *testing.T) {
 	if got := sender.screens[len(sender.screens)-1].Text; !strings.Contains(got, "Баланс генераций: 5") {
 		t.Fatalf("expected total balance in settings screen, got %q", got)
 	}
+	if got := sender.screens[len(sender.screens)-1].Text; !strings.Contains(got, "Приглашено рефералов: 0") {
+		t.Fatalf("expected referral count in settings screen, got %q", got)
+	}
 }
 
 func TestHandleBalanceDisplaysUnifiedBalance(t *testing.T) {
@@ -53,5 +56,34 @@ func TestHandleBalanceDisplaysUnifiedBalance(t *testing.T) {
 	}
 	if strings.Contains(got, "Бесплатных") || strings.Contains(got, "Платных") {
 		t.Fatalf("expected split balances to be hidden, got %q", got)
+	}
+}
+
+func TestHandleSettingsDisplaysReferralLinkAndButton(t *testing.T) {
+	sender := &fakeSender{}
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{
+		Sender:    sender,
+		State:     stateMgr,
+		VKGroupID: 229805415,
+	}
+	fc := &Context{
+		VkID:  503,
+		User:  &User{FreeGens: 1, PaidGens: 2, ReferralCode: "ref_abc123"},
+		State: &State{},
+	}
+
+	HandleSettings(context.Background(), fc, deps)
+
+	if len(sender.screens) == 0 {
+		t.Fatal("expected settings screen to be sent")
+	}
+
+	screen := sender.screens[len(sender.screens)-1]
+	if !strings.Contains(screen.Text, "https://vk.me/club229805415?ref=ref_abc123") {
+		t.Fatalf("expected referral link in settings screen, got %q", screen.Text)
+	}
+	if !strings.Contains(screen.Keyboard, "Рефералы") {
+		t.Fatalf("expected referral button in settings keyboard, got %q", screen.Keyboard)
 	}
 }

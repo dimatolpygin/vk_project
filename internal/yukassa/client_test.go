@@ -42,6 +42,7 @@ func TestCreatePaymentIncludesReceiptAndReliableMetadata(t *testing.T) {
 	resp, err := client.CreatePayment(context.Background(), PaymentRequest{
 		Amount:                 20000,
 		TariffID:               1,
+		GensCount:              30,
 		UserVKID:               268215774,
 		OrderID:                1778392748175,
 		ReturnURL:              "https://sol-dobra.ru/vk/return",
@@ -77,7 +78,7 @@ func TestCreatePaymentIncludesReceiptAndReliableMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("metadata is missing or invalid: %#v", gotBody["metadata"])
 	}
-	if metadata["order_id"] != "1778392748175" || metadata["tariff_id"] != "1" || metadata["vk_id"] != "268215774" {
+	if metadata["order_id"] != "1778392748175" || metadata["tariff_id"] != "1" || metadata["gens_count"] != "30" || metadata["vk_id"] != "268215774" {
 		t.Fatalf("unexpected reliable metadata: %#v", metadata)
 	}
 	if metadata["username"] != "rumynskiy545" || metadata["first_name"] != "Aleksandr" {

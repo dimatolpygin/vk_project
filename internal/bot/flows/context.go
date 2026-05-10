@@ -177,7 +177,7 @@ type UserStore interface {
 type OrderStore interface {
 	Create(ctx context.Context, userVKID int64, tariffID int, amount float64) (*repository.Order, error)
 	SetPaymentID(ctx context.Context, orderID int64, paymentID string) error
-	SettleSuccessfulPayment(ctx context.Context, paymentID string) (*repository.PaymentSettlementResult, error)
+	SettleSuccessfulPayment(ctx context.Context, paymentID string, paidGensHint int) (*repository.PaymentSettlementResult, error)
 	CancelPayment(ctx context.Context, paymentID string) (*repository.PaymentCancellationResult, error)
 }
 
