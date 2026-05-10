@@ -62,7 +62,7 @@ func TestHandleBalanceDisplaysUnifiedBalance(t *testing.T) {
 	}
 }
 
-func TestHandleSettingsDisplaysReferralLinkAndButton(t *testing.T) {
+func TestHandleSettingsDisplaysReferralLinkWithoutExtraButton(t *testing.T) {
 	sender := &fakeSender{}
 	stateMgr := newFakeStateMgr()
 	deps := &Deps{
@@ -86,7 +86,7 @@ func TestHandleSettingsDisplaysReferralLinkAndButton(t *testing.T) {
 	if !strings.Contains(screen.Text, "https://vk.me/club229805415?ref=ref_abc123") {
 		t.Fatalf("expected referral link in settings screen, got %q", screen.Text)
 	}
-	if !strings.Contains(screen.Keyboard, "Рефералы") {
-		t.Fatalf("expected referral button in settings keyboard, got %q", screen.Keyboard)
+	if strings.Contains(screen.Keyboard, "Рефералы") {
+		t.Fatalf("expected referral button to be removed from settings keyboard, got %q", screen.Keyboard)
 	}
 }

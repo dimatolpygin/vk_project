@@ -4,13 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/rs/zerolog/log"
+	"vk_neuro_bot/internal/content"
 	"vk_neuro_bot/internal/repository"
 	"vk_neuro_bot/internal/worker"
 )
+
+const freeGenerationPromptMessageKey = "free_gen_prompt"
 
 func HandleAfterGen(ctx context.Context, fc *Context, d *Deps) {
 	if fc.State.PhotoURL != "" {
@@ -173,7 +177,7 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 	}
 
 	promptType := fc.State.PromptType
-	prompt := buildDefaultPrompt(fc.User.Gender, promptType)
+	prompt := buildDefaultPrompt(ctx, d, fc.User.Gender, promptType)
 	if fc.State.CustomPrompt != "" {
 		prompt = fc.State.CustomPrompt
 	}
@@ -351,7 +355,7 @@ func currentAspectRatioLabel(fc *Context) string {
 	return ar
 }
 
-func buildDefaultPrompt(gender, promptType string) string {
+func buildDefaultPrompt(ctx context.Context, d *Deps, gender, promptType string) string {
 	switch promptType {
 	case "couple_pair":
 		return "romantic couple portrait, two people, professional photo, studio lighting, high quality"
@@ -361,9 +365,43 @@ func buildDefaultPrompt(gender, promptType string) string {
 		return "couple portrait, two people, professional photo, studio lighting, high quality"
 	}
 
-	genderLabel := "woman"
-	if gender == "male" {
-		genderLabel = "man"
+	return renderFreeGenerationPrompt(ctx, d, gender)
+}
+
+func renderFreeGenerationPrompt(ctx context.Context, d *Deps, gender string) string {
+	rawPrompt := defaultFreeGenerationPromptTemplate(gender)
+	if d != nil && d.MsgRepo != nil {
+		msg, err := d.MsgRepo.Get(ctx, freeGenerationPromptMessageKey)
+		if err != nil {
+			log.Error().Err(err).Str("message_key", freeGenerationPromptMessageKey).Msg("failed to load free generation prompt from messages")
+		} else if msg != nil && strings.TrimSpace(msg.Text) != "" {
+			rawPrompt = msg.Text
+		}
 	}
-	return fmt.Sprintf("professional portrait photo of a %s, studio lighting, high quality, photorealistic", genderLabel)
+
+	rendered, err := content.RenderText(rawPrompt, map[string]any{
+		"Gender":      gender,
+		"GenderLabel": defaultPromptGenderLabel(gender),
+	})
+	if err != nil {
+		log.Error().Err(err).Str("message_key", freeGenerationPromptMessageKey).Msg("failed to render free generation prompt template")
+		return defaultFreeGenerationPromptTemplate(gender)
+	}
+
+	rendered = strings.TrimSpace(rendered)
+	if rendered == "" {
+		return defaultFreeGenerationPromptTemplate(gender)
+	}
+	return rendered
+}
+
+func defaultFreeGenerationPromptTemplate(gender string) string {
+	return fmt.Sprintf("professional portrait photo of a %s, studio lighting, high quality, photorealistic", defaultPromptGenderLabel(gender))
+}
+
+func defaultPromptGenderLabel(gender string) string {
+	if gender == "male" {
+		return "man"
+	}
+	return "woman"
 }

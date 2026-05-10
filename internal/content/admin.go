@@ -121,6 +121,13 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 		Order:       30,
 		Keywords:    []string{"правки", "описание изменений", "редактирование"},
 	},
+	"free_gen_prompt": {
+		SectionID:   "generation",
+		Title:       "Промпт первой бесплатной генерации",
+		Description: "Системный AI-промпт для первой бесплатной генерации после загрузки фото. Можно использовать шаблоны {{.GenderLabel}} и {{.Gender}}.",
+		Order:       35,
+		Keywords:    []string{"free generation prompt", "wavespeed", "ai prompt", "первая генерация"},
+	},
 	"couple_intro": {
 		SectionID:   "generation",
 		Title:       "Парные и семейные фото",
