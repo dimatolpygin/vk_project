@@ -250,15 +250,22 @@ func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, gener
 }
 
 func HandleAwaitingPrompt(ctx context.Context, fc *Context, d *Deps) {
-	if fc.Message == nil || fc.Message.Text == "" {
+	promptText := trimmedMessageText(fc.Message)
+	if promptText == "" {
 		_ = sendScreen(ctx, d, fc.VkID, "custom_prompt_intro", ScreenOptions{})
 		return
 	}
 
 	state := fc.State
 	state.Step = StepAwaitingPhoto
-	state.CustomPrompt = fc.Message.Text
+	state.CustomPrompt = promptText
 	_ = d.State.Set(ctx, fc.VkID, state)
+
+	if len(normalizeGenerationInputPhotos(messagePhotos(fc.Message))) > 0 {
+		HandleAwaitingPhoto(ctx, fc, d)
+		return
+	}
+
 	_ = sendScreen(ctx, d, fc.VkID, "photo_requirements", ScreenOptions{})
 }
 
@@ -281,9 +288,12 @@ func HandleAwaitingPhotoEdit(ctx context.Context, fc *Context, d *Deps) {
 	state.InputPhotoURLs = uploadedURLs
 	_ = d.State.Set(ctx, fc.VkID, state)
 
-	if state.CustomPrompt != "" {
+	promptText := resolvedEditPrompt(trimmedMessageText(fc.Message), state.CustomPrompt)
+	if promptText != "" {
+		state.CustomPrompt = promptText
 		fc.State = state
-		launchEditGeneration(ctx, fc, d, uploadedURLs, state.CustomPrompt)
+		_ = d.State.Set(ctx, fc.VkID, state)
+		launchEditGeneration(ctx, fc, d, uploadedURLs, promptText)
 		return
 	}
 
@@ -398,6 +408,20 @@ func messagePhotos(msg *InMessage) []string {
 		return nil
 	}
 	return msg.Photos
+}
+
+func trimmedMessageText(msg *InMessage) string {
+	if msg == nil {
+		return ""
+	}
+	return strings.TrimSpace(msg.Text)
+}
+
+func resolvedEditPrompt(messagePrompt, statePrompt string) string {
+	if trimmed := strings.TrimSpace(messagePrompt); trimmed != "" {
+		return trimmed
+	}
+	return strings.TrimSpace(statePrompt)
 }
 
 func normalizeGenerationInputPhotos(urls []string) []string {

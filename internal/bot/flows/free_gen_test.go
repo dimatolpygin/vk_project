@@ -154,3 +154,51 @@ func TestHandleAwaitingPhotoEditStoresPhotoBatchInState(t *testing.T) {
 		t.Fatalf("expected edit_result_prompt screen, got %#v", sender.screens)
 	}
 }
+
+func TestHandleAwaitingPromptWithPhotosProcessesSameMessage(t *testing.T) {
+	sender := &fakeSender{}
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{
+		Sender: sender,
+		State:  stateMgr,
+	}
+	fc := &Context{
+		VkID:  702,
+		User:  &User{},
+		State: &State{Step: StepAwaitingPrompt, PromptType: "custom"},
+		Message: &InMessage{
+			Text:   "cinematic fashion portrait",
+			Photos: []string{"https://example.com/1.png", "https://example.com/2.png"},
+		},
+	}
+
+	HandleAwaitingPrompt(context.Background(), fc, deps)
+
+	state := stateMgr.states[702]
+	if state == nil {
+		t.Fatal("expected state to be saved")
+	}
+	if state.Step != StepAwaitingPhoto {
+		t.Fatalf("expected %q step, got %q", StepAwaitingPhoto, state.Step)
+	}
+	if state.CustomPrompt != "cinematic fashion portrait" {
+		t.Fatalf("unexpected custom prompt %q", state.CustomPrompt)
+	}
+	if len(sender.screens) == 0 || sender.screens[len(sender.screens)-1].Key != "no_gens_left" {
+		t.Fatalf("expected no_gens_left screen when prompt+photos are processed immediately, got %#v", sender.screens)
+	}
+}
+
+func TestResolvedEditPromptPrefersMessageText(t *testing.T) {
+	got := resolvedEditPrompt(" add dramatic lighting ", "old prompt")
+	if got != "add dramatic lighting" {
+		t.Fatalf("expected trimmed message prompt, got %q", got)
+	}
+}
+
+func TestResolvedEditPromptFallsBackToState(t *testing.T) {
+	got := resolvedEditPrompt("   ", " adjust background ")
+	if got != "adjust background" {
+		t.Fatalf("expected state prompt fallback, got %q", got)
+	}
+}

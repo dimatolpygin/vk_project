@@ -103,14 +103,14 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 	"custom_prompt_intro": {
 		SectionID:   "generation",
 		Title:       "Свой промт",
-		Description: "Вводный экран перед созданием фото по собственному описанию.",
+		Description: "Вводный экран перед созданием фото по собственному описанию. Пользователь может прислать описание отдельно или сразу вместе с 1–6 фото.",
 		Order:       10,
 		Keywords:    []string{"свой промт", "кастом", "описание"},
 	},
 	"edit_photo_intro": {
 		SectionID:   "generation",
 		Title:       "Изменить фото",
-		Description: "Входной экран для режима редактирования существующего фото или группы до 6 фото.",
+		Description: "Входной экран для режима редактирования существующего фото или группы до 6 фото. Описание правок можно прислать сразу в том же сообщении.",
 		Order:       20,
 		Keywords:    []string{"редактирование", "изменить фото", "edit"},
 	},
@@ -194,9 +194,16 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 	"saved_photo_upload_prompt": {
 		SectionID:   "saved_photo",
 		Title:       "Загрузка базового фото",
-		Description: "Экран с инструкцией отправить фото для сохранения по умолчанию.",
+		Description: "Экран с инструкцией отправить одно базовое фото для сохранения по умолчанию.",
 		Order:       40,
 		Keywords:    []string{"загрузка", "базовое фото", "upload"},
+	},
+	"saved_photo_batch_not_supported": {
+		SectionID:   "saved_photo",
+		Title:       "Пачка фото не поддерживается в saved photo",
+		Description: "Системное сообщение, которое объясняет, что в разделе сохранённого фото пока принимается только один базовый кадр.",
+		Order:       45,
+		Keywords:    []string{"saved photo", "одно фото", "пачка не поддерживается"},
 	},
 	"saved_photo_generation_wait": {
 		SectionID:   "saved_photo",

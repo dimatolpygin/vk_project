@@ -36,12 +36,17 @@ func HandleSavedPhotoUploadStart(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func HandleSavedPhotoReceived(ctx context.Context, fc *Context, d *Deps) {
-	if fc.Message == nil || len(fc.Message.Photos) == 0 {
+	photos := normalizeGenerationInputPhotos(messagePhotos(fc.Message))
+	if len(photos) == 0 {
 		_ = sendScreen(ctx, d, fc.VkID, "saved_photo_upload_prompt", ScreenOptions{})
 		return
 	}
+	if len(photos) > 1 {
+		_ = sendScreen(ctx, d, fc.VkID, "saved_photo_batch_not_supported", ScreenOptions{})
+		return
+	}
 
-	photoURL := fc.Message.Photos[0]
+	photoURL := photos[0]
 	if d.Storage != nil {
 		key := fmt.Sprintf("saved_photo/%d/%d.png", fc.VkID, time.Now().Unix())
 		if _, err := d.Storage.UploadFromURL(ctx, key, photoURL); err != nil {
