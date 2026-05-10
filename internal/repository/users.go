@@ -431,6 +431,7 @@ func (r *UserRepo) Delete(ctx context.Context, vkID int64) error {
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	_, _ = tx.Exec(ctx, `UPDATE users SET referred_by = NULL, updated_at = now() WHERE referred_by=$1`, vkID)
 	_, _ = tx.Exec(ctx, `DELETE FROM referrals  WHERE referrer_vk_id=$1 OR referred_vk_id=$1`, vkID)
 	_, _ = tx.Exec(ctx, `DELETE FROM generations WHERE user_vk_id=$1`, vkID)
 	_, _ = tx.Exec(ctx, `DELETE FROM orders      WHERE user_vk_id=$1`, vkID)
