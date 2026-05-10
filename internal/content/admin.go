@@ -61,7 +61,7 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 	"photo_requirements": {
 		SectionID:   "onboarding",
 		Title:       "Требования к фото",
-		Description: "Инструкция перед загрузкой первого фото пользователя.",
+		Description: "Инструкция перед загрузкой фото пользователя. Подсказывает, что можно отправить от 1 до 6 фото одним сообщением.",
 		Order:       30,
 		Keywords:    []string{"инструкция", "требования", "загрузка"},
 	},
@@ -110,7 +110,7 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 	"edit_photo_intro": {
 		SectionID:   "generation",
 		Title:       "Изменить фото",
-		Description: "Входной экран для режима редактирования существующего фото.",
+		Description: "Входной экран для режима редактирования существующего фото или группы до 6 фото.",
 		Order:       20,
 		Keywords:    []string{"редактирование", "изменить фото", "edit"},
 	},
@@ -131,7 +131,7 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 	"couple_intro": {
 		SectionID:   "generation",
 		Title:       "Парные и семейные фото",
-		Description: "Интро-экран для загрузки фото пары или семьи.",
+		Description: "Интро-экран для загрузки от 1 до 6 фото пары или семьи.",
 		Order:       40,
 		Keywords:    []string{"пара", "семья", "совместное фото"},
 	},

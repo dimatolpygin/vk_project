@@ -34,9 +34,10 @@ func HandleShowTariffs(ctx context.Context, fc *Context, d *Deps) {
 	}
 
 	_ = d.State.Set(ctx, fc.VkID, &State{
-		Step:     StepTariffs,
-		PrevStep: fc.State.Step,
-		PhotoURL: fc.State.PhotoURL,
+		Step:           StepTariffs,
+		PrevStep:       fc.State.Step,
+		PhotoURL:       fc.State.PhotoURL,
+		InputPhotoURLs: clonePhotoURLs(fc.State.InputPhotoURLs),
 	})
 	_ = sendScreen(ctx, d, fc.VkID, "tariffs", ScreenOptions{PrefixRows: tariffRows(tariffs)})
 }

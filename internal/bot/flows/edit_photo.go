@@ -14,8 +14,9 @@ func HandleEditPhotoStart(ctx context.Context, fc *Context, d *Deps) {
 
 func HandleEditResultStart(ctx context.Context, fc *Context, d *Deps) {
 	_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{
-		Step:     StepAwaitingResultEdit,
-		PhotoURL: fc.State.PhotoURL,
+		Step:           StepAwaitingResultEdit,
+		PhotoURL:       fc.State.PhotoURL,
+		InputPhotoURLs: nil,
 	}, fc.State))
 	_ = sendScreen(ctx, d, fc.VkID, "edit_result_prompt", ScreenOptions{})
 }
@@ -26,8 +27,8 @@ func HandleResultEditPrompt(ctx context.Context, fc *Context, d *Deps) {
 		return
 	}
 
-	photoURL := fc.State.PhotoURL
-	if photoURL == "" {
+	photoURLs := generationInputPhotosFromState(fc.State)
+	if len(photoURLs) == 0 {
 		_ = sendScreen(ctx, d, fc.VkID, "edit_result_missing_photo", ScreenOptions{})
 		return
 	}
@@ -36,9 +37,9 @@ func HandleResultEditPrompt(ctx context.Context, fc *Context, d *Deps) {
 		return
 	}
 
-	launchEditGeneration(ctx, fc, d, photoURL, fc.Message.Text)
+	launchEditGeneration(ctx, fc, d, photoURLs, fc.Message.Text)
 }
 
-func launchEditGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, prompt string) {
-	createAndEnqueueGeneration(ctx, fc, d, "edit", photoURL, prompt, "generating_wait", "edit_result", nil)
+func launchEditGeneration(ctx context.Context, fc *Context, d *Deps, photoURLs []string, prompt string) {
+	createAndEnqueueGeneration(ctx, fc, d, "edit", photoURLs, prompt, "generating_wait", "edit_result", nil)
 }

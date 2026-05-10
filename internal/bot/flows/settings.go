@@ -14,12 +14,13 @@ func HandleSettings(ctx context.Context, fc *Context, d *Deps) {
 	}
 
 	_ = d.State.Set(ctx, fc.VkID, &State{
-		Step:        StepSettings,
-		PrevStep:    prevStep,
-		PhotoURL:    fc.State.PhotoURL,
-		Resolution:  fc.State.Resolution,
-		AspectRatio: fc.State.AspectRatio,
-		Model:       fc.State.Model,
+		Step:           StepSettings,
+		PrevStep:       prevStep,
+		PhotoURL:       fc.State.PhotoURL,
+		InputPhotoURLs: clonePhotoURLs(fc.State.InputPhotoURLs),
+		Resolution:     fc.State.Resolution,
+		AspectRatio:    fc.State.AspectRatio,
+		Model:          fc.State.Model,
 	})
 
 	referralCount, referralLink := referralStatus(ctx, fc, d)
@@ -71,12 +72,13 @@ func HandleBalance(ctx context.Context, fc *Context, d *Deps) {
 		tariffs, _ = d.TariffRepo.ListActive(ctx)
 	}
 	_ = d.State.Set(ctx, fc.VkID, &State{
-		Step:        StepTariffs,
-		PrevStep:    StepSettings,
-		PhotoURL:    fc.State.PhotoURL,
-		Model:       fc.State.Model,
-		Resolution:  fc.State.Resolution,
-		AspectRatio: fc.State.AspectRatio,
+		Step:           StepTariffs,
+		PrevStep:       StepSettings,
+		PhotoURL:       fc.State.PhotoURL,
+		InputPhotoURLs: clonePhotoURLs(fc.State.InputPhotoURLs),
+		Model:          fc.State.Model,
+		Resolution:     fc.State.Resolution,
+		AspectRatio:    fc.State.AspectRatio,
 	})
 	_ = sendScreen(ctx, d, fc.VkID, "settings_balance", ScreenOptions{
 		Data: map[string]any{

@@ -14,7 +14,10 @@ import (
 	"vk_neuro_bot/internal/worker"
 )
 
-const freeGenerationPromptMessageKey = "free_gen_prompt"
+const (
+	freeGenerationPromptMessageKey = "free_gen_prompt"
+	maxGenerationInputPhotos       = 6
+)
 
 func HandleAfterGen(ctx context.Context, fc *Context, d *Deps) {
 	if fc.State.PhotoURL != "" {
@@ -36,7 +39,7 @@ func HandleFreeGenStart(ctx context.Context, fc *Context, d *Deps) {
 
 	isMember, err := d.VKClient.IsMember(ctx, fc.VkID)
 	if err != nil {
-		log.Error().Err(err).Msg("ошибка проверки подписки")
+		log.Error().Err(err).Msg("РѕС€РёР±РєР° РїСЂРѕРІРµСЂРєРё РїРѕРґРїРёСЃРєРё")
 		isMember = false
 	}
 
@@ -106,6 +109,7 @@ func HandleGenAgain(ctx context.Context, fc *Context, d *Deps) {
 
 	savedState := *fc.State
 	savedState.PhotoURL = ""
+	savedState.InputPhotoURLs = nil
 
 	if fc.State.PromptType == "edit" {
 		savedState.Step = StepAwaitingPhotoEdit
@@ -131,7 +135,7 @@ func HandleGenderSelect(ctx context.Context, fc *Context, d *Deps, gender string
 
 	if promptType == "ready_prompt" {
 		if err := showReadyPromptsCategoryPage(ctx, fc, d, 1); err != nil {
-			log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("не удалось показать категории готовых промтов после выбора пола")
+			log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("РЅРµ СѓРґР°Р»РѕСЃСЊ РїРѕРєР°Р·Р°С‚СЊ РєР°С‚РµРіРѕСЂРёРё РіРѕС‚РѕРІС‹С… РїСЂРѕРјС‚РѕРІ РїРѕСЃР»Рµ РІС‹Р±РѕСЂР° РїРѕР»Р°")
 		}
 		return
 	}
@@ -151,10 +155,7 @@ func HandleGenderSelect(ctx context.Context, fc *Context, d *Deps, gender string
 }
 
 func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
-	var photos []string
-	if fc.Message != nil {
-		photos = fc.Message.Photos
-	}
+	photos := normalizeGenerationInputPhotos(messagePhotos(fc.Message))
 
 	if len(photos) == 0 {
 		_ = sendScreen(ctx, d, fc.VkID, "photo_requirements", ScreenOptions{})
@@ -165,16 +166,7 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		return
 	}
 
-	photoURL := photos[0]
-	uploadedURL := photoURL
-	if d.Storage != nil {
-		key := fmt.Sprintf("user_upload/%d/%d.png", fc.VkID, time.Now().Unix())
-		if _, err := d.Storage.UploadFromURL(ctx, key, photoURL); err != nil {
-			log.Error().Err(err).Msg("не удалось загрузить фото в S3, используем VK URL")
-		} else {
-			uploadedURL = d.Storage.PublicURL(key)
-		}
-	}
+	uploadedURLs := uploadGenerationInputPhotos(ctx, d, fc.VkID, photos, "user_upload")
 
 	promptType := fc.State.PromptType
 	prompt := buildDefaultPrompt(ctx, d, fc.User.Gender, promptType)
@@ -187,14 +179,14 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		}
 	}
 
-	startGeneration(ctx, fc, d, uploadedURL, prompt, promptType, "generating_wait", nil)
+	startGeneration(ctx, fc, d, uploadedURLs, prompt, promptType, "generating_wait", nil)
 }
 
-func startGeneration(ctx context.Context, fc *Context, d *Deps, photoURL, prompt, promptType, waitKey string, waitData map[string]any) {
-	createAndEnqueueGeneration(ctx, fc, d, promptType, photoURL, prompt, waitKey, "free_gen", waitData)
+func startGeneration(ctx context.Context, fc *Context, d *Deps, photoURLs []string, prompt, promptType, waitKey string, waitData map[string]any) {
+	createAndEnqueueGeneration(ctx, fc, d, promptType, photoURLs, prompt, waitKey, "free_gen", waitData)
 }
 
-func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, generationType, photoURL, prompt, waitKey, activityActionKey string, waitData map[string]any) {
+func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, generationType string, photoURLs []string, prompt, waitKey, activityActionKey string, waitData map[string]any) {
 	model := fc.State.Model
 	if model == "" {
 		model = fc.User.PrefModel
@@ -203,13 +195,14 @@ func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, gener
 		model = d.DefaultModel
 	}
 
-	gen, err := d.GenRepo.CreateChargedGeneration(ctx, fc.VkID, generationType, prompt, model, &photoURL)
+	inputPhotoURL := firstGenerationInputPhotoURL(photoURLs)
+	gen, err := d.GenRepo.CreateChargedGeneration(ctx, fc.VkID, generationType, prompt, model, inputPhotoURL)
 	switch {
 	case errors.Is(err, repository.ErrNoGenerationsAvailable):
 		_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
 		return
 	case err != nil:
-		log.Error().Err(err).Msg("не удалось создать запись генерации")
+		log.Error().Err(err).Msg("РЅРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ Р·Р°РїРёСЃСЊ РіРµРЅРµСЂР°С†РёРё")
 		_ = sendScreen(ctx, d, fc.VkID, "generation_error", ScreenOptions{})
 		return
 	}
@@ -220,8 +213,13 @@ func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, gener
 		"model":         model,
 		"resolution":    currentResolution(fc),
 		"aspect_ratio":  currentAspectRatio(fc),
+		"input_photos":  len(photoURLs),
 	})
-	_ = d.State.SetStep(ctx, fc.VkID, StepMainMenu)
+
+	nextState := *fc.State
+	nextState.Step = StepMainMenu
+	nextState.InputPhotoURLs = nil
+	_ = d.State.Set(ctx, fc.VkID, &nextState)
 	_ = sendScreen(ctx, d, fc.VkID, waitKey, ScreenOptions{Data: waitData})
 
 	resolution := currentResolution(fc)
@@ -230,7 +228,7 @@ func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, gener
 		GenerationID: gen.ID,
 		UserVKID:     fc.VkID,
 		Model:        model,
-		Images:       []string{photoURL},
+		Images:       clonePhotoURLs(photoURLs),
 		Prompt:       prompt,
 		Resolution:   resolution,
 		AspectRatio:  aspectRatio,
@@ -242,10 +240,10 @@ func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, gener
 		asynq.Timeout(5*time.Minute),
 	)
 	if _, err := d.AsynqClient.Enqueue(task); err != nil {
-		log.Error().Err(err).Msg("не удалось поставить задачу в очередь")
+		log.Error().Err(err).Msg("РЅРµ СѓРґР°Р»РѕСЃСЊ РїРѕСЃС‚Р°РІРёС‚СЊ Р·Р°РґР°С‡Сѓ РІ РѕС‡РµСЂРµРґСЊ")
 		_ = d.GenRepo.SetFailed(ctx, gen.ID, err.Error())
 		if refundErr := d.GenRepo.RefundGenerationCharge(ctx, gen.ID); refundErr != nil {
-			log.Error().Err(refundErr).Int64("generation_id", gen.ID).Msg("не удалось вернуть генерацию после enqueue error")
+			log.Error().Err(refundErr).Int64("generation_id", gen.ID).Msg("РЅРµ СѓРґР°Р»РѕСЃСЊ РІРµСЂРЅСѓС‚СЊ РіРµРЅРµСЂР°С†РёСЋ РїРѕСЃР»Рµ enqueue error")
 		}
 		_ = sendScreen(ctx, d, fc.VkID, "generation_start_error", ScreenOptions{})
 	}
@@ -265,10 +263,7 @@ func HandleAwaitingPrompt(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func HandleAwaitingPhotoEdit(ctx context.Context, fc *Context, d *Deps) {
-	var photos []string
-	if fc.Message != nil {
-		photos = fc.Message.Photos
-	}
+	photos := normalizeGenerationInputPhotos(messagePhotos(fc.Message))
 	if len(photos) == 0 {
 		_ = sendScreen(ctx, d, fc.VkID, "edit_photo_intro", ScreenOptions{})
 		return
@@ -278,25 +273,17 @@ func HandleAwaitingPhotoEdit(ctx context.Context, fc *Context, d *Deps) {
 		return
 	}
 
-	photoURL := photos[0]
-	uploadedURL := photoURL
-	if d.Storage != nil {
-		key := fmt.Sprintf("user_upload/%d/%d.png", fc.VkID, time.Now().Unix())
-		if _, err := d.Storage.UploadFromURL(ctx, key, photoURL); err != nil {
-			log.Error().Err(err).Msg("не удалось загрузить фото в S3, используем VK URL")
-		} else {
-			uploadedURL = d.Storage.PublicURL(key)
-		}
-	}
+	uploadedURLs := uploadGenerationInputPhotos(ctx, d, fc.VkID, photos, "edit_upload")
 
 	state := fc.State
 	state.Step = StepAwaitingEditPrompt
-	state.PhotoURL = uploadedURL
+	state.PhotoURL = ""
+	state.InputPhotoURLs = uploadedURLs
 	_ = d.State.Set(ctx, fc.VkID, state)
 
 	if state.CustomPrompt != "" {
 		fc.State = state
-		launchEditGeneration(ctx, fc, d, uploadedURL, state.CustomPrompt)
+		launchEditGeneration(ctx, fc, d, uploadedURLs, state.CustomPrompt)
 		return
 	}
 
@@ -350,7 +337,7 @@ func currentAspectRatio(fc *Context) string {
 func currentAspectRatioLabel(fc *Context) string {
 	ar := currentAspectRatio(fc)
 	if ar == "" {
-		return "авто"
+		return "Р°РІС‚Рѕ"
 	}
 	return ar
 }
@@ -404,4 +391,99 @@ func defaultPromptGenderLabel(gender string) string {
 		return "man"
 	}
 	return "woman"
+}
+
+func messagePhotos(msg *InMessage) []string {
+	if msg == nil {
+		return nil
+	}
+	return msg.Photos
+}
+
+func normalizeGenerationInputPhotos(urls []string) []string {
+	if len(urls) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, minInt(len(urls), maxGenerationInputPhotos))
+	seen := make(map[string]struct{}, len(urls))
+	for _, url := range urls {
+		trimmed := strings.TrimSpace(url)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+		if len(out) == maxGenerationInputPhotos {
+			break
+		}
+	}
+	return out
+}
+
+func uploadGenerationInputPhotos(ctx context.Context, d *Deps, vkID int64, photoURLs []string, storagePrefix string) []string {
+	normalized := normalizeGenerationInputPhotos(photoURLs)
+	if len(normalized) == 0 {
+		return nil
+	}
+	if d == nil || d.Storage == nil {
+		return normalized
+	}
+
+	batchID := time.Now().UnixNano()
+	uploaded := make([]string, 0, len(normalized))
+	for idx, photoURL := range normalized {
+		storedURL := photoURL
+		key := fmt.Sprintf("%s/%d/%d_%d.png", storagePrefix, vkID, batchID, idx+1)
+		if _, err := d.Storage.UploadFromURL(ctx, key, photoURL); err != nil {
+			log.Error().Err(err).Str("storage_prefix", storagePrefix).Int("photo_index", idx).Msg("failed to upload input photo to storage, using original url")
+		} else {
+			storedURL = d.Storage.PublicURL(key)
+		}
+		uploaded = append(uploaded, storedURL)
+	}
+	return uploaded
+}
+
+func generationInputPhotosFromState(st *State) []string {
+	if st == nil {
+		return nil
+	}
+	if len(st.InputPhotoURLs) > 0 {
+		return normalizeGenerationInputPhotos(st.InputPhotoURLs)
+	}
+	if trimmed := strings.TrimSpace(st.PhotoURL); trimmed != "" {
+		return []string{trimmed}
+	}
+	return nil
+}
+
+func firstGenerationInputPhotoURL(photoURLs []string) *string {
+	if len(photoURLs) == 0 {
+		return nil
+	}
+	first := strings.TrimSpace(photoURLs[0])
+	if first == "" {
+		return nil
+	}
+	return &first
+}
+
+func clonePhotoURLs(photoURLs []string) []string {
+	if len(photoURLs) == 0 {
+		return nil
+	}
+	cloned := make([]string, len(photoURLs))
+	copy(cloned, photoURLs)
+	return cloned
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

@@ -113,7 +113,7 @@ func HandleSelectPrompt(ctx context.Context, fc *Context, d *Deps) {
 			_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
 			return
 		}
-		startGeneration(ctx, fc, d, *fc.User.SavedPhotoURL, prompt.Prompt, promptType, "saved_photo_generation_wait", map[string]any{
+		startGeneration(ctx, fc, d, []string{*fc.User.SavedPhotoURL}, prompt.Prompt, promptType, "saved_photo_generation_wait", map[string]any{
 			"PromptName": prompt.Name,
 		})
 		return

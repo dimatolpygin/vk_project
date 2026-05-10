@@ -74,19 +74,20 @@ func copyPrefs(dst *State, src *State) *State {
 }
 
 type State struct {
-	Step         string `json:"step"`
-	PrevStep     string `json:"prev_step,omitempty"`
-	PromptType   string `json:"prompt_type,omitempty"`
-	TemplateID   int    `json:"template_id,omitempty"`
-	CategoryID   int    `json:"category_id,omitempty"`
-	CategoryPage int    `json:"category_page,omitempty"`
-	PromptPage   int    `json:"prompt_page,omitempty"`
-	GenerationID int64  `json:"generation_id,omitempty"`
-	Model        string `json:"model,omitempty"`
-	CustomPrompt string `json:"custom_prompt,omitempty"`
-	PhotoURL     string `json:"photo_url,omitempty"`
-	Resolution   string `json:"resolution,omitempty"`
-	AspectRatio  string `json:"aspect_ratio,omitempty"`
+	Step           string   `json:"step"`
+	PrevStep       string   `json:"prev_step,omitempty"`
+	PromptType     string   `json:"prompt_type,omitempty"`
+	TemplateID     int      `json:"template_id,omitempty"`
+	CategoryID     int      `json:"category_id,omitempty"`
+	CategoryPage   int      `json:"category_page,omitempty"`
+	PromptPage     int      `json:"prompt_page,omitempty"`
+	GenerationID   int64    `json:"generation_id,omitempty"`
+	Model          string   `json:"model,omitempty"`
+	CustomPrompt   string   `json:"custom_prompt,omitempty"`
+	PhotoURL       string   `json:"photo_url,omitempty"`
+	InputPhotoURLs []string `json:"input_photo_urls,omitempty"`
+	Resolution     string   `json:"resolution,omitempty"`
+	AspectRatio    string   `json:"aspect_ratio,omitempty"`
 }
 
 type InMessage struct {
