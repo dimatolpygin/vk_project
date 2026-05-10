@@ -224,16 +224,7 @@ func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, gener
 
 	resolution := currentResolution(fc)
 	aspectRatio := currentAspectRatio(fc)
-	payload := worker.GeneratePayload{
-		GenerationID: gen.ID,
-		UserVKID:     fc.VkID,
-		Model:        model,
-		Images:       clonePhotoURLs(photoURLs),
-		Prompt:       prompt,
-		Resolution:   resolution,
-		AspectRatio:  aspectRatio,
-		OutputFormat: "png",
-	}
+	payload := buildGeneratePayload(gen.ID, fc.VkID, model, photoURLs, prompt, resolution, aspectRatio)
 	payloadBytes, _ := payload.Bytes()
 	task := asynq.NewTask(worker.TaskGenerate, payloadBytes,
 		asynq.MaxRetry(3),
@@ -246,6 +237,19 @@ func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, gener
 			log.Error().Err(refundErr).Int64("generation_id", gen.ID).Msg("РЅРµ СѓРґР°Р»РѕСЃСЊ РІРµСЂРЅСѓС‚СЊ РіРµРЅРµСЂР°С†РёСЋ РїРѕСЃР»Рµ enqueue error")
 		}
 		_ = sendScreen(ctx, d, fc.VkID, "generation_start_error", ScreenOptions{})
+	}
+}
+
+func buildGeneratePayload(generationID, vkID int64, model string, photoURLs []string, prompt, resolution, aspectRatio string) worker.GeneratePayload {
+	return worker.GeneratePayload{
+		GenerationID: generationID,
+		UserVKID:     vkID,
+		Model:        model,
+		Images:       clonePhotoURLs(normalizeGenerationInputPhotos(photoURLs)),
+		Prompt:       prompt,
+		Resolution:   resolution,
+		AspectRatio:  aspectRatio,
+		OutputFormat: "png",
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -55,6 +56,11 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) 
 		return "", fmt.Errorf("неизвестная модель WaveSpeed: %q", req.Model)
 	}
 
+	req.Images = normalizeSubmitImages(req.Images)
+	if len(req.Images) == 0 {
+		return "", fmt.Errorf("WaveSpeed submit: images is empty")
+	}
+
 	if req.Resolution == "" {
 		req.Resolution = "1k"
 	}
@@ -96,6 +102,27 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) 
 		return "", fmt.Errorf("WaveSpeed не вернул task_id (HTTP %d): %s", resp.StatusCode, string(respBody))
 	}
 	return result.Data.ID, nil
+}
+
+func normalizeSubmitImages(images []string) []string {
+	if len(images) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(images))
+	seen := make(map[string]struct{}, len(images))
+	for _, image := range images {
+		trimmed := strings.TrimSpace(image)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
 }
 
 func (c *Client) Poll(ctx context.Context, taskID string) (*PredictionStatus, error) {

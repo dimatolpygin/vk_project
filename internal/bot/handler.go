@@ -41,7 +41,16 @@ type VKAttachment struct {
 }
 
 type VKPhoto struct {
-	Sizes []VKPhotoSize `json:"sizes"`
+	Sizes     []VKPhotoSize `json:"sizes"`
+	Photo75   string        `json:"photo_75"`
+	Photo130  string        `json:"photo_130"`
+	Photo604  string        `json:"photo_604"`
+	Photo807  string        `json:"photo_807"`
+	Photo1280 string        `json:"photo_1280"`
+	Photo2560 string        `json:"photo_2560"`
+	Src       string        `json:"src"`
+	SrcBig    string        `json:"src_big"`
+	SrcSmall  string        `json:"src_small"`
 }
 
 type VKPhotoSize struct {
@@ -299,19 +308,49 @@ func extractPhotos(attachments []VKAttachment) []string {
 			continue
 		}
 
-		best := ""
-		maxW := 0
-		for _, sz := range a.Photo.Sizes {
-			if sz.Width > maxW {
-				maxW = sz.Width
-				best = sz.URL
-			}
-		}
-		if best != "" {
+		if best := extractBestPhotoURL(a.Photo); best != "" {
 			urls = append(urls, best)
 		}
 	}
 	return urls
+}
+
+func extractBestPhotoURL(photo VKPhoto) string {
+	best := ""
+	bestArea := 0
+	for _, sz := range photo.Sizes {
+		if sz.URL == "" {
+			continue
+		}
+		area := sz.Width * sz.Height
+		if area == 0 {
+			area = sz.Width
+		}
+		if best == "" || area > bestArea {
+			best = sz.URL
+			bestArea = area
+		}
+	}
+	if best != "" {
+		return best
+	}
+
+	for _, url := range []string{
+		photo.Photo2560,
+		photo.Photo1280,
+		photo.Photo807,
+		photo.Photo604,
+		photo.SrcBig,
+		photo.Src,
+		photo.Photo130,
+		photo.Photo75,
+		photo.SrcSmall,
+	} {
+		if url != "" {
+			return url
+		}
+	}
+	return ""
 }
 
 func toFlowUser(u *repository.User) *flows.User {

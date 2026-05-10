@@ -154,3 +154,52 @@ func TestHandleMessageDoesNotReattachExistingUser(t *testing.T) {
 		t.Fatalf("expected existing user to skip create, got %d create calls", userStore.createCalls)
 	}
 }
+
+func TestExtractPhotosKeepsAllPhotoAttachments(t *testing.T) {
+	got := extractPhotos([]VKAttachment{
+		{
+			Type: "photo",
+			Photo: VKPhoto{Sizes: []VKPhotoSize{
+				{URL: "https://example.com/1-small.jpg", Width: 75, Height: 75},
+				{URL: "https://example.com/1-large.jpg", Width: 1280, Height: 960},
+			}},
+		},
+		{
+			Type: "doc",
+		},
+		{
+			Type: "photo",
+			Photo: VKPhoto{Sizes: []VKPhotoSize{
+				{URL: "https://example.com/2-medium.jpg", Width: 604, Height: 453},
+				{URL: "https://example.com/2-large.jpg", Width: 807, Height: 605},
+			}},
+		},
+	})
+
+	want := []string{"https://example.com/1-large.jpg", "https://example.com/2-large.jpg"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d photos, got %d: %#v", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("photo %d: expected %q, got %q", i, want[i], got[i])
+		}
+	}
+}
+
+func TestExtractPhotosSupportsLegacyVKPhotoURLs(t *testing.T) {
+	got := extractPhotos([]VKAttachment{
+		{Type: "photo", Photo: VKPhoto{Photo604: "https://example.com/1-604.jpg", Photo1280: "https://example.com/1-1280.jpg"}},
+		{Type: "photo", Photo: VKPhoto{SrcSmall: "https://example.com/2-small.jpg", SrcBig: "https://example.com/2-big.jpg"}},
+	})
+
+	want := []string{"https://example.com/1-1280.jpg", "https://example.com/2-big.jpg"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d photos, got %d: %#v", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("photo %d: expected %q, got %q", i, want[i], got[i])
+		}
+	}
+}

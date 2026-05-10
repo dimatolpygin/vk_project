@@ -102,6 +102,39 @@ func TestNormalizeGenerationInputPhotosLimitsAndDedupes(t *testing.T) {
 	}
 }
 
+func TestBuildGeneratePayloadKeepsPhotoBatch(t *testing.T) {
+	got := buildGeneratePayload(
+		11,
+		22,
+		"google/nano-banana-pro",
+		[]string{
+			" https://example.com/1.png ",
+			"https://example.com/2.png",
+			"https://example.com/3.png",
+			"https://example.com/4.png",
+			"https://example.com/5.png",
+			"https://example.com/6.png",
+			"https://example.com/7.png",
+		},
+		"portrait",
+		"2k",
+		"1:1",
+	)
+
+	if got.GenerationID != 11 || got.UserVKID != 22 {
+		t.Fatalf("unexpected ids in payload: %#v", got)
+	}
+	if got.OutputFormat != "png" {
+		t.Fatalf("expected png output format, got %q", got.OutputFormat)
+	}
+	if len(got.Images) != maxGenerationInputPhotos {
+		t.Fatalf("expected %d images, got %d: %#v", maxGenerationInputPhotos, len(got.Images), got.Images)
+	}
+	if got.Images[0] != "https://example.com/1.png" || got.Images[5] != "https://example.com/6.png" {
+		t.Fatalf("unexpected images in payload: %#v", got.Images)
+	}
+}
+
 func TestGenerationInputPhotosFromStateFallsBackToLegacyPhotoURL(t *testing.T) {
 	got := generationInputPhotosFromState(&State{PhotoURL: "https://example.com/legacy.png"})
 
