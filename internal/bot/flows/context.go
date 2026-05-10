@@ -150,6 +150,7 @@ type MessageReader interface {
 }
 
 type CategoryReader interface {
+	ListReadyPromptCategories(ctx context.Context, gender string) ([]*repository.Category, error)
 	ListActive(ctx context.Context, gender string) ([]*repository.Category, error)
 	ListActiveCouple(ctx context.Context) ([]*repository.Category, error)
 }

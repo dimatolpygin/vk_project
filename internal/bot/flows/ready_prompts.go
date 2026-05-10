@@ -142,7 +142,15 @@ func HandleReadyPromptsBrowse(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func showReadyPromptsCategoryPage(ctx context.Context, fc *Context, d *Deps, page int) error {
-	categories, err := d.CatRepo.ListActive(ctx, fc.User.Gender)
+	if fc.User.Gender == "unknown" {
+		_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{
+			Step:       StepAwaitingGender,
+			PromptType: "ready_prompt",
+		}, fc.State))
+		return sendScreen(ctx, d, fc.VkID, "gender_select", ScreenOptions{})
+	}
+
+	categories, err := d.CatRepo.ListReadyPromptCategories(ctx, fc.User.Gender)
 	if err != nil || len(categories) == 0 {
 		return sendScreen(ctx, d, fc.VkID, "categories_empty", ScreenOptions{})
 	}

@@ -63,8 +63,16 @@ func (f *fakeStateMgr) Reset(_ context.Context, vkID int64) error {
 }
 
 type fakeCategoryRepo struct {
+	readyByGender  map[string][]*repository.Category
 	activeByGender map[string][]*repository.Category
 	couple         []*repository.Category
+}
+
+func (f *fakeCategoryRepo) ListReadyPromptCategories(_ context.Context, gender string) ([]*repository.Category, error) {
+	if f.readyByGender != nil {
+		return f.readyByGender[gender], nil
+	}
+	return f.activeByGender[gender], nil
 }
 
 func (f *fakeCategoryRepo) ListActive(_ context.Context, gender string) ([]*repository.Category, error) {
@@ -99,7 +107,7 @@ func TestHandleReadyPromptsMenuShowsFirstCategoryPage(t *testing.T) {
 		Sender: sender,
 		State:  stateMgr,
 		CatRepo: &fakeCategoryRepo{
-			activeByGender: map[string][]*repository.Category{
+			readyByGender: map[string][]*repository.Category{
 				"male": makeCategories(6),
 			},
 		},
@@ -200,7 +208,7 @@ func TestHandleBackFromPromptListReturnsToStoredCategoryPage(t *testing.T) {
 		Sender: sender,
 		State:  stateMgr,
 		CatRepo: &fakeCategoryRepo{
-			activeByGender: map[string][]*repository.Category{
+			readyByGender: map[string][]*repository.Category{
 				"male": makeCategories(6),
 			},
 		},
@@ -275,6 +283,78 @@ func TestHandleCoupleStartUsesPaginatedCategories(t *testing.T) {
 	}
 	if got := payload["type"]; got != "couple_page" {
 		t.Fatalf("expected couple_page payload type, got %#v", got)
+	}
+}
+
+func TestHandleReadyPromptsMenuUnknownGenderRequestsSelection(t *testing.T) {
+	sender := &fakeSender{}
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{
+		Sender:  sender,
+		State:   stateMgr,
+		CatRepo: &fakeCategoryRepo{},
+	}
+	fc := &Context{
+		VkID:  105,
+		User:  &User{Gender: "unknown", FreeGens: 1},
+		State: &State{},
+	}
+
+	HandleReadyPromptsMenu(context.Background(), fc, deps)
+
+	state := stateMgr.states[105]
+	if state == nil {
+		t.Fatal("expected state to be saved")
+	}
+	if state.Step != StepAwaitingGender {
+		t.Fatalf("expected %q step, got %q", StepAwaitingGender, state.Step)
+	}
+	if state.PromptType != "ready_prompt" {
+		t.Fatalf("expected prompt type ready_prompt, got %q", state.PromptType)
+	}
+	if len(sender.screens) == 0 {
+		t.Fatal("expected a screen to be sent")
+	}
+	if got := sender.screens[len(sender.screens)-1].Key; got != "gender_select" {
+		t.Fatalf("expected gender_select screen, got %q", got)
+	}
+}
+
+func TestHandleGenderSelectAfterReadyPromptsShowsCategories(t *testing.T) {
+	sender := &fakeSender{}
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{
+		Sender: sender,
+		State:  stateMgr,
+		CatRepo: &fakeCategoryRepo{
+			readyByGender: map[string][]*repository.Category{
+				"male": makeCategories(6),
+			},
+		},
+	}
+	fc := &Context{
+		VkID:  106,
+		User:  &User{Gender: "unknown", FreeGens: 1},
+		State: &State{PromptType: "ready_prompt"},
+	}
+
+	HandleGenderSelect(context.Background(), fc, deps, "male")
+
+	state := stateMgr.states[106]
+	if state == nil {
+		t.Fatal("expected state to be saved")
+	}
+	if state.Step != StepReadyPromptsCategories {
+		t.Fatalf("expected %q step, got %q", StepReadyPromptsCategories, state.Step)
+	}
+	if state.CategoryPage != 1 || state.PromptPage != 1 {
+		t.Fatalf("expected category/prompt page to be 1, got %d/%d", state.CategoryPage, state.PromptPage)
+	}
+	if len(sender.screens) == 0 {
+		t.Fatal("expected a screen to be sent")
+	}
+	if got := sender.screens[len(sender.screens)-1].Key; got != "ready_prompts_intro" {
+		t.Fatalf("expected ready_prompts_intro screen, got %q", got)
 	}
 }
 

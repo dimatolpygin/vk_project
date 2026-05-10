@@ -115,12 +115,21 @@ func HandleGenAgain(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func HandleGenderSelect(ctx context.Context, fc *Context, d *Deps, gender string) {
-	_ = d.UserRepo.SetGender(ctx, fc.VkID, gender)
+	if d.UserRepo != nil {
+		_ = d.UserRepo.SetGender(ctx, fc.VkID, gender)
+	}
 	fc.User.Gender = gender
 
 	promptType := fc.State.PromptType
 	if promptType == "" {
 		promptType = "free"
+	}
+
+	if promptType == "ready_prompt" {
+		if err := showReadyPromptsCategoryPage(ctx, fc, d, 1); err != nil {
+			log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("не удалось показать категории готовых промтов после выбора пола")
+		}
+		return
 	}
 
 	newState := *fc.State

@@ -25,6 +25,26 @@ func NewCategoryRepo(db *pgxpool.Pool) *CategoryRepo {
 	return &CategoryRepo{db: db}
 }
 
+func (r *CategoryRepo) ListReadyPromptCategories(ctx context.Context, gender string) ([]*Category, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT c.id, c.name, c.group_id, c.preview_url, c.gender, c.sort_order, c.is_active
+		FROM categories AS c
+		WHERE c.is_active = true
+		  AND EXISTS (
+			SELECT 1
+			FROM prompts AS p
+			WHERE p.category_id = c.id
+			  AND p.is_active = true
+			  AND (p.gender = 'any' OR p.gender = $1)
+		  )
+		ORDER BY c.sort_order, c.id`, gender)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanCategories(rows)
+}
+
 func (r *CategoryRepo) ListActive(ctx context.Context, gender string) ([]*Category, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, name, group_id, preview_url, gender, sort_order, is_active
