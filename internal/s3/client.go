@@ -66,7 +66,12 @@ func (c *Client) Upload(ctx context.Context, key string, data []byte, contentTyp
 }
 
 func (c *Client) UploadFromURL(ctx context.Context, key, url string) (string, error) {
-	resp, err := c.http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -74,6 +79,12 @@ func (c *Client) UploadFromURL(ctx context.Context, key, url string) (string, er
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("remote source returned HTTP %d for %s", resp.StatusCode, url)
+	}
+	if len(data) == 0 {
+		return "", fmt.Errorf("remote source returned empty body for %s", url)
 	}
 	ct := resp.Header.Get("Content-Type")
 	if ct == "" {

@@ -12,12 +12,13 @@ import (
 	"time"
 )
 
-const apiBase = "https://api.vk.com/method"
+const defaultAPIBase = "https://api.vk.com/method"
 const apiVersion = "5.199"
 
 type Client struct {
 	token   string
 	groupID int64
+	apiBase string
 	http    *http.Client
 }
 
@@ -25,8 +26,23 @@ func New(token string, groupID int64) *Client {
 	return &Client{
 		token:   token,
 		groupID: groupID,
+		apiBase: defaultAPIBase,
 		http:    &http.Client{Timeout: 10 * time.Second},
 	}
+}
+
+func (c *Client) SetAPIBase(base string) {
+	if strings.TrimSpace(base) == "" {
+		return
+	}
+	c.apiBase = strings.TrimRight(base, "/")
+}
+
+func (c *Client) SetHTTPClient(client *http.Client) {
+	if client == nil {
+		return
+	}
+	c.http = client
 }
 
 type vkResponse struct {
@@ -44,7 +60,7 @@ func (c *Client) call(ctx context.Context, method string, params url.Values) (js
 	params.Set("v", apiVersion)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		apiBase+"/"+method, strings.NewReader(params.Encode()))
+		c.apiBase+"/"+method, strings.NewReader(params.Encode()))
 	if err != nil {
 		return nil, err
 	}

@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	neturl "net/url"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -28,6 +31,17 @@ type Sender struct {
 	http          *http.Client
 }
 
+const (
+	vkPhotoDownloadAttempts = 3
+	vkPhotoUploadAttempts   = 4
+)
+
+type vkUploadPhotoPayload struct {
+	data        []byte
+	filename    string
+	contentType string
+}
+
 func NewSender(vk *vkgroup.Client, msgRepo *repository.MessageRepo, userRepo *repository.UserRepo, broadcastRepo *repository.BroadcastRepo, stateMgr flows.StateMgr) *Sender {
 	return &Sender{
 		vk:            vk,
@@ -42,7 +56,7 @@ func NewSender(vk *vkgroup.Client, msgRepo *repository.MessageRepo, userRepo *re
 func (s *Sender) SendMsg(ctx context.Context, vkID int64, key string, kbJSON string) error {
 	msg, err := s.msgRepo.Get(ctx, key)
 	if err != nil {
-		log.Error().Err(err).Str("key", key).Msg("не удалось получить сообщение из БД")
+		log.Error().Err(err).Str("key", key).Msg("failed to load message from db")
 		return err
 	}
 	if kbJSON == "" {
@@ -69,12 +83,7 @@ func (s *Sender) SendText(ctx context.Context, vkID int64, text string, kbJSON s
 func (s *Sender) SendPhoto(ctx context.Context, vkID int64, photoURL, caption, kbJSON string) error {
 	attachment, err := s.uploadPhotoFromURL(ctx, vkID, photoURL)
 	if err != nil {
-		log.Warn().Err(err).Msg("первая попытка загрузки фото в VK не удалась, повтор через 3с")
-		time.Sleep(3 * time.Second)
-		attachment, err = s.uploadPhotoFromURL(ctx, vkID, photoURL)
-		if err != nil {
-			return fmt.Errorf("ошибка загрузки фото в VK: %w", err)
-		}
+		return fmt.Errorf("upload photo to vk: %w", err)
 	}
 	return s.vk.SendMessage(ctx, vkgroup.SendMessageParams{
 		PeerID:     vkID,
@@ -115,7 +124,7 @@ func (s *Sender) SendScreen(ctx context.Context, vkID int64, screen *flows.Scree
 			if screen.CacheKey == "" {
 				return err
 			}
-			log.Warn().Err(err).Str("screen_key", screen.Key).Msg("не удалось прикрепить изображение экрана")
+			log.Warn().Err(err).Str("screen_key", screen.Key).Msg("failed to attach screen image")
 		} else {
 			attachment = resolved
 		}
@@ -139,6 +148,17 @@ func (s *Sender) SendTextToUser(ctx context.Context, vkID int64, text string) er
 }
 
 func (s *Sender) SendPhotoResult(ctx context.Context, vkID int64, photoURL, model, resolution, aspectRatio string) error {
+	return s.sendPhotoResult(ctx, vkID, photoURL, photoURL, model, resolution, aspectRatio)
+}
+
+func (s *Sender) SendPhotoResultWithSource(ctx context.Context, vkID int64, photoURL, sourcePhotoURL, model, resolution, aspectRatio string) error {
+	if sourcePhotoURL == "" {
+		sourcePhotoURL = photoURL
+	}
+	return s.sendPhotoResult(ctx, vkID, photoURL, sourcePhotoURL, model, resolution, aspectRatio)
+}
+
+func (s *Sender) sendPhotoResult(ctx context.Context, vkID int64, photoURL, sourcePhotoURL, model, resolution, aspectRatio string) error {
 	screenKey := "after_gen_free"
 	kbOpts := flows.KeyboardRenderOptions{}
 
@@ -164,7 +184,7 @@ func (s *Sender) SendPhotoResult(ctx context.Context, vkID int64, photoURL, mode
 		}
 	}
 
-	if err := s.sendContentScreen(ctx, vkID, screenKey, data, kbOpts, &photoURL); err != nil {
+	if err := s.sendContentScreen(ctx, vkID, screenKey, data, kbOpts, &sourcePhotoURL); err != nil {
 		return err
 	}
 
@@ -189,7 +209,7 @@ func (s *Sender) sendContentScreen(ctx context.Context, vkID int64, key string, 
 
 	text, err := content.RenderText(msg.Text, data)
 	if err != nil {
-		log.Warn().Err(err).Str("key", key).Msg("не удалось отрендерить текст экрана")
+		log.Warn().Err(err).Str("key", key).Msg("failed to render screen text")
 	}
 
 	imageURL := msg.ImageURL
@@ -223,7 +243,7 @@ func (s *Sender) resolveAttachment(ctx context.Context, vkID int64, imageURL, ca
 
 	if cacheKey != "" {
 		if err := s.msgRepo.SetVkAttachment(ctx, cacheKey, attachment); err != nil {
-			log.Warn().Err(err).Str("cache_key", cacheKey).Msg("не удалось сохранить vk_attachment в БД")
+			log.Warn().Err(err).Str("cache_key", cacheKey).Msg("failed to save vk_attachment")
 		}
 	}
 	return attachment, nil
@@ -244,7 +264,7 @@ func (s *Sender) resolveBroadcastAttachment(ctx context.Context, vkID int64, ima
 
 	if broadcastID > 0 && s.broadcastRepo != nil {
 		if err := s.broadcastRepo.SetVKAttachment(ctx, broadcastID, attachment); err != nil {
-			log.Warn().Err(err).Int64("broadcast_id", broadcastID).Msg("не удалось сохранить vk_attachment рассылки")
+			log.Warn().Err(err).Int64("broadcast_id", broadcastID).Msg("failed to save broadcast vk_attachment")
 		}
 	}
 
@@ -252,46 +272,138 @@ func (s *Sender) resolveBroadcastAttachment(ctx context.Context, vkID int64, ima
 }
 
 func (s *Sender) uploadPhotoFromURL(ctx context.Context, peerID int64, photoURL string) (string, error) {
+	payload, err := s.downloadPhotoForVK(ctx, photoURL)
+	if err != nil {
+		return "", err
+	}
+	return s.uploadPhotoToVK(ctx, peerID, photoURL, payload)
+}
+
+func (s *Sender) downloadPhotoForVK(ctx context.Context, photoURL string) (*vkUploadPhotoPayload, error) {
+	var lastErr error
+	for attempt := 1; attempt <= vkPhotoDownloadAttempts; attempt++ {
+		payload, err := s.downloadPhotoForVKOnce(ctx, photoURL)
+		if err == nil {
+			return payload, nil
+		}
+		lastErr = err
+		log.Warn().
+			Err(err).
+			Int("attempt", attempt).
+			Str("photo_url", photoURL).
+			Msg("failed to download photo for vk delivery")
+		if attempt < vkPhotoDownloadAttempts {
+			if err := sleepWithContext(ctx, retryDelay(attempt)); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return nil, fmt.Errorf("download photo for vk: %w", lastErr)
+}
+
+func (s *Sender) downloadPhotoForVKOnce(ctx context.Context, photoURL string) (*vkUploadPhotoPayload, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, photoURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("download photo: %w", err)
+	}
+	defer resp.Body.Close()
+
+	photoData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read photo body: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("photo source returned HTTP %d, content_type=%q, body=%q",
+			resp.StatusCode, resp.Header.Get("Content-Type"), abbreviateBody(photoData))
+	}
+	if len(photoData) == 0 {
+		return nil, fmt.Errorf("downloaded photo is empty: %s", photoURL)
+	}
+
+	contentType, filename, err := normalizePhotoForVK(photoURL, resp.Header.Get("Content-Type"), photoData)
+	if err != nil {
+		return nil, err
+	}
+
+	return &vkUploadPhotoPayload{
+		data:        photoData,
+		filename:    filename,
+		contentType: contentType,
+	}, nil
+}
+
+func (s *Sender) uploadPhotoToVK(ctx context.Context, peerID int64, photoURL string, payload *vkUploadPhotoPayload) (string, error) {
+	var lastErr error
+	for attempt := 1; attempt <= vkPhotoUploadAttempts; attempt++ {
+		attachment, err := s.uploadPhotoToVKOnce(ctx, peerID, payload)
+		if err == nil {
+			if attempt > 1 {
+				log.Info().
+					Int("attempt", attempt).
+					Int64("peer_id", peerID).
+					Str("photo_url", photoURL).
+					Int("bytes", len(payload.data)).
+					Str("content_type", payload.contentType).
+					Msg("photo delivered to vk after retry")
+			}
+			return attachment, nil
+		}
+
+		lastErr = err
+		log.Warn().
+			Err(err).
+			Int("attempt", attempt).
+			Int64("peer_id", peerID).
+			Str("photo_url", photoURL).
+			Int("bytes", len(payload.data)).
+			Str("content_type", payload.contentType).
+			Msg("failed to upload photo to vk")
+
+		if attempt < vkPhotoUploadAttempts {
+			if err := sleepWithContext(ctx, retryDelay(attempt)); err != nil {
+				return "", err
+			}
+		}
+	}
+	return "", fmt.Errorf("vk upload failed after %d attempts: %w", vkPhotoUploadAttempts, lastErr)
+}
+
+func (s *Sender) uploadPhotoToVKOnce(ctx context.Context, peerID int64, payload *vkUploadPhotoPayload) (string, error) {
 	uploadURL, err := s.vk.GetPhotoUploadServer(ctx, peerID)
 	if err != nil {
 		return "", fmt.Errorf("getUploadServer: %w", err)
 	}
 
-	resp, err := s.http.Get(photoURL)
-	if err != nil {
-		return "", fmt.Errorf("скачивание фото: %w", err)
-	}
-	defer resp.Body.Close()
-	photoData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("чтение тела фото: %w", err)
-	}
-	if len(photoData) == 0 {
-		return "", fmt.Errorf("скачанный файл пустой: %s", photoURL)
-	}
-
-	filename := path.Base(photoURL)
-	if filename == "." || filename == "/" || filename == "" {
-		filename = "photo.png"
-	}
-
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="photo"; filename="%s"`, filename))
-	h.Set("Content-Type", "image/png")
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="photo"; filename="%s"`, payload.filename))
+	h.Set("Content-Type", payload.contentType)
 	fw, err := w.CreatePart(h)
 	if err != nil {
 		return "", err
 	}
-	if _, err := fw.Write(photoData); err != nil {
+	if _, err := fw.Write(payload.data); err != nil {
 		return "", err
 	}
-	_ = w.Close()
+	if err := w.Close(); err != nil {
+		return "", err
+	}
 
-	uploadResp, err := s.http.Post(uploadURL, w.FormDataContentType(), &buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, &buf)
 	if err != nil {
-		return "", fmt.Errorf("загрузка на VK upload server: %w", err)
+		return "", err
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+
+	uploadResp, err := s.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("upload to vk upload server: %w", err)
 	}
 	defer uploadResp.Body.Close()
 	uploadBody, _ := io.ReadAll(uploadResp.Body)
@@ -299,10 +411,10 @@ func (s *Sender) uploadPhotoFromURL(ctx context.Context, peerID int64, photoURL 
 	log.Info().
 		Int("http_status", uploadResp.StatusCode).
 		Str("body", string(uploadBody)).
-		Msg("ответ VK upload server")
+		Msg("vk upload server response")
 
 	if uploadResp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("VK upload server вернул HTTP %d: %s", uploadResp.StatusCode, string(uploadBody))
+		return "", fmt.Errorf("vk upload server returned HTTP %d: %s", uploadResp.StatusCode, string(uploadBody))
 	}
 
 	var uploadResult struct {
@@ -311,12 +423,129 @@ func (s *Sender) uploadPhotoFromURL(ctx context.Context, peerID int64, photoURL 
 		Hash   string `json:"hash"`
 	}
 	if err := json.Unmarshal(uploadBody, &uploadResult); err != nil {
-		return "", fmt.Errorf("парсинг ответа upload server: %w (тело: %s)", err, string(uploadBody))
+		return "", fmt.Errorf("parse upload server response: %w (body: %s)", err, string(uploadBody))
 	}
 	if uploadResult.Photo == "" {
-		return "", fmt.Errorf("VK upload server вернул пустое photo (HTTP %d): %s", uploadResp.StatusCode, string(uploadBody))
+		return "", fmt.Errorf("vk upload server returned empty photo (HTTP %d): %s", uploadResp.StatusCode, string(uploadBody))
 	}
 	return s.vk.SaveMessagesPhoto(ctx, uploadResult.Server, uploadResult.Photo, uploadResult.Hash)
+}
+
+func normalizePhotoForVK(photoURL, headerContentType string, photoData []byte) (string, string, error) {
+	declaredContentType := normalizeContentType(headerContentType)
+	detectedContentType := http.DetectContentType(photoData[:minInt(len(photoData), 512)])
+
+	contentType := detectedContentType
+	if !strings.HasPrefix(contentType, "image/") {
+		if detectedContentType == "application/octet-stream" && strings.HasPrefix(declaredContentType, "image/") {
+			contentType = declaredContentType
+		} else {
+			return "", "", fmt.Errorf("photo source did not return an image: header_content_type=%q detected_content_type=%q body=%q",
+				headerContentType, detectedContentType, abbreviateBody(photoData))
+		}
+	}
+
+	return contentType, buildVKUploadFilename(photoURL, contentType), nil
+}
+
+func normalizeContentType(contentType string) string {
+	if contentType == "" {
+		return ""
+	}
+	return strings.TrimSpace(strings.ToLower(strings.Split(contentType, ";")[0]))
+}
+
+func buildVKUploadFilename(photoURL, contentType string) string {
+	filename := path.Base(photoURL)
+	if parsedURL, err := neturl.Parse(photoURL); err == nil {
+		filename = path.Base(parsedURL.Path)
+	}
+	if filename == "." || filename == "/" || filename == "" {
+		filename = "photo"
+	}
+
+	ext := preferredImageExtension(contentType)
+	if ext == "" {
+		ext = path.Ext(filename)
+	}
+	if ext == "" {
+		ext = ".img"
+	}
+
+	base := strings.TrimSuffix(filename, path.Ext(filename))
+	if base == "" {
+		base = "photo"
+	}
+	return base + ext
+}
+
+func preferredImageExtension(contentType string) string {
+	switch contentType {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	}
+
+	exts, err := mime.ExtensionsByType(contentType)
+	if err != nil || len(exts) == 0 {
+		return ""
+	}
+	for _, ext := range exts {
+		if ext == ".jpe" {
+			continue
+		}
+		return ext
+	}
+	return exts[0]
+}
+
+func abbreviateBody(body []byte) string {
+	const limit = 160
+	if len(body) == 0 {
+		return ""
+	}
+
+	text := strings.ReplaceAll(string(body), "\n", " ")
+	text = strings.ReplaceAll(text, "\r", " ")
+	if len(text) > limit {
+		return text[:limit] + "..."
+	}
+	return text
+}
+
+func retryDelay(attempt int) time.Duration {
+	switch attempt {
+	case 1:
+		return time.Second
+	case 2:
+		return 2 * time.Second
+	default:
+		return 4 * time.Second
+	}
+}
+
+func sleepWithContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func uniqueID() int64 { return time.Now().UnixNano() }

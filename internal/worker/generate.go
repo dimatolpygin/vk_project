@@ -17,6 +17,10 @@ type MessageSender interface {
 	SendPhotoResult(ctx context.Context, vkID int64, photoURL, model, resolution, aspectRatio string) error
 }
 
+type photoResultSourceSender interface {
+	SendPhotoResultWithSource(ctx context.Context, vkID int64, photoURL, sourcePhotoURL, model, resolution, aspectRatio string) error
+}
+
 type PhotoStorage interface {
 	UploadFromURL(ctx context.Context, key, url string) (string, error)
 	PublicURL(key string) string
@@ -103,10 +107,11 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, task *asynq.Task) err
 		return fmt.Errorf("%w: wavespeed: no outputs", asynq.SkipRetry)
 	}
 
-	outputURL := status.Outputs[0]
+	deliveryURL := status.Outputs[0]
+	outputURL := deliveryURL
 	if h.storage != nil {
 		key := fmt.Sprintf("generation_users/%d/%d.png", payload.UserVKID, payload.GenerationID)
-		if _, err := h.storage.UploadFromURL(ctx, key, outputURL); err != nil {
+		if _, err := h.storage.UploadFromURL(ctx, key, deliveryURL); err != nil {
 			log.Error().Err(err).Msg("failed to upload result to s3")
 		} else {
 			outputURL = h.storage.PublicURL(key)
@@ -119,6 +124,7 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, task *asynq.Task) err
 
 	log.Info().
 		Int64("generation_id", payload.GenerationID).
+		Str("delivery_url", deliveryURL).
 		Str("output_url", outputURL).
 		Msg("generation completed, sending photo")
 
@@ -127,11 +133,17 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, task *asynq.Task) err
 		_ = h.rdb.Set(ctx, key, outputURL, 24*time.Hour).Err()
 	}
 
-	if err := h.sender.SendPhotoResult(ctx, payload.UserVKID, outputURL, payload.Model, payload.Resolution, payload.AspectRatio); err != nil {
-		log.Error().Err(err).Int64("generation_id", payload.GenerationID).Msg("failed to send generated photo to vk, refunding generation")
+	var sendErr error
+	if sourceAwareSender, ok := h.sender.(photoResultSourceSender); ok {
+		sendErr = sourceAwareSender.SendPhotoResultWithSource(ctx, payload.UserVKID, outputURL, deliveryURL, payload.Model, payload.Resolution, payload.AspectRatio)
+	} else {
+		sendErr = h.sender.SendPhotoResult(ctx, payload.UserVKID, outputURL, payload.Model, payload.Resolution, payload.AspectRatio)
+	}
+	if sendErr != nil {
+		log.Error().Err(sendErr).Int64("generation_id", payload.GenerationID).Msg("failed to send generated photo to vk, refunding generation")
 		refundGeneration()
 		_ = h.sender.SendScreenText(ctx, payload.UserVKID, "worker_vk_upload_error", nil)
-		return fmt.Errorf("%w: send photo: %v", asynq.SkipRetry, err)
+		return fmt.Errorf("%w: send photo: %v", asynq.SkipRetry, sendErr)
 	}
 
 	return nil
