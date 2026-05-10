@@ -230,8 +230,18 @@ func hydrateKeyboard(key string, legacyButtonsJSON, keyboardJSON *[]byte) conten
 }
 
 func upgradedDefaultMessageText(key, text string) string {
-	legacyText, ok := legacyDefaultMessageTexts[key]
-	if !ok || text != legacyText {
+	legacyTexts, ok := legacyDefaultMessageTexts[key]
+	if !ok {
+		return text
+	}
+	matchesLegacy := false
+	for _, legacyText := range legacyTexts {
+		if text == legacyText {
+			matchesLegacy = true
+			break
+		}
+	}
+	if !matchesLegacy {
 		return text
 	}
 
@@ -242,7 +252,12 @@ func upgradedDefaultMessageText(key, text string) string {
 	return def.DefaultText
 }
 
-var legacyDefaultMessageTexts = map[string]string{
-	"payment_success":   "🎉 Оплата прошла успешно!\n\nДобро пожаловать в мир нейрофотосессий! Твои генерации зачислены.",
-	"settings_overview": "⚙️ Настройки\n\n🎯 Баланс генераций: {{.TotalGens}}\n🤖 Модель: {{.ModelName}}\n🔧 Качество: {{.Resolution}}\n📐 Формат: {{.AspectRatio}}",
+var legacyDefaultMessageTexts = map[string][]string{
+	"payment_success": {
+		"🎉 Оплата прошла успешно!\n\nДобро пожаловать в мир нейрофотосессий! Твои генерации зачислены.",
+	},
+	"settings_overview": {
+		"⚙️ Настройки\n\n🎯 Баланс генераций: {{.TotalGens}}\n🤖 Модель: {{.ModelName}}\n🔧 Качество: {{.Resolution}}\n📐 Формат: {{.AspectRatio}}",
+		"⚙️ Настройки\n\n🎯 Баланс генераций: {{.TotalGens}}\n🤖 Модель: {{.ModelName}}\n🔧 Качество: {{.Resolution}}\n📐 Формат: {{.AspectRatio}}\n\n🎁 Приглашено рефералов: {{.ReferralCount}}{{if .ReferralLink}}\n🔗 Твоя ссылка:\n{{.ReferralLink}}{{end}}",
+	},
 }

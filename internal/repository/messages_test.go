@@ -23,3 +23,16 @@ func TestUpgradedDefaultMessageTextPreservesCustomText(t *testing.T) {
 		t.Fatalf("expected custom text to stay unchanged, got %q", got)
 	}
 }
+
+func TestUpgradedDefaultMessageTextReplacesPreviousSettingsOverviewDefault(t *testing.T) {
+	previous := "⚙️ Настройки\n\n🎯 Баланс генераций: {{.TotalGens}}\n🤖 Модель: {{.ModelName}}\n🔧 Качество: {{.Resolution}}\n📐 Формат: {{.AspectRatio}}\n\n🎁 Приглашено рефералов: {{.ReferralCount}}{{if .ReferralLink}}\n🔗 Твоя ссылка:\n{{.ReferralLink}}{{end}}"
+
+	got := upgradedDefaultMessageText("settings_overview", previous)
+
+	if got == previous {
+		t.Fatalf("expected previous settings_overview default to be upgraded, got %q", got)
+	}
+	if got == "" {
+		t.Fatal("expected upgraded settings_overview text to be non-empty")
+	}
+}

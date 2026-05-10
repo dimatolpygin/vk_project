@@ -145,7 +145,7 @@ var screenDefinitions = map[string]ScreenDefinition{
 		selectButton("model_gpt2", "model_gpt2", "GPT Image 2", "primary", "openai/gpt-image-2", 2, 0),
 		callback("settings", "settings", "◀️ Назад", "secondary", 3, 0),
 	),
-	"settings_overview": screen("settings_overview", "⚙️ Настройки\n\n🎯 Баланс генераций: {{.TotalGens}}\n🤖 Модель: {{.ModelName}}\n🔧 Качество: {{.Resolution}}\n📐 Формат: {{.AspectRatio}}\n\n🎁 Приглашено рефералов: {{.ReferralCount}}{{if .ReferralLink}}\n🔗 Твоя ссылка:\n{{.ReferralLink}}{{end}}",
+	"settings_overview": screen("settings_overview", "⚙️ Настройки\n\n🆔 ID: {{.VKID}}\n🎯 Баланс генераций: {{.TotalGens}}\n🤖 Модель: {{.ModelName}}\n🔧 Качество: {{.Resolution}}\n📐 Формат: {{.AspectRatio}}\n\n🎁 Приглашено рефералов: {{.ReferralCount}}{{if .ReferralLink}}\n🔗 Твоя ссылка:\n{{.ReferralLink}}{{end}}",
 		callback("quality", "quality", "🔧 Качество", "primary", 0, 0),
 		callback("format", "format", "📐 Формат", "primary", 1, 0),
 		callback("balance", "balance", "💳 Баланс", "primary", 2, 0),

@@ -27,6 +27,7 @@ func HandleSettings(ctx context.Context, fc *Context, d *Deps) {
 	_ = sendScreen(ctx, d, fc.VkID, "settings_overview", ScreenOptions{
 		Data: map[string]any{
 			"TotalGens":     fc.User.TotalGens(),
+			"VKID":          fc.VkID,
 			"ModelName":     ModelDisplayName(currentModel(fc, d)),
 			"Resolution":    currentResolution(fc),
 			"AspectRatio":   currentAspectRatioLabel(fc),

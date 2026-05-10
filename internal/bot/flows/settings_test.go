@@ -27,6 +27,9 @@ func TestHandleSettingsDisplaysTotalBalance(t *testing.T) {
 	if got := sender.screens[len(sender.screens)-1].Text; !strings.Contains(got, "Баланс генераций: 5") {
 		t.Fatalf("expected total balance in settings screen, got %q", got)
 	}
+	if got := sender.screens[len(sender.screens)-1].Text; !strings.Contains(got, "ID: 501") {
+		t.Fatalf("expected user id in settings screen, got %q", got)
+	}
 	if got := sender.screens[len(sender.screens)-1].Text; !strings.Contains(got, "Приглашено рефералов: 0") {
 		t.Fatalf("expected referral count in settings screen, got %q", got)
 	}
