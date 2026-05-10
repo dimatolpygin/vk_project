@@ -455,9 +455,23 @@ const compactNumber = (value, valueType) => {
     return String(Math.round(value));
 };
 
+const formatAxisValue = (value, valueType) => {
+    const normalized = Number.isInteger(value) ? value : Number(value.toFixed(1));
+    if (valueType === 'money') {
+        return `${normalized} в‚Ѕ`;
+    }
+    return String(normalized);
+};
+
+const getMaxSeriesValue = (points) => {
+    return points.reduce((max, point) => Math.max(max, Number(point.value) || 0), 0);
+};
+
 for (const chartMeta of statsCharts) {
     const canvas = document.getElementById(chartMeta.id);
     if (!canvas) continue;
+    const maxValue = getMaxSeriesValue(chartMeta.data);
+    const shouldUseUnitSteps = chartMeta.data.every((point) => Number.isInteger(Number(point.value))) && maxValue <= 8;
 
     new Chart(canvas, {
         type: 'line',
@@ -506,9 +520,12 @@ for (const chartMeta of statsCharts) {
                 },
                 y: {
                     beginAtZero: true,
+                    suggestedMax: maxValue === 0 ? 1 : undefined,
                     ticks: {
                         color: '#64748b',
-                        callback: (value) => compactNumber(value, chartMeta.valueType)
+                        precision: shouldUseUnitSteps ? 0 : undefined,
+                        stepSize: shouldUseUnitSteps ? 1 : undefined,
+                        callback: (value) => formatAxisValue(value, chartMeta.valueType)
                     },
                     grid: {
                         color: 'rgba(148, 163, 184, 0.14)'
