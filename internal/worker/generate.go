@@ -69,6 +69,7 @@ func (h *GenerateHandler) ProcessTask(ctx context.Context, task *asynq.Task) err
 		Int64("generation_id", payload.GenerationID).
 		Int64("user_vk_id", payload.UserVKID).
 		Str("model", payload.Model).
+		Int("image_count", len(payload.Images)).
 		Msg("starting generation")
 
 	taskID, err := h.ws.Submit(ctx, wavespeed.SubmitRequest{

@@ -135,6 +135,52 @@ func TestBuildGeneratePayloadKeepsPhotoBatch(t *testing.T) {
 	}
 }
 
+func TestAppendPendingPhotoBatchCollectsSeparateMessages(t *testing.T) {
+	oldDelay := photoBatchCollectDelay
+	photoBatchCollectDelay = 0
+	defer func() { photoBatchCollectDelay = oldDelay }()
+
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{State: stateMgr}
+	fc := &Context{
+		VkID:  703,
+		State: &State{Step: StepAwaitingPhoto, PromptType: "ready_prompt"},
+	}
+
+	firstBatchID, ownsBatch := appendPendingPhotoBatch(context.Background(), fc, deps, []string{"https://example.com/1.png"})
+	if !ownsBatch {
+		t.Fatal("expected first message to own the photo batch")
+	}
+	if firstBatchID == "" {
+		t.Fatal("expected photo batch id")
+	}
+
+	secondBatchID, ownsBatch := appendPendingPhotoBatch(context.Background(), fc, deps, []string{"https://example.com/2.png"})
+	if ownsBatch {
+		t.Fatal("expected second message to append to existing photo batch")
+	}
+	if secondBatchID != firstBatchID {
+		t.Fatalf("expected same batch id %q, got %q", firstBatchID, secondBatchID)
+	}
+
+	state, photos, ok := waitForPendingPhotoBatch(context.Background(), deps, fc.VkID, firstBatchID)
+	if !ok {
+		t.Fatal("expected collected photo batch")
+	}
+	if state.PhotoBatchID != firstBatchID {
+		t.Fatalf("unexpected state batch id %q", state.PhotoBatchID)
+	}
+	want := []string{"https://example.com/1.png", "https://example.com/2.png"}
+	if len(photos) != len(want) {
+		t.Fatalf("expected %d photos, got %d: %#v", len(want), len(photos), photos)
+	}
+	for i := range want {
+		if photos[i] != want[i] {
+			t.Fatalf("photo %d: expected %q, got %q", i, want[i], photos[i])
+		}
+	}
+}
+
 func TestGenerationInputPhotosFromStateFallsBackToLegacyPhotoURL(t *testing.T) {
 	got := generationInputPhotosFromState(&State{PhotoURL: "https://example.com/legacy.png"})
 
@@ -144,6 +190,10 @@ func TestGenerationInputPhotosFromStateFallsBackToLegacyPhotoURL(t *testing.T) {
 }
 
 func TestHandleAwaitingPhotoEditStoresPhotoBatchInState(t *testing.T) {
+	oldDelay := photoBatchCollectDelay
+	photoBatchCollectDelay = 0
+	defer func() { photoBatchCollectDelay = oldDelay }()
+
 	sender := &fakeSender{}
 	stateMgr := newFakeStateMgr()
 	deps := &Deps{
@@ -179,6 +229,9 @@ func TestHandleAwaitingPhotoEditStoresPhotoBatchInState(t *testing.T) {
 	}
 	if len(state.InputPhotoURLs) != maxGenerationInputPhotos {
 		t.Fatalf("expected %d input photos, got %d", maxGenerationInputPhotos, len(state.InputPhotoURLs))
+	}
+	if state.PhotoBatchID != "" {
+		t.Fatalf("expected photo batch id to be cleared, got %q", state.PhotoBatchID)
 	}
 	if state.InputPhotoURLs[0] != "https://example.com/1.png" || state.InputPhotoURLs[5] != "https://example.com/6.png" {
 		t.Fatalf("unexpected stored input photos: %#v", state.InputPhotoURLs)

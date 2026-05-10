@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +19,8 @@ const (
 	freeGenerationPromptMessageKey = "free_gen_prompt"
 	maxGenerationInputPhotos       = 6
 )
+
+var photoBatchCollectDelay = 1200 * time.Millisecond
 
 func HandleAfterGen(ctx context.Context, fc *Context, d *Deps) {
 	if fc.State.PhotoURL != "" {
@@ -110,6 +113,7 @@ func HandleGenAgain(ctx context.Context, fc *Context, d *Deps) {
 	savedState := *fc.State
 	savedState.PhotoURL = ""
 	savedState.InputPhotoURLs = nil
+	savedState.PhotoBatchID = ""
 
 	if fc.State.PromptType == "edit" {
 		savedState.Step = StepAwaitingPhotoEdit
@@ -144,12 +148,16 @@ func HandleGenderSelect(ctx context.Context, fc *Context, d *Deps, gender string
 	newState.PromptType = promptType
 	if promptType == "edit" {
 		newState.Step = StepAwaitingPhotoEdit
+		newState.InputPhotoURLs = nil
+		newState.PhotoBatchID = ""
 		_ = d.State.Set(ctx, fc.VkID, &newState)
 		_ = sendScreen(ctx, d, fc.VkID, "edit_photo_intro", ScreenOptions{})
 		return
 	}
 
 	newState.Step = StepAwaitingPhoto
+	newState.InputPhotoURLs = nil
+	newState.PhotoBatchID = ""
 	_ = d.State.Set(ctx, fc.VkID, &newState)
 	_ = sendScreen(ctx, d, fc.VkID, "photo_requirements", ScreenOptions{})
 }
@@ -166,7 +174,22 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 		return
 	}
 
-	uploadedURLs := uploadGenerationInputPhotos(ctx, d, fc.VkID, photos, "user_upload")
+	batchID, ownsBatch := appendPendingPhotoBatch(ctx, fc, d, photos)
+	if !ownsBatch {
+		return
+	}
+
+	batchPhotos := photos
+	if batchID != "" {
+		pendingState, pendingPhotos, ok := waitForPendingPhotoBatch(ctx, d, fc.VkID, batchID)
+		if !ok {
+			return
+		}
+		fc.State = pendingState
+		batchPhotos = pendingPhotos
+	}
+
+	uploadedURLs := uploadGenerationInputPhotos(ctx, d, fc.VkID, batchPhotos, "user_upload")
 
 	promptType := fc.State.PromptType
 	prompt := buildDefaultPrompt(ctx, d, fc.User.Gender, promptType)
@@ -219,6 +242,7 @@ func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, gener
 	nextState := *fc.State
 	nextState.Step = StepMainMenu
 	nextState.InputPhotoURLs = nil
+	nextState.PhotoBatchID = ""
 	_ = d.State.Set(ctx, fc.VkID, &nextState)
 	_ = sendScreen(ctx, d, fc.VkID, waitKey, ScreenOptions{Data: waitData})
 
@@ -263,6 +287,8 @@ func HandleAwaitingPrompt(ctx context.Context, fc *Context, d *Deps) {
 	state := fc.State
 	state.Step = StepAwaitingPhoto
 	state.CustomPrompt = promptText
+	state.InputPhotoURLs = nil
+	state.PhotoBatchID = ""
 	_ = d.State.Set(ctx, fc.VkID, state)
 
 	if len(normalizeGenerationInputPhotos(messagePhotos(fc.Message))) > 0 {
@@ -284,15 +310,39 @@ func HandleAwaitingPhotoEdit(ctx context.Context, fc *Context, d *Deps) {
 		return
 	}
 
-	uploadedURLs := uploadGenerationInputPhotos(ctx, d, fc.VkID, photos, "edit_upload")
+	promptText := resolvedEditPrompt(trimmedMessageText(fc.Message), fc.State.CustomPrompt)
+	if promptText != "" {
+		state := *fc.State
+		state.CustomPrompt = promptText
+		_ = d.State.Set(ctx, fc.VkID, &state)
+		fc.State = &state
+	}
 
-	state := fc.State
+	batchID, ownsBatch := appendPendingPhotoBatch(ctx, fc, d, photos)
+	if !ownsBatch {
+		return
+	}
+
+	batchPhotos := photos
+	pendingState := fc.State
+	if batchID != "" {
+		var ok bool
+		pendingState, batchPhotos, ok = waitForPendingPhotoBatch(ctx, d, fc.VkID, batchID)
+		if !ok {
+			return
+		}
+	}
+
+	uploadedURLs := uploadGenerationInputPhotos(ctx, d, fc.VkID, batchPhotos, "edit_upload")
+
+	state := pendingState
 	state.Step = StepAwaitingEditPrompt
 	state.PhotoURL = ""
 	state.InputPhotoURLs = uploadedURLs
+	state.PhotoBatchID = ""
 	_ = d.State.Set(ctx, fc.VkID, state)
 
-	promptText := resolvedEditPrompt(trimmedMessageText(fc.Message), state.CustomPrompt)
+	promptText = resolvedEditPrompt("", state.CustomPrompt)
 	if promptText != "" {
 		state.CustomPrompt = promptText
 		fc.State = state
@@ -419,6 +469,99 @@ func trimmedMessageText(msg *InMessage) string {
 		return ""
 	}
 	return strings.TrimSpace(msg.Text)
+}
+
+func appendPendingPhotoBatch(ctx context.Context, fc *Context, d *Deps, photoURLs []string) (string, bool) {
+	photos := normalizeGenerationInputPhotos(photoURLs)
+	if len(photos) == 0 {
+		return "", false
+	}
+	if d == nil || d.State == nil {
+		return "", true
+	}
+
+	state, err := d.State.Get(ctx, fc.VkID)
+	if err != nil {
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("failed to load photo batch state")
+		return "", true
+	}
+	if state == nil || (state.Step == "" && state.PhotoBatchID == "" && len(state.InputPhotoURLs) == 0) {
+		state = cloneState(fc.State)
+	}
+	if state == nil {
+		state = &State{}
+	}
+
+	ownsBatch := false
+	if photoBatchExpired(state.PhotoBatchID) {
+		state.PhotoBatchID = ""
+		state.InputPhotoURLs = nil
+	}
+	if state.PhotoBatchID == "" {
+		state.PhotoBatchID = fmt.Sprintf("%d", time.Now().UnixNano())
+		ownsBatch = true
+	}
+
+	state.InputPhotoURLs = normalizeGenerationInputPhotos(append(state.InputPhotoURLs, photos...))
+	if err := d.State.Set(ctx, fc.VkID, state); err != nil {
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("failed to save photo batch state")
+		return state.PhotoBatchID, ownsBatch
+	}
+
+	return state.PhotoBatchID, ownsBatch
+}
+
+func waitForPendingPhotoBatch(ctx context.Context, d *Deps, vkID int64, batchID string) (*State, []string, bool) {
+	if d == nil || d.State == nil || batchID == "" {
+		return nil, nil, false
+	}
+
+	if photoBatchCollectDelay > 0 {
+		timer := time.NewTimer(photoBatchCollectDelay)
+		defer timer.Stop()
+
+		select {
+		case <-ctx.Done():
+			return nil, nil, false
+		case <-timer.C:
+		}
+	}
+
+	state, err := d.State.Get(ctx, vkID)
+	if err != nil {
+		log.Error().Err(err).Int64("vk_id", vkID).Msg("failed to load collected photo batch")
+		return nil, nil, false
+	}
+	if state == nil || state.PhotoBatchID != batchID {
+		return nil, nil, false
+	}
+
+	photos := normalizeGenerationInputPhotos(state.InputPhotoURLs)
+	if len(photos) == 0 {
+		return nil, nil, false
+	}
+
+	return state, photos, true
+}
+
+func photoBatchExpired(batchID string) bool {
+	if batchID == "" {
+		return false
+	}
+	nano, err := strconv.ParseInt(batchID, 10, 64)
+	if err != nil {
+		return true
+	}
+	return time.Since(time.Unix(0, nano)) > 30*time.Second
+}
+
+func cloneState(st *State) *State {
+	if st == nil {
+		return nil
+	}
+	cloned := *st
+	cloned.InputPhotoURLs = clonePhotoURLs(st.InputPhotoURLs)
+	return &cloned
 }
 
 func resolvedEditPrompt(messagePrompt, statePrompt string) string {

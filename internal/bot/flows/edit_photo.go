@@ -17,6 +17,7 @@ func HandleEditResultStart(ctx context.Context, fc *Context, d *Deps) {
 		Step:           StepAwaitingResultEdit,
 		PhotoURL:       fc.State.PhotoURL,
 		InputPhotoURLs: nil,
+		PhotoBatchID:   "",
 	}, fc.State))
 	_ = sendScreen(ctx, d, fc.VkID, "edit_result_prompt", ScreenOptions{})
 }

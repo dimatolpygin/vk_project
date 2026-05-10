@@ -86,6 +86,7 @@ type State struct {
 	CustomPrompt   string   `json:"custom_prompt,omitempty"`
 	PhotoURL       string   `json:"photo_url,omitempty"`
 	InputPhotoURLs []string `json:"input_photo_urls,omitempty"`
+	PhotoBatchID   string   `json:"photo_batch_id,omitempty"`
 	Resolution     string   `json:"resolution,omitempty"`
 	AspectRatio    string   `json:"aspect_ratio,omitempty"`
 }
