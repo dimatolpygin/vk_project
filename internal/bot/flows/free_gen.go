@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hibiken/asynq"
@@ -20,7 +22,11 @@ const (
 	maxGenerationInputPhotos       = 6
 )
 
-var photoBatchCollectDelay = 1200 * time.Millisecond
+var (
+	photoBatchCollectDelay = 2500 * time.Millisecond
+	photoBatchLocks        sync.Map
+	photoBatchSeq          atomic.Uint64
+)
 
 func HandleAfterGen(ctx context.Context, fc *Context, d *Deps) {
 	if fc.State.PhotoURL != "" {
@@ -480,6 +486,10 @@ func appendPendingPhotoBatch(ctx context.Context, fc *Context, d *Deps, photoURL
 		return "", true
 	}
 
+	lock := photoBatchLock(fc.VkID)
+	lock.Lock()
+	defer lock.Unlock()
+
 	state, err := d.State.Get(ctx, fc.VkID)
 	if err != nil {
 		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("failed to load photo batch state")
@@ -492,23 +502,19 @@ func appendPendingPhotoBatch(ctx context.Context, fc *Context, d *Deps, photoURL
 		state = &State{}
 	}
 
-	ownsBatch := false
 	if photoBatchExpired(state.PhotoBatchID) {
 		state.PhotoBatchID = ""
 		state.InputPhotoURLs = nil
 	}
-	if state.PhotoBatchID == "" {
-		state.PhotoBatchID = fmt.Sprintf("%d", time.Now().UnixNano())
-		ownsBatch = true
-	}
 
 	state.InputPhotoURLs = normalizeGenerationInputPhotos(append(state.InputPhotoURLs, photos...))
+	state.PhotoBatchID = newPhotoBatchID()
 	if err := d.State.Set(ctx, fc.VkID, state); err != nil {
 		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("failed to save photo batch state")
-		return state.PhotoBatchID, ownsBatch
+		return state.PhotoBatchID, true
 	}
 
-	return state.PhotoBatchID, ownsBatch
+	return state.PhotoBatchID, true
 }
 
 func waitForPendingPhotoBatch(ctx context.Context, d *Deps, vkID int64, batchID string) (*State, []string, bool) {
@@ -527,6 +533,10 @@ func waitForPendingPhotoBatch(ctx context.Context, d *Deps, vkID int64, batchID 
 		}
 	}
 
+	lock := photoBatchLock(vkID)
+	lock.Lock()
+	defer lock.Unlock()
+
 	state, err := d.State.Get(ctx, vkID)
 	if err != nil {
 		log.Error().Err(err).Int64("vk_id", vkID).Msg("failed to load collected photo batch")
@@ -544,11 +554,22 @@ func waitForPendingPhotoBatch(ctx context.Context, d *Deps, vkID int64, batchID 
 	return state, photos, true
 }
 
+func photoBatchLock(vkID int64) *sync.Mutex {
+	key := strconv.FormatInt(vkID, 10)
+	lock, _ := photoBatchLocks.LoadOrStore(key, &sync.Mutex{})
+	return lock.(*sync.Mutex)
+}
+
+func newPhotoBatchID() string {
+	return fmt.Sprintf("%d-%d", time.Now().UnixNano(), photoBatchSeq.Add(1))
+}
+
 func photoBatchExpired(batchID string) bool {
 	if batchID == "" {
 		return false
 	}
-	nano, err := strconv.ParseInt(batchID, 10, 64)
+	timestamp, _, _ := strings.Cut(batchID, "-")
+	nano, err := strconv.ParseInt(timestamp, 10, 64)
 	if err != nil {
 		return true
 	}
@@ -606,16 +627,29 @@ func uploadGenerationInputPhotos(ctx context.Context, d *Deps, vkID int64, photo
 
 	batchID := time.Now().UnixNano()
 	uploaded := make([]string, 0, len(normalized))
+	fallbacks := 0
+	log.Info().
+		Int64("vk_id", vkID).
+		Str("storage_prefix", storagePrefix).
+		Int("input_count", len(normalized)).
+		Msg("uploading generation input photo batch to storage")
 	for idx, photoURL := range normalized {
 		storedURL := photoURL
 		key := fmt.Sprintf("%s/%d/%d_%d.png", storagePrefix, vkID, batchID, idx+1)
 		if _, err := d.Storage.UploadFromURL(ctx, key, photoURL); err != nil {
+			fallbacks++
 			log.Error().Err(err).Str("storage_prefix", storagePrefix).Int("photo_index", idx).Msg("failed to upload input photo to storage, using original url")
 		} else {
 			storedURL = d.Storage.PublicURL(key)
 		}
 		uploaded = append(uploaded, storedURL)
 	}
+	log.Info().
+		Int64("vk_id", vkID).
+		Str("storage_prefix", storagePrefix).
+		Int("uploaded_count", len(uploaded)).
+		Int("fallback_count", fallbacks).
+		Msg("generation input photo batch prepared")
 	return uploaded
 }
 

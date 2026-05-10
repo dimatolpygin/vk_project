@@ -3,6 +3,8 @@ package flows
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 
 	"vk_neuro_bot/internal/repository"
@@ -149,25 +151,29 @@ func TestAppendPendingPhotoBatchCollectsSeparateMessages(t *testing.T) {
 
 	firstBatchID, ownsBatch := appendPendingPhotoBatch(context.Background(), fc, deps, []string{"https://example.com/1.png"})
 	if !ownsBatch {
-		t.Fatal("expected first message to own the photo batch")
+		t.Fatal("expected first message to wait on the photo batch")
 	}
 	if firstBatchID == "" {
 		t.Fatal("expected photo batch id")
 	}
 
 	secondBatchID, ownsBatch := appendPendingPhotoBatch(context.Background(), fc, deps, []string{"https://example.com/2.png"})
-	if ownsBatch {
-		t.Fatal("expected second message to append to existing photo batch")
+	if !ownsBatch {
+		t.Fatal("expected second message to wait on the photo batch")
 	}
-	if secondBatchID != firstBatchID {
-		t.Fatalf("expected same batch id %q, got %q", firstBatchID, secondBatchID)
+	if secondBatchID == "" || secondBatchID == firstBatchID {
+		t.Fatalf("expected refreshed batch id, got first=%q second=%q", firstBatchID, secondBatchID)
 	}
 
-	state, photos, ok := waitForPendingPhotoBatch(context.Background(), deps, fc.VkID, firstBatchID)
+	if _, _, ok := waitForPendingPhotoBatch(context.Background(), deps, fc.VkID, firstBatchID); ok {
+		t.Fatal("expected stale first batch id to skip generation")
+	}
+
+	state, photos, ok := waitForPendingPhotoBatch(context.Background(), deps, fc.VkID, secondBatchID)
 	if !ok {
 		t.Fatal("expected collected photo batch")
 	}
-	if state.PhotoBatchID != firstBatchID {
+	if state.PhotoBatchID != secondBatchID {
 		t.Fatalf("unexpected state batch id %q", state.PhotoBatchID)
 	}
 	want := []string{"https://example.com/1.png", "https://example.com/2.png"}
@@ -178,6 +184,112 @@ func TestAppendPendingPhotoBatchCollectsSeparateMessages(t *testing.T) {
 		if photos[i] != want[i] {
 			t.Fatalf("photo %d: expected %q, got %q", i, want[i], photos[i])
 		}
+	}
+}
+
+func TestAppendPendingPhotoBatchCollectsConcurrentMessages(t *testing.T) {
+	oldDelay := photoBatchCollectDelay
+	photoBatchCollectDelay = 0
+	defer func() { photoBatchCollectDelay = oldDelay }()
+
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{State: stateMgr}
+	fc := &Context{
+		VkID:  704,
+		State: &State{Step: StepAwaitingPhoto, PromptType: "ready_prompt"},
+	}
+
+	const photoCount = 6
+	var wg sync.WaitGroup
+	wg.Add(photoCount)
+	for i := 1; i <= photoCount; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			_, _ = appendPendingPhotoBatch(context.Background(), fc, deps, []string{fmt.Sprintf("https://example.com/%d.png", i)})
+		}()
+	}
+	wg.Wait()
+
+	state := stateMgr.states[704]
+	if state == nil {
+		t.Fatal("expected state to be saved")
+	}
+	if len(state.InputPhotoURLs) != photoCount {
+		t.Fatalf("expected %d photos, got %d: %#v", photoCount, len(state.InputPhotoURLs), state.InputPhotoURLs)
+	}
+}
+
+type fakePhotoStorage struct {
+	uploads []fakePhotoUpload
+	failAt  map[int]error
+}
+
+type fakePhotoUpload struct {
+	key string
+	url string
+}
+
+func (f *fakePhotoStorage) UploadFromURL(_ context.Context, key, url string) (string, error) {
+	f.uploads = append(f.uploads, fakePhotoUpload{key: key, url: url})
+	if err := f.failAt[len(f.uploads)-1]; err != nil {
+		return "", err
+	}
+	return key, nil
+}
+
+func (f *fakePhotoStorage) PublicURL(key string) string {
+	return "https://cdn.example/" + key
+}
+
+func TestUploadGenerationInputPhotosUploadsWholeBatch(t *testing.T) {
+	storage := &fakePhotoStorage{}
+	deps := &Deps{Storage: storage}
+
+	got := uploadGenerationInputPhotos(context.Background(), deps, 705, []string{
+		"https://example.com/1.png",
+		"https://example.com/2.png",
+		"https://example.com/3.png",
+	}, "user_upload")
+
+	if len(storage.uploads) != 3 {
+		t.Fatalf("expected 3 storage uploads, got %d: %#v", len(storage.uploads), storage.uploads)
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected 3 uploaded urls, got %d: %#v", len(got), got)
+	}
+	for i, upload := range storage.uploads {
+		if upload.url != fmt.Sprintf("https://example.com/%d.png", i+1) {
+			t.Fatalf("upload %d used unexpected source url %q", i, upload.url)
+		}
+		wantSuffix := fmt.Sprintf("_%d.png", i+1)
+		if len(upload.key) < len(wantSuffix) || upload.key[len(upload.key)-len(wantSuffix):] != wantSuffix {
+			t.Fatalf("upload %d key should end with %q, got %q", i, wantSuffix, upload.key)
+		}
+		if got[i] != "https://cdn.example/"+upload.key {
+			t.Fatalf("uploaded url %d: expected public storage url for %q, got %q", i, upload.key, got[i])
+		}
+	}
+}
+
+func TestUploadGenerationInputPhotosKeepsArrayWhenOneUploadFails(t *testing.T) {
+	storage := &fakePhotoStorage{failAt: map[int]error{1: errors.New("s3 unavailable")}}
+	deps := &Deps{Storage: storage}
+
+	got := uploadGenerationInputPhotos(context.Background(), deps, 706, []string{
+		"https://example.com/1.png",
+		"https://example.com/2.png",
+		"https://example.com/3.png",
+	}, "user_upload")
+
+	if len(storage.uploads) != 3 {
+		t.Fatalf("expected 3 storage upload attempts, got %d", len(storage.uploads))
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected 3 urls after fallback, got %d: %#v", len(got), got)
+	}
+	if got[1] != "https://example.com/2.png" {
+		t.Fatalf("expected failed upload to fall back to original second url, got %#v", got)
 	}
 }
 
