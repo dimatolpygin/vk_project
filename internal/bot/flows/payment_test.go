@@ -9,16 +9,23 @@ import (
 
 type fakePaymentSettler struct {
 	paymentID string
-	userVKID  int64
-	tariffID  int
 	result    *repository.PaymentSettlementResult
 	err       error
 }
 
-func (f *fakePaymentSettler) SettleSuccessfulPayment(_ context.Context, paymentID string, userVKID int64, tariffID int) (*repository.PaymentSettlementResult, error) {
+func (f *fakePaymentSettler) SettleSuccessfulPayment(_ context.Context, paymentID string) (*repository.PaymentSettlementResult, error) {
 	f.paymentID = paymentID
-	f.userVKID = userVKID
-	f.tariffID = tariffID
+	return f.result, f.err
+}
+
+type fakePaymentCanceler struct {
+	paymentID string
+	result    *repository.PaymentCancellationResult
+	err       error
+}
+
+func (f *fakePaymentCanceler) CancelPayment(_ context.Context, paymentID string) (*repository.PaymentCancellationResult, error) {
+	f.paymentID = paymentID
 	return f.result, f.err
 }
 
@@ -35,12 +42,12 @@ func TestProcessSuccessfulPaymentSendsBonusAndSuccessScreens(t *testing.T) {
 		},
 	}
 
-	if err := processSuccessfulPayment(context.Background(), &Deps{Sender: sender}, settler, "pay_1", 55, 3); err != nil {
+	if err := processSuccessfulPayment(context.Background(), &Deps{Sender: sender}, settler, "pay_1"); err != nil {
 		t.Fatalf("processSuccessfulPayment returned error: %v", err)
 	}
 
-	if settler.paymentID != "pay_1" || settler.userVKID != 55 || settler.tariffID != 3 {
-		t.Fatalf("unexpected settler args: %+v", settler)
+	if settler.paymentID != "pay_1" {
+		t.Fatalf("unexpected payment id: %+v", settler)
 	}
 	if len(sender.screens) != 2 {
 		t.Fatalf("expected 2 screens, got %d", len(sender.screens))
@@ -64,11 +71,54 @@ func TestProcessSuccessfulPaymentIgnoresDuplicateWebhook(t *testing.T) {
 		},
 	}
 
-	if err := processSuccessfulPayment(context.Background(), &Deps{Sender: sender}, settler, "pay_2", 77, 4); err != nil {
+	if err := processSuccessfulPayment(context.Background(), &Deps{Sender: sender}, settler, "pay_2"); err != nil {
 		t.Fatalf("processSuccessfulPayment returned error: %v", err)
 	}
 	if len(sender.screens) != 0 {
 		t.Fatalf("expected no screens for duplicate webhook, got %d", len(sender.screens))
+	}
+}
+
+func TestProcessCanceledPaymentSendsCanceledScreen(t *testing.T) {
+	sender := &fakeSender{}
+	canceler := &fakePaymentCanceler{
+		result: &repository.PaymentCancellationResult{
+			PaymentID: "pay_3",
+			UserVKID:  88,
+			TariffID:  5,
+		},
+	}
+
+	if err := processCanceledPayment(context.Background(), &Deps{Sender: sender}, canceler, "pay_3"); err != nil {
+		t.Fatalf("processCanceledPayment returned error: %v", err)
+	}
+	if canceler.paymentID != "pay_3" {
+		t.Fatalf("unexpected payment id: %+v", canceler)
+	}
+	if len(sender.screens) != 1 {
+		t.Fatalf("expected 1 screen, got %d", len(sender.screens))
+	}
+	if sender.screens[0].Key != "payment_canceled" {
+		t.Fatalf("expected payment_canceled screen, got %q", sender.screens[0].Key)
+	}
+}
+
+func TestProcessCanceledPaymentIgnoresAlreadyProcessedWebhook(t *testing.T) {
+	sender := &fakeSender{}
+	canceler := &fakePaymentCanceler{
+		result: &repository.PaymentCancellationResult{
+			PaymentID:        "pay_4",
+			UserVKID:         89,
+			TariffID:         6,
+			AlreadyProcessed: true,
+		},
+	}
+
+	if err := processCanceledPayment(context.Background(), &Deps{Sender: sender}, canceler, "pay_4"); err != nil {
+		t.Fatalf("processCanceledPayment returned error: %v", err)
+	}
+	if len(sender.screens) != 0 {
+		t.Fatalf("expected no screens for duplicate canceled webhook, got %d", len(sender.screens))
 	}
 }
 

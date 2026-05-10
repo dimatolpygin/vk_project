@@ -165,15 +165,31 @@ type TariffReader interface {
 	GetByID(ctx context.Context, id int) (*repository.Tariff, error)
 }
 
+type UserStore interface {
+	GetByVKID(ctx context.Context, vkID int64) (*repository.User, error)
+	SetGender(ctx context.Context, vkID int64, gender string) error
+	SetSubscribed(ctx context.Context, vkID int64, subscribed bool) error
+	SetSavedPhoto(ctx context.Context, vkID int64, url string) error
+	SetUseSavedPhoto(ctx context.Context, vkID int64, enabled bool) error
+	SaveSettings(ctx context.Context, vkID int64, model, resolution, aspectRatio string) error
+}
+
+type OrderStore interface {
+	Create(ctx context.Context, userVKID int64, tariffID int, amount float64) (*repository.Order, error)
+	SetPaymentID(ctx context.Context, orderID int64, paymentID string) error
+	SettleSuccessfulPayment(ctx context.Context, paymentID string) (*repository.PaymentSettlementResult, error)
+	CancelPayment(ctx context.Context, paymentID string) (*repository.PaymentCancellationResult, error)
+}
+
 // ─── Deps ────────────────────────────────────────────────────────────────────
 
 type Deps struct {
 	Sender        Sender
 	State         StateMgr
-	UserRepo      *repository.UserRepo
+	UserRepo      UserStore
 	GenRepo       *repository.GenerationRepo
 	TariffRepo    TariffReader
-	OrderRepo     *repository.OrderRepo
+	OrderRepo     OrderStore
 	MsgRepo       MessageReader
 	CatRepo       CategoryReader
 	PromptRepo    PromptReader
@@ -187,6 +203,6 @@ type Deps struct {
 	VKGroupID     int64
 	VKGroupURL    string
 	DefaultModel  string
-	BotWebhookURL string
+	PublicBaseURL string
 	Storage       PhotoStorage
 }

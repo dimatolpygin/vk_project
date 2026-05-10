@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -39,6 +39,7 @@ func (s *Server) Router() http.Handler {
 
 func (s *Server) setupRoutes() {
 	s.router.Post("/vk/webhook", s.handleVKWebhook)
+	s.router.Get("/vk/return", s.handleVKReturn)
 	s.router.Post("/webhook/yukassa", s.handleYukassaWebhook)
 	s.router.Post("/webhook/wavespeed", s.handleWavespeedWebhook)
 	s.router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +57,7 @@ func (s *Server) handleVKWebhook(w http.ResponseWriter, r *http.Request) {
 
 	var event VKEvent
 	if err := json.Unmarshal(body, &event); err != nil {
-		log.Error().Err(err).Msg("не удалось распарсить VK event")
+		log.Error().Err(err).Msg("failed to parse vk event")
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
@@ -78,49 +79,139 @@ func (s *Server) handleVKWebhook(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprint(w, "ok")
 }
 
+func (s *Server) handleVKReturn(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.WriteString(w, `<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Оплата принята</title>
+</head>
+<body style="font-family:Arial,sans-serif;background:#f6f8fb;color:#162033;margin:0;padding:32px;">
+  <main style="max-width:560px;margin:0 auto;background:#fff;border-radius:18px;padding:32px;box-shadow:0 10px 30px rgba(22,32,51,0.08);">
+    <h1 style="margin-top:0;">Оплата принята</h1>
+    <p style="line-height:1.6;">Платеж обработан. Вернитесь в сообщения VK, чтобы продолжить работу с ботом.</p>
+  </main>
+</body>
+</html>`)
+}
+
 func (s *Server) handleYukassaWebhook(w http.ResponseWriter, r *http.Request) {
+	headers := sanitizeHeaders(r.Header)
+	decision := "failed"
+	payloadType := ""
+	eventName := ""
+	paymentID := ""
+	paymentStatus := ""
+	var metadata map[string]any
+	var handledErr error
+
+	defer func() {
+		entry := log.Info().
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Str("payload_type", payloadType).
+			Str("event", eventName).
+			Str("payment_id", paymentID).
+			Str("payment_status", paymentStatus).
+			Str("decision", decision).
+			Any("metadata", metadata).
+			Any("headers", headers)
+		if handledErr != nil {
+			entry = entry.Err(handledErr)
+		}
+		entry.Msg("handled yookassa webhook")
+	}()
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		handledErr = err
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
 	sig := r.Header.Get("X-Payment-Sha256-Signature")
 	if err := s.yukassa.VerifyWebhookSignature(sig, body); err != nil {
-		log.Error().Err(err).Msg("неверная подпись ЮKassa webhook")
+		handledErr = err
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
 	event, err := s.yukassa.ParseWebhook(body)
 	if err != nil {
-		log.Error().Err(err).Msg("не удалось распарсить ЮKassa webhook")
+		handledErr = err
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
-	if event.Type == "payment.succeeded" {
-		paymentID := event.Object.ID
-		userVKID := int64(toInt(event.Object.Metadata["vk_id"]))
-		tariffID := toInt(event.Object.Metadata["tariff_id"])
+	payloadType = event.Type
+	eventName = event.Event
+	paymentID = event.Object.ID
+	paymentStatus = event.Object.Status
+	metadata = event.Object.Metadata
 
-		log.Info().
-			Str("payment_id", paymentID).
-			Int64("user_vk_id", userVKID).
-			Int("tariff_id", tariffID).
-			Msg("оплата успешна")
+	if eventName == "" {
+		decision = "ignored"
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if paymentID == "" {
+		handledErr = fmt.Errorf("yookassa webhook event %s has empty payment id", eventName)
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
 
-		if err := flows.ProcessSuccessfulPayment(r.Context(), s.flowDeps, paymentID, userVKID, tariffID); err != nil {
-			log.Error().Err(err).Msg("ошибка обработки успешного платежа")
+	switch eventName {
+	case "payment.succeeded", "payment.canceled":
+	default:
+		decision = "ignored"
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	paymentDetails, err := s.yukassa.GetPayment(r.Context(), paymentID)
+	if err != nil {
+		handledErr = err
+		http.Error(w, "failed to verify payment", http.StatusInternalServerError)
+		return
+	}
+	if len(paymentDetails.Metadata) > 0 {
+		metadata = paymentDetails.Metadata
+	}
+	paymentStatus = paymentDetails.Status
+
+	switch eventName {
+	case "payment.succeeded":
+		if paymentDetails.Status != "succeeded" {
+			handledErr = fmt.Errorf("payment %s status mismatch: expected succeeded, got %s", paymentID, paymentDetails.Status)
+			http.Error(w, "payment status mismatch", http.StatusInternalServerError)
+			return
+		}
+		if err := flows.ProcessSuccessfulPayment(r.Context(), s.flowDeps, paymentID); err != nil {
+			handledErr = err
+			http.Error(w, "failed to process payment", http.StatusInternalServerError)
+			return
+		}
+	case "payment.canceled":
+		if paymentDetails.Status != "canceled" {
+			handledErr = fmt.Errorf("payment %s status mismatch: expected canceled, got %s", paymentID, paymentDetails.Status)
+			http.Error(w, "payment status mismatch", http.StatusInternalServerError)
+			return
+		}
+		if err := flows.ProcessCanceledPayment(r.Context(), s.flowDeps, paymentID); err != nil {
+			handledErr = err
+			http.Error(w, "failed to process payment", http.StatusInternalServerError)
+			return
 		}
 	}
 
+	decision = "processed"
 	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) handleWavespeedWebhook(w http.ResponseWriter, r *http.Request) {
-	// WaveSpeed webhook — альтернатива polling'у
-	// При наличии webhook_secret верифицируем подпись
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -134,17 +225,17 @@ func (s *Server) handleWavespeedWebhook(w http.ResponseWriter, r *http.Request) 
 		Error   string   `json:"error"`
 	}
 	if err := json.Unmarshal(body, &event); err != nil {
-		log.Error().Err(err).Msg("не удалось распарсить WaveSpeed webhook")
+		log.Error().Err(err).Msg("failed to parse wavespeed webhook")
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
-	log.Info().Str("task_id", event.ID).Str("status", event.Status).Msg("WaveSpeed webhook")
+	log.Info().Str("task_id", event.ID).Str("status", event.Status).Msg("wavespeed webhook")
 
 	if event.Status == "completed" && len(event.Outputs) > 0 {
 		gen, err := s.flowDeps.GenRepo.GetByTaskID(r.Context(), event.ID)
 		if err != nil || gen == nil {
-			log.Warn().Str("task_id", event.ID).Msg("генерация не найдена по task_id")
+			log.Warn().Str("task_id", event.ID).Msg("generation not found by task_id")
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -169,18 +260,25 @@ func (s *Server) handleWavespeedWebhook(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 }
 
-func toInt(v interface{}) int {
-	if v == nil {
-		return 0
+func sanitizeHeaders(headers http.Header) map[string][]string {
+	if len(headers) == 0 {
+		return nil
 	}
-	switch n := v.(type) {
-	case float64:
-		return int(n)
-	case string:
-		i, _ := strconv.Atoi(n)
-		return i
-	case int:
-		return n
+
+	out := make(map[string][]string, len(headers))
+	for key, values := range headers {
+		lowerKey := strings.ToLower(key)
+		if strings.Contains(lowerKey, "authorization") ||
+			strings.Contains(lowerKey, "cookie") ||
+			strings.Contains(lowerKey, "signature") ||
+			strings.Contains(lowerKey, "secret") {
+			out[key] = []string{"[redacted]"}
+			continue
+		}
+
+		copied := make([]string, len(values))
+		copy(copied, values)
+		out[key] = copied
 	}
-	return 0
+	return out
 }

@@ -29,6 +29,13 @@ type PaymentSettlementResult struct {
 	AlreadyProcessed bool
 }
 
+type PaymentCancellationResult struct {
+	PaymentID        string
+	UserVKID         int64
+	TariffID         int
+	AlreadyProcessed bool
+}
+
 type OrderRepo struct {
 	db *pgxpool.Pool
 }
@@ -53,12 +60,7 @@ func (r *OrderRepo) SetPaymentID(ctx context.Context, orderID int64, paymentID s
 	return err
 }
 
-func (r *OrderRepo) SetStatus(ctx context.Context, paymentID, status string) error {
-	_, err := r.db.Exec(ctx, `UPDATE orders SET status = $2 WHERE yukassa_payment_id = $1`, paymentID, status)
-	return err
-}
-
-func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID string, userVKID int64, tariffID int) (*PaymentSettlementResult, error) {
+func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID string) (*PaymentSettlementResult, error) {
 	const referralBonusGens = 2
 
 	tx, err := r.db.Begin(ctx)
@@ -78,13 +80,6 @@ func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID strin
 			return nil, fmt.Errorf("order not found for payment %s", paymentID)
 		}
 		return nil, err
-	}
-
-	if userVKID > 0 && order.UserVKID != userVKID {
-		return nil, fmt.Errorf("payment %s belongs to user %d, webhook user %d", paymentID, order.UserVKID, userVKID)
-	}
-	if tariffID > 0 && order.TariffID != tariffID {
-		return nil, fmt.Errorf("payment %s belongs to tariff %d, webhook tariff %d", paymentID, order.TariffID, tariffID)
 	}
 
 	result := &PaymentSettlementResult{
@@ -135,6 +130,49 @@ func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID strin
 	case pgx.ErrNoRows:
 		// no referral bonus for this payment
 	default:
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (r *OrderRepo) CancelPayment(ctx context.Context, paymentID string) (*PaymentCancellationResult, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var order Order
+	if err := tx.QueryRow(ctx, `
+		SELECT id, user_vk_id, tariff_id, yukassa_payment_id, amount, status, created_at
+		FROM orders
+		WHERE yukassa_payment_id = $1
+		FOR UPDATE`, paymentID).
+		Scan(&order.ID, &order.UserVKID, &order.TariffID, &order.YukassaPaymentID, &order.Amount, &order.Status, &order.CreatedAt); err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("order not found for payment %s", paymentID)
+		}
+		return nil, err
+	}
+
+	result := &PaymentCancellationResult{
+		PaymentID: paymentID,
+		UserVKID:  order.UserVKID,
+		TariffID:  order.TariffID,
+	}
+	if order.Status != "pending" {
+		result.AlreadyProcessed = true
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
+
+	if _, err := tx.Exec(ctx, `UPDATE orders SET status = 'failed' WHERE yukassa_payment_id = $1`, paymentID); err != nil {
 		return nil, err
 	}
 

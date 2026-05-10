@@ -1,8 +1,10 @@
 package config
 
 import (
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog/log"
@@ -10,20 +12,24 @@ import (
 
 type Config struct {
 	// VK
-	VKGroupToken       string
-	VKGroupID          int64
-	VKSecret           string
+	VKGroupToken        string
+	VKGroupID           int64
+	VKSecret            string
 	VKConfirmationToken string
 
 	// WaveSpeed
-	WavespeedAPIKey       string
-	WavespeedModel        string
+	WavespeedAPIKey        string
+	WavespeedModel         string
 	WavespeedWebhookSecret string
 
 	// YuKassa
-	YukassaShopID         string
-	YukassaSecretKey      string
-	YukassaWebhookSecret  string
+	YukassaShopID                string
+	YukassaSecretKey             string
+	YukassaWebhookSecret         string
+	YukassaReceiptEmail          string
+	YukassaReceiptVATCode        int
+	YukassaReceiptPaymentSubject string
+	YukassaReceiptPaymentMode    string
 
 	// DB
 	DBURL string
@@ -46,12 +52,15 @@ type Config struct {
 	BotPort       string
 
 	// General
+	PublicBaseURL string
 	BotWebhookURL string
 	LogLevel      string
 }
 
 func Load() *Config {
 	_ = godotenv.Load()
+
+	botWebhookURL := getEnv("BOT_WEBHOOK_URL", "")
 
 	cfg := &Config{
 		VKGroupToken:        mustEnv("VK_GROUP_TOKEN"),
@@ -63,9 +72,13 @@ func Load() *Config {
 		WavespeedModel:         getEnv("WAVESPEED_MODEL", "google/nano-banana-pro"),
 		WavespeedWebhookSecret: getEnv("WAVESPEED_WEBHOOK_SECRET", ""),
 
-		YukassaShopID:        mustEnv("YUKASSA_SHOP_ID"),
-		YukassaSecretKey:     mustEnv("YUKASSA_SECRET_KEY"),
-		YukassaWebhookSecret: getEnv("YUKASSA_WEBHOOK_SECRET", ""),
+		YukassaShopID:                mustEnv("YUKASSA_SHOP_ID"),
+		YukassaSecretKey:             mustEnv("YUKASSA_SECRET_KEY"),
+		YukassaWebhookSecret:         getEnv("YUKASSA_WEBHOOK_SECRET", ""),
+		YukassaReceiptEmail:          getEnv("YUKASSA_RECEIPT_EMAIL", ""),
+		YukassaReceiptVATCode:        parseInt(getEnv("YUKASSA_RECEIPT_VAT_CODE", "1"), 1),
+		YukassaReceiptPaymentSubject: getEnv("YUKASSA_RECEIPT_PAYMENT_SUBJECT", "service"),
+		YukassaReceiptPaymentMode:    getEnv("YUKASSA_RECEIPT_PAYMENT_MODE", "full_prepayment"),
 
 		DBURL: mustEnv("DB_URL"),
 
@@ -83,7 +96,8 @@ func Load() *Config {
 		AdminPort:     getEnv("ADMIN_PORT", "8081"),
 		BotPort:       getEnv("BOT_PORT", "8080"),
 
-		BotWebhookURL: getEnv("BOT_WEBHOOK_URL", ""),
+		PublicBaseURL: derivePublicBaseURL(getEnv("PUBLIC_BASE_URL", ""), botWebhookURL),
+		BotWebhookURL: botWebhookURL,
 		LogLevel:      getEnv("LOG_LEVEL", "info"),
 	}
 	return cfg
@@ -110,4 +124,33 @@ func parseInt64(s string) int64 {
 		return 0
 	}
 	return n
+}
+
+func parseInt(s string, fallback int) int {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return fallback
+	}
+	return n
+}
+
+func derivePublicBaseURL(publicBaseURL, botWebhookURL string) string {
+	if normalized := normalizeBaseURL(publicBaseURL); normalized != "" {
+		return normalized
+	}
+	return normalizeBaseURL(botWebhookURL)
+}
+
+func normalizeBaseURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return strings.TrimRight(raw, "/")
+	}
+
+	return strings.TrimRight(parsed.Scheme+"://"+parsed.Host, "/")
 }

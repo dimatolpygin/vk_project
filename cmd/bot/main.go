@@ -80,7 +80,15 @@ func main() {
 	// External clients
 	vkClient := vkgroup.New(cfg.VKGroupToken, cfg.VKGroupID)
 	wsClient := wavespeed.New(cfg.WavespeedAPIKey)
-	ykClient := yukassa.New(cfg.YukassaShopID, cfg.YukassaSecretKey, cfg.YukassaWebhookSecret)
+	ykClient := yukassa.New(
+		cfg.YukassaShopID,
+		cfg.YukassaSecretKey,
+		cfg.YukassaWebhookSecret,
+		cfg.YukassaReceiptEmail,
+		cfg.YukassaReceiptVATCode,
+		cfg.YukassaReceiptPaymentSubject,
+		cfg.YukassaReceiptPaymentMode,
+	)
 
 	var s3Client *s3.Client
 	if sc, err := s3.New(cfg.S3Endpoint, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Region); err != nil {
@@ -128,7 +136,7 @@ func main() {
 		VKGroupID:     cfg.VKGroupID,
 		VKGroupURL:    fmt.Sprintf("https://vk.com/club%d", cfg.VKGroupID),
 		DefaultModel:  cfg.WavespeedModel,
-		BotWebhookURL: cfg.BotWebhookURL,
+		PublicBaseURL: cfg.PublicBaseURL,
 		Storage:       photoStorage,
 	}
 

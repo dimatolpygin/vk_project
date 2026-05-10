@@ -247,11 +247,18 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 		Order:       20,
 		Keywords:    []string{"оплата", "checkout", "ссылка"},
 	},
+	"payment_canceled": {
+		SectionID:   "billing",
+		Title:       "Оплата отменена",
+		Description: "Уведомление о брошенной или отмененной оплате.",
+		Order:       30,
+		Keywords:    []string{"отмена", "оплата", "payment"},
+	},
 	"payment_success": {
 		SectionID:   "billing",
 		Title:       "Оплата успешна",
 		Description: "Подтверждение успешной оплаты тарифа.",
-		Order:       30,
+		Order:       40,
 		Keywords:    []string{"успех", "оплата", "payment"},
 	},
 	"no_gens_left": {

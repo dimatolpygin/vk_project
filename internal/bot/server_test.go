@@ -1,0 +1,199 @@
+package bot
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"vk_neuro_bot/internal/bot/flows"
+	"vk_neuro_bot/internal/config"
+	"vk_neuro_bot/internal/repository"
+	"vk_neuro_bot/internal/yukassa"
+)
+
+type fakeServerSender struct {
+	screens []*flows.ScreenMessage
+}
+
+func (f *fakeServerSender) SendMsg(context.Context, int64, string, string) error { return nil }
+
+func (f *fakeServerSender) SendText(context.Context, int64, string, string) error { return nil }
+
+func (f *fakeServerSender) SendPhoto(context.Context, int64, string, string, string) error {
+	return nil
+}
+
+func (f *fakeServerSender) SendScreen(_ context.Context, _ int64, screen *flows.ScreenMessage) error {
+	if screen == nil {
+		return nil
+	}
+	cloned := *screen
+	f.screens = append(f.screens, &cloned)
+	return nil
+}
+
+func (f *fakeServerSender) SendScreenText(context.Context, int64, string, map[string]any) error {
+	return nil
+}
+
+func (f *fakeServerSender) SendPhotoResult(context.Context, int64, string, string, string, string) error {
+	return nil
+}
+
+type fakeServerOrderStore struct {
+	settleCalls  []string
+	cancelCalls  []string
+	settleResult *repository.PaymentSettlementResult
+	cancelResult *repository.PaymentCancellationResult
+	settleErr    error
+	cancelErr    error
+}
+
+func (f *fakeServerOrderStore) Create(context.Context, int64, int, float64) (*repository.Order, error) {
+	return nil, nil
+}
+
+func (f *fakeServerOrderStore) SetPaymentID(context.Context, int64, string) error {
+	return nil
+}
+
+func (f *fakeServerOrderStore) SettleSuccessfulPayment(_ context.Context, paymentID string) (*repository.PaymentSettlementResult, error) {
+	f.settleCalls = append(f.settleCalls, paymentID)
+	return f.settleResult, f.settleErr
+}
+
+func (f *fakeServerOrderStore) CancelPayment(_ context.Context, paymentID string) (*repository.PaymentCancellationResult, error) {
+	f.cancelCalls = append(f.cancelCalls, paymentID)
+	return f.cancelResult, f.cancelErr
+}
+
+func TestHandleYukassaWebhookProcessesSucceededEvent(t *testing.T) {
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/v3/payments/pay_1" {
+			t.Fatalf("unexpected verification request: %s %s", r.Method, r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":     "pay_1",
+			"status": "succeeded",
+			"metadata": map[string]any{
+				"order_id": "3",
+			},
+		})
+	}))
+	defer api.Close()
+
+	ykClient := yukassa.New("shop", "secret", "", "", 1, "service", "full_prepayment")
+	ykClient.SetAPIBase(api.URL + "/v3")
+	ykClient.SetHTTPClient(api.Client())
+
+	sender := &fakeServerSender{}
+	orderRepo := &fakeServerOrderStore{
+		settleResult: &repository.PaymentSettlementResult{
+			PaymentID:     "pay_1",
+			UserVKID:      55,
+			TariffID:      3,
+			PaidGensAdded: 10,
+		},
+	}
+
+	server := NewServer(&config.Config{}, nil, ykClient, &flows.Deps{
+		Sender:    sender,
+		OrderRepo: orderRepo,
+	})
+
+	body := `{"type":"notification","event":"payment.succeeded","object":{"id":"pay_1","status":"succeeded","metadata":{"order_id":"3"}}}`
+	req := httptest.NewRequest(http.MethodPost, "/webhook/yukassa", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	server.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	if len(orderRepo.settleCalls) != 1 || orderRepo.settleCalls[0] != "pay_1" {
+		t.Fatalf("expected settle call for pay_1, got %#v", orderRepo.settleCalls)
+	}
+	if len(orderRepo.cancelCalls) != 0 {
+		t.Fatalf("expected no cancel calls, got %#v", orderRepo.cancelCalls)
+	}
+	if len(sender.screens) != 1 || sender.screens[0].Key != "payment_success" {
+		t.Fatalf("expected payment_success screen, got %#v", sender.screens)
+	}
+}
+
+func TestHandleYukassaWebhookProcessesCanceledEvent(t *testing.T) {
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/v3/payments/pay_2" {
+			t.Fatalf("unexpected verification request: %s %s", r.Method, r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":     "pay_2",
+			"status": "canceled",
+			"metadata": map[string]any{
+				"order_id": "4",
+			},
+		})
+	}))
+	defer api.Close()
+
+	ykClient := yukassa.New("shop", "secret", "", "", 1, "service", "full_prepayment")
+	ykClient.SetAPIBase(api.URL + "/v3")
+	ykClient.SetHTTPClient(api.Client())
+
+	sender := &fakeServerSender{}
+	orderRepo := &fakeServerOrderStore{
+		cancelResult: &repository.PaymentCancellationResult{
+			PaymentID: "pay_2",
+			UserVKID:  77,
+			TariffID:  6,
+		},
+	}
+
+	server := NewServer(&config.Config{}, nil, ykClient, &flows.Deps{
+		Sender:    sender,
+		OrderRepo: orderRepo,
+	})
+
+	body := `{"type":"notification","event":"payment.canceled","object":{"id":"pay_2","status":"canceled","metadata":{"order_id":"4"}}}`
+	req := httptest.NewRequest(http.MethodPost, "/webhook/yukassa", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	server.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	if len(orderRepo.cancelCalls) != 1 || orderRepo.cancelCalls[0] != "pay_2" {
+		t.Fatalf("expected cancel call for pay_2, got %#v", orderRepo.cancelCalls)
+	}
+	if len(orderRepo.settleCalls) != 0 {
+		t.Fatalf("expected no settle calls, got %#v", orderRepo.settleCalls)
+	}
+	if len(sender.screens) != 1 || sender.screens[0].Key != "payment_canceled" {
+		t.Fatalf("expected payment_canceled screen, got %#v", sender.screens)
+	}
+}
+
+func TestHandleVKReturnRendersSuccessPage(t *testing.T) {
+	ykClient := yukassa.New("shop", "secret", "", "", 1, "service", "full_prepayment")
+	server := NewServer(&config.Config{}, nil, ykClient, &flows.Deps{})
+
+	req := httptest.NewRequest(http.MethodGet, "/vk/return", nil)
+	rec := httptest.NewRecorder()
+
+	server.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "Оплата принята") {
+		t.Fatalf("expected return page body, got %q", body)
+	}
+}
