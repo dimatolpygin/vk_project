@@ -41,6 +41,7 @@ func NewServer(
 	s := &Server{}
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
+	r.Use(noCacheMiddleware)
 
 	sessions := handlers.NewSessionStore()
 
@@ -145,6 +146,13 @@ func NewServer(
 
 func (s *Server) Router() http.Handler {
 	return s.router
+}
+
+func noCacheMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func sessionMiddleware(sessions *handlers.SessionStore) func(http.Handler) http.Handler {
