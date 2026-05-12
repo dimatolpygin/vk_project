@@ -23,7 +23,7 @@ const (
 )
 
 var (
-	photoBatchCollectDelay = 2500 * time.Millisecond
+	photoBatchCollectDelay = 5000 * time.Millisecond
 	photoBatchLocks        sync.Map
 	photoBatchSeq          atomic.Uint64
 )
@@ -170,7 +170,7 @@ func HandleGenderSelect(ctx context.Context, fc *Context, d *Deps, gender string
 
 func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 	photos := normalizeGenerationInputPhotos(messagePhotos(fc.Message))
-	log.Debug().Int64("vk_id", fc.VkID).Int("message_photo_count", len(photos)).Msg("photos in incoming message")
+	log.Info().Int64("vk_id", fc.VkID).Int("message_photo_count", len(photos)).Msg("photos in incoming message")
 
 	if len(photos) == 0 {
 		_ = sendScreen(ctx, d, fc.VkID, "photo_requirements", ScreenOptions{})
@@ -509,6 +509,8 @@ func appendPendingPhotoBatch(ctx context.Context, fc *Context, d *Deps, photoURL
 		if err := d.State.Set(ctx, fc.VkID, state); err != nil {
 			log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("failed to append to photo batch state")
 		}
+		log.Info().Int64("vk_id", fc.VkID).Str("batch_id", state.PhotoBatchID).
+			Int("total_count", len(state.InputPhotoURLs)).Msg("photo appended to batch")
 		return state.PhotoBatchID, false
 	}
 
@@ -522,6 +524,8 @@ func appendPendingPhotoBatch(ctx context.Context, fc *Context, d *Deps, photoURL
 		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("failed to save photo batch state")
 		return state.PhotoBatchID, true
 	}
+	log.Info().Int64("vk_id", fc.VkID).Str("batch_id", state.PhotoBatchID).
+		Int("photo_count", len(state.InputPhotoURLs)).Msg("photo batch created")
 
 	return state.PhotoBatchID, true
 }
