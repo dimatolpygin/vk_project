@@ -379,7 +379,7 @@ func toFlowUser(u *repository.User) *flows.User {
 		PaidGens:        u.PaidGens,
 		Status:          u.Status,
 		ReferralCode:    u.ReferralCode,
-		SavedPhotoURL:   u.SavedPhotoURL,
+		SavedPhotoURLs:  u.SavedPhotoURLs,
 		UseSavedPhoto:   u.UseSavedPhoto,
 		PrefModel:       u.PrefModel,
 		PrefResolution:  u.PrefResolution,

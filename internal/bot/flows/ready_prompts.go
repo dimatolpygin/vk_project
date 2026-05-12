@@ -108,12 +108,12 @@ func HandleSelectPrompt(ctx context.Context, fc *Context, d *Deps) {
 		PromptPage:   fc.State.PromptPage,
 	}, fc.State))
 
-	if fc.User.UseSavedPhoto && fc.User.SavedPhotoURL != nil && *fc.User.SavedPhotoURL != "" {
+	if fc.User.UseSavedPhoto && len(fc.User.SavedPhotoURLs) > 0 {
 		if !fc.User.HasGens() {
 			_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
 			return
 		}
-		startGeneration(ctx, fc, d, []string{*fc.User.SavedPhotoURL}, prompt.Prompt, promptType, "saved_photo_generation_wait", map[string]any{
+		startGeneration(ctx, fc, d, fc.User.SavedPhotoURLs, prompt.Prompt, promptType, "saved_photo_generation_wait", map[string]any{
 			"PromptName": prompt.Name,
 		})
 		return

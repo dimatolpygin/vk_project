@@ -290,7 +290,7 @@ func buildUserListItemView(user *repository.AdminUserListItem) userListItemView 
 		PaidGens:        user.PaidGens,
 		CreatedAt:       formatDateTime(user.CreatedAt),
 		LastActivity:    formatDateTime(user.LastActivity),
-		HasSavedPhoto:   user.SavedPhotoURL != nil && *user.SavedPhotoURL != "",
+		HasSavedPhoto:   len(user.SavedPhotoURLs) > 0,
 		HasSubscription: user.Subscribed,
 		DetailURL:       fmt.Sprintf("/admin/users/%d", user.VKID),
 	}
@@ -315,8 +315,8 @@ func buildUserDetailPageView(user *repository.AdminUserDetail, orders []*reposit
 
 	statusLabel, statusClass := userStatusBadge(user.Status)
 	savedPhotoURL := ""
-	if user.SavedPhotoURL != nil {
-		savedPhotoURL = *user.SavedPhotoURL
+	if len(user.SavedPhotoURLs) > 0 {
+		savedPhotoURL = user.SavedPhotoURLs[0]
 	}
 
 	return &userDetailPageView{
@@ -341,7 +341,7 @@ func buildUserDetailPageView(user *repository.AdminUserDetail, orders []*reposit
 		Gender:             genderLabel(user.Gender),
 		ReferralCode:       user.ReferralCode,
 		SubscribedLabel:    booleanLabel(user.Subscribed, "Подписан", "Не подписан"),
-		SavedPhotoLabel:    savedPhotoState(user.SavedPhotoURL, user.UseSavedPhoto),
+		SavedPhotoLabel:    savedPhotoState(user.SavedPhotoURLs, user.UseSavedPhoto),
 		SavedPhotoURL:      savedPhotoURL,
 		PrefModel:          flows.ModelDisplayName(user.PrefModel),
 		PrefResolution:     fallbackValue(user.PrefResolution, "1k"),
@@ -438,14 +438,14 @@ func booleanLabel(value bool, yes, no string) string {
 	return no
 }
 
-func savedPhotoState(url *string, enabled bool) string {
-	if url == nil || *url == "" {
+func savedPhotoState(urls []string, enabled bool) string {
+	if len(urls) == 0 {
 		return "Нет сохранённого фото"
 	}
 	if enabled {
 		return "Сохранено и включено"
 	}
-	return "Сохранено, но выключено"
+	return "Сохранено, выключено"
 }
 
 func fallbackValue(value, fallback string) string {

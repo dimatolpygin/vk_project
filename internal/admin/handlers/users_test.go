@@ -42,7 +42,7 @@ func TestBuildUserDetailPageViewSummarizesOrders(t *testing.T) {
 			FreeGens:       1,
 			PaidGens:       4,
 			Status:         "paid",
-			SavedPhotoURL:  &savedPhotoURL,
+			SavedPhotoURLs: []string{savedPhotoURL},
 			UseSavedPhoto:  true,
 			PrefModel:      "google/nano-banana-pro",
 			PrefResolution: "2k",

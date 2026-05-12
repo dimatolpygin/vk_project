@@ -9,7 +9,7 @@ import (
 
 type fakeUserStoreForSavedPhoto struct {
 	savedPhotoVKID int64
-	savedPhotoURL  string
+	savedPhotoURLs []string
 	setCalls       int
 }
 
@@ -25,9 +25,9 @@ func (f *fakeUserStoreForSavedPhoto) SetSubscribed(context.Context, int64, bool)
 	return nil
 }
 
-func (f *fakeUserStoreForSavedPhoto) SetSavedPhoto(_ context.Context, vkID int64, url string) error {
+func (f *fakeUserStoreForSavedPhoto) SetSavedPhotos(_ context.Context, vkID int64, urls []string) error {
 	f.savedPhotoVKID = vkID
-	f.savedPhotoURL = url
+	f.savedPhotoURLs = urls
 	f.setCalls++
 	return nil
 }
@@ -40,7 +40,7 @@ func (f *fakeUserStoreForSavedPhoto) SaveSettings(context.Context, int64, string
 	return nil
 }
 
-func TestHandleSavedPhotoReceivedRejectsPhotoBatch(t *testing.T) {
+func TestHandleSavedPhotoReceivedAcceptsMultiplePhotos(t *testing.T) {
 	sender := &fakeSender{}
 	stateMgr := newFakeStateMgr()
 	userRepo := &fakeUserStoreForSavedPhoto{}
@@ -61,10 +61,13 @@ func TestHandleSavedPhotoReceivedRejectsPhotoBatch(t *testing.T) {
 
 	HandleSavedPhotoReceived(context.Background(), fc, deps)
 
-	if userRepo.setCalls != 0 {
-		t.Fatalf("expected saved photo not to be stored, got %d calls", userRepo.setCalls)
+	if userRepo.setCalls != 1 {
+		t.Fatalf("expected SetSavedPhotos called once, got %d", userRepo.setCalls)
 	}
-	if len(sender.screens) == 0 || sender.screens[len(sender.screens)-1].Key != "saved_photo_batch_not_supported" {
-		t.Fatalf("expected saved_photo_batch_not_supported screen, got %#v", sender.screens)
+	if len(userRepo.savedPhotoURLs) != 2 {
+		t.Fatalf("expected 2 saved URLs, got %d", len(userRepo.savedPhotoURLs))
+	}
+	if len(sender.screens) == 0 || sender.screens[len(sender.screens)-1].Key != "saved_photo_saved" {
+		t.Fatalf("expected saved_photo_saved screen, got %#v", sender.screens)
 	}
 }

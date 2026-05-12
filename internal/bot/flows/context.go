@@ -40,7 +40,7 @@ type User struct {
 	PaidGens        int
 	Status          string
 	ReferralCode    string
-	SavedPhotoURL   *string
+	SavedPhotoURLs  []string
 	UseSavedPhoto   bool
 	PrefModel       string
 	PrefResolution  string
@@ -171,7 +171,7 @@ type UserStore interface {
 	GetByVKID(ctx context.Context, vkID int64) (*repository.User, error)
 	SetGender(ctx context.Context, vkID int64, gender string) error
 	SetSubscribed(ctx context.Context, vkID int64, subscribed bool) error
-	SetSavedPhoto(ctx context.Context, vkID int64, url string) error
+	SetSavedPhotos(ctx context.Context, vkID int64, urls []string) error
 	SetUseSavedPhoto(ctx context.Context, vkID int64, enabled bool) error
 	SaveSettings(ctx context.Context, vkID int64, model, resolution, aspectRatio string) error
 }
