@@ -57,6 +57,16 @@
                 </a>
             </li>
         </ul>
+        <div class="mt-auto p-2 border-top border-secondary border-opacity-25">
+            <a href="/admin/change-password" class="nav-link px-3 py-2 {{if eq .Active "change-password"}}active{{end}}">
+                <i class="bi bi-key-fill"></i> Сменить пароль
+            </a>
+            <form method="POST" action="/admin/logout" class="mt-1">
+                <button type="submit" class="nav-link px-3 py-2 w-100 text-start border-0 bg-transparent text-danger">
+                    <i class="bi bi-box-arrow-right"></i> Выход
+                </button>
+            </form>
+        </div>
     </nav>
     <main class="main-content p-4">
         <h4 class="mb-4 fw-bold">{{.Title}}</h4>

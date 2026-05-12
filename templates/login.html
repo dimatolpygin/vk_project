@@ -1,0 +1,45 @@
+{{define "login"}}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход — VK Нейробот Админка</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body { background: #0f0f1a; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .login-card { background: #1a1a2e; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; width: 100%; max-width: 380px; padding: 2.5rem 2rem; }
+        .login-card .brand { color: #fff; font-weight: 700; font-size: 1.2rem; text-align: center; margin-bottom: 1.75rem; }
+        .form-control { background: #0f0f1a; border-color: rgba(255,255,255,.2); color: #fff; }
+        .form-control:focus { background: #0f0f1a; border-color: #0d6efd; color: #fff; box-shadow: 0 0 0 .25rem rgba(13,110,253,.25); }
+        .form-label { color: #adb5bd; }
+        ::placeholder { color: #6c757d !important; }
+    </style>
+</head>
+<body>
+<div class="login-card">
+    <div class="brand"><i class="bi bi-robot me-2"></i>VK Нейробот</div>
+    {{if .Error}}
+    <div class="alert alert-danger py-2 mb-3 text-center" role="alert">
+        <i class="bi bi-exclamation-circle me-1"></i>Неверный логин или пароль
+    </div>
+    {{end}}
+    <form method="POST" action="/admin/login">
+        <div class="mb-3">
+            <label for="login" class="form-label">Логин</label>
+            <input type="text" id="login" name="login" class="form-control" autocomplete="username" required autofocus>
+        </div>
+        <div class="mb-4">
+            <label for="password" class="form-label">Пароль</label>
+            <input type="password" id="password" name="password" class="form-control" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-box-arrow-in-right me-1"></i>Войти
+        </button>
+    </form>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+{{end}}

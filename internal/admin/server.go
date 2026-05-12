@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/hibiken/asynq"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"vk_neuro_bot/internal/admin/handlers"
 	"vk_neuro_bot/internal/repository"
@@ -24,6 +25,7 @@ type Server struct {
 
 func NewServer(
 	login, password string,
+	db *pgxpool.Pool,
 	users *repository.UserRepo,
 	tariffs *repository.TariffRepo,
 	msgs *repository.MessageRepo,
@@ -38,9 +40,9 @@ func NewServer(
 ) *Server {
 	s := &Server{}
 	r := chi.NewRouter()
-
 	r.Use(middleware.Recoverer)
-	r.Use(basicAuth(login, password))
+
+	sessions := handlers.NewSessionStore()
 
 	uh := handlers.NewUsersHandler(users, orders, rdb)
 	th := handlers.NewTariffsHandler(tariffs)
@@ -49,42 +51,93 @@ func NewServer(
 	ch := handlers.NewCategoriesHandler(cats, prompts)
 	sh := handlers.NewStatsHandler(stats)
 	uploadH := handlers.NewUploadHandler(storage)
+	ah := handlers.NewAuthHandler(db, login, password, sessions)
+
+	// Public: форма входа (без авторизации)
+	r.Get("/admin/login", ah.LoginGet)
+	r.Post("/admin/login", ah.LoginPost)
+
+	// Защищённые маршруты /admin (session cookie)
+	r.Group(func(r chi.Router) {
+		r.Use(sessionMiddleware(sessions))
+		r.Route("/admin", func(r chi.Router) {
+			r.Get("/", sh.GetStats)
+			r.Get("/stats", sh.GetStats)
+
+			r.Post("/logout", ah.Logout)
+			r.Get("/change-password", ah.ChangePasswordGet)
+			r.Post("/change-password", ah.ChangePasswordPost)
+
+			r.Post("/upload", uploadH.Upload)
+
+			r.Get("/users", uh.List)
+			r.Get("/users/{id}", uh.Detail)
+			r.Post("/users/{id}/add-gens", uh.AddGens)
+			r.Post("/users/{id}/delete", uh.Delete)
+
+			r.Get("/tariffs", th.List)
+			r.Post("/tariffs", th.Create)
+			r.Put("/tariffs/{id}", th.Update)
+			r.Delete("/tariffs/{id}", th.Delete)
+
+			r.Get("/messages", mh.List)
+			r.Post("/messages", mh.Upsert)
+			r.Get("/messages/{key}", mh.Get)
+
+			r.Get("/broadcasts", bh.List)
+			r.Post("/broadcasts", bh.Create)
+			r.Get("/broadcasts/{id}", bh.Get)
+
+			r.Get("/categories", ch.ListCategories)
+			r.Post("/categories", ch.CreateCategory)
+			r.Put("/categories/{id}", ch.UpdateCategory)
+			r.Delete("/categories/{id}", ch.DeleteCategory)
+			r.Get("/categories/{id}/prompts", ch.ListPrompts)
+			r.Post("/categories/{id}/prompts", ch.CreatePrompt)
+			r.Put("/prompts/{id}", ch.UpdatePrompt)
+			r.Delete("/prompts/{id}", ch.DeletePrompt)
+		})
+	})
+
+	// Суперадмин: Basic Auth из env (без смены пароля и логаута)
+	r.Group(func(r chi.Router) {
+		r.Use(basicAuth(login, password))
+		r.Route("/superadmin6736/admin", func(r chi.Router) {
+			r.Get("/", sh.GetStats)
+			r.Get("/stats", sh.GetStats)
+
+			r.Post("/upload", uploadH.Upload)
+
+			r.Get("/users", uh.List)
+			r.Get("/users/{id}", uh.Detail)
+			r.Post("/users/{id}/add-gens", uh.AddGens)
+			r.Post("/users/{id}/delete", uh.Delete)
+
+			r.Get("/tariffs", th.List)
+			r.Post("/tariffs", th.Create)
+			r.Put("/tariffs/{id}", th.Update)
+			r.Delete("/tariffs/{id}", th.Delete)
+
+			r.Get("/messages", mh.List)
+			r.Post("/messages", mh.Upsert)
+			r.Get("/messages/{key}", mh.Get)
+
+			r.Get("/broadcasts", bh.List)
+			r.Post("/broadcasts", bh.Create)
+			r.Get("/broadcasts/{id}", bh.Get)
+
+			r.Get("/categories", ch.ListCategories)
+			r.Post("/categories", ch.CreateCategory)
+			r.Put("/categories/{id}", ch.UpdateCategory)
+			r.Delete("/categories/{id}", ch.DeleteCategory)
+			r.Get("/categories/{id}/prompts", ch.ListPrompts)
+			r.Post("/categories/{id}/prompts", ch.CreatePrompt)
+			r.Put("/prompts/{id}", ch.UpdatePrompt)
+			r.Delete("/prompts/{id}", ch.DeletePrompt)
+		})
+	})
 
 	r.Get("/", sh.GetStats)
-
-	r.Route("/admin", func(r chi.Router) {
-		r.Get("/", sh.GetStats)
-		r.Get("/stats", sh.GetStats)
-
-		r.Post("/upload", uploadH.Upload)
-
-		r.Get("/users", uh.List)
-		r.Get("/users/{id}", uh.Detail)
-		r.Post("/users/{id}/add-gens", uh.AddGens)
-		r.Post("/users/{id}/delete", uh.Delete)
-
-		r.Get("/tariffs", th.List)
-		r.Post("/tariffs", th.Create)
-		r.Put("/tariffs/{id}", th.Update)
-		r.Delete("/tariffs/{id}", th.Delete)
-
-		r.Get("/messages", mh.List)
-		r.Post("/messages", mh.Upsert)
-		r.Get("/messages/{key}", mh.Get)
-
-		r.Get("/broadcasts", bh.List)
-		r.Post("/broadcasts", bh.Create)
-		r.Get("/broadcasts/{id}", bh.Get)
-
-		r.Get("/categories", ch.ListCategories)
-		r.Post("/categories", ch.CreateCategory)
-		r.Put("/categories/{id}", ch.UpdateCategory)
-		r.Delete("/categories/{id}", ch.DeleteCategory)
-		r.Get("/categories/{id}/prompts", ch.ListPrompts)
-		r.Post("/categories/{id}/prompts", ch.CreatePrompt)
-		r.Put("/prompts/{id}", ch.UpdatePrompt)
-		r.Delete("/prompts/{id}", ch.DeletePrompt)
-	})
 
 	s.router = r
 	return s
@@ -92,6 +145,19 @@ func NewServer(
 
 func (s *Server) Router() http.Handler {
 	return s.router
+}
+
+func sessionMiddleware(sessions *handlers.SessionStore) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			cookie, err := r.Cookie("admin_session")
+			if err != nil || !sessions.Valid(cookie.Value) {
+				http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func basicAuth(login, password string) func(http.Handler) http.Handler {

@@ -147,6 +147,7 @@ func main() {
 	// Admin server
 	adminServer := admin.NewServer(
 		cfg.AdminLogin, cfg.AdminPassword,
+		pool,
 		userRepo, tariffRepo, msgRepo, broadcastRepo, catRepo, promptRepo, statsRepo, orderRepo, rdb,
 		asynqClient,
 		adminStorage,
