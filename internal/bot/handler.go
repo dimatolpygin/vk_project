@@ -46,6 +46,7 @@ type VKAttachment struct {
 type VKPhoto struct {
 	OwnerID   int64         `json:"owner_id"`
 	ID        int64         `json:"id"`
+	AccessKey string        `json:"access_key"`
 	Sizes     []VKPhotoSize `json:"sizes"`
 	Photo75   string        `json:"photo_75"`
 	Photo130  string        `json:"photo_130"`
@@ -334,11 +335,16 @@ func extractPhotoData(attachments []VKAttachment) (urls []string, vkAttachments 
 		}
 		url := extractBestPhotoURL(a.Photo)
 		if url == "" {
+			log.Warn().Int64("owner_id", a.Photo.OwnerID).Int64("photo_id", a.Photo.ID).Msg("skipping photo: no URL found")
 			continue
 		}
 		urls = append(urls, url)
 		if a.Photo.OwnerID != 0 && a.Photo.ID != 0 {
-			vkAttachments = append(vkAttachments, fmt.Sprintf("photo%d_%d", a.Photo.OwnerID, a.Photo.ID))
+			attStr := fmt.Sprintf("photo%d_%d", a.Photo.OwnerID, a.Photo.ID)
+			if a.Photo.AccessKey != "" {
+				attStr += "_" + a.Photo.AccessKey
+			}
+			vkAttachments = append(vkAttachments, attStr)
 		} else {
 			vkAttachments = append(vkAttachments, "")
 		}
