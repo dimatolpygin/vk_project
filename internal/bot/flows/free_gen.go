@@ -402,15 +402,14 @@ func currentAspectRatio(fc *Context) string {
 	if fc.State.AspectRatio != "" {
 		return fc.State.AspectRatio
 	}
-	return fc.User.PrefAspectRatio
+	if fc.User.PrefAspectRatio != "" {
+		return fc.User.PrefAspectRatio
+	}
+	return "9:16"
 }
 
 func currentAspectRatioLabel(fc *Context) string {
-	ar := currentAspectRatio(fc)
-	if ar == "" {
-		return "Р°РІС‚Рѕ"
-	}
-	return ar
+	return currentAspectRatio(fc)
 }
 
 func buildDefaultPrompt(ctx context.Context, d *Deps, gender, promptType string) string {
