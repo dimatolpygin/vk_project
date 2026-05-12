@@ -170,6 +170,7 @@ func HandleGenderSelect(ctx context.Context, fc *Context, d *Deps, gender string
 
 func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 	photos := normalizeGenerationInputPhotos(messagePhotos(fc.Message))
+	log.Debug().Int64("vk_id", fc.VkID).Int("message_photo_count", len(photos)).Msg("photos in incoming message")
 
 	if len(photos) == 0 {
 		_ = sendScreen(ctx, d, fc.VkID, "photo_requirements", ScreenOptions{})
@@ -502,11 +503,19 @@ func appendPendingPhotoBatch(ctx context.Context, fc *Context, d *Deps, photoURL
 		state = &State{}
 	}
 
-	if photoBatchExpired(state.PhotoBatchID) {
-		state.PhotoBatchID = ""
-		state.InputPhotoURLs = nil
+	// Действующий батч уже есть — просто дописываем фото, владелец не меняется.
+	if state.PhotoBatchID != "" && !photoBatchExpired(state.PhotoBatchID) {
+		state.InputPhotoURLs = normalizeGenerationInputPhotos(append(state.InputPhotoURLs, photos...))
+		if err := d.State.Set(ctx, fc.VkID, state); err != nil {
+			log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("failed to append to photo batch state")
+		}
+		return state.PhotoBatchID, false
 	}
 
+	// Батча нет или истёк — создаём новый, эта горутина становится владельцем.
+	if photoBatchExpired(state.PhotoBatchID) {
+		state.InputPhotoURLs = nil
+	}
 	state.InputPhotoURLs = normalizeGenerationInputPhotos(append(state.InputPhotoURLs, photos...))
 	state.PhotoBatchID = newPhotoBatchID()
 	if err := d.State.Set(ctx, fc.VkID, state); err != nil {
@@ -549,6 +558,14 @@ func waitForPendingPhotoBatch(ctx context.Context, d *Deps, vkID int64, batchID 
 	photos := normalizeGenerationInputPhotos(state.InputPhotoURLs)
 	if len(photos) == 0 {
 		return nil, nil, false
+	}
+
+	// Очищаем батч в Redis — опоздавшие фото создадут новый батч вместо молчаливой потери.
+	stateCopy := *state
+	stateCopy.PhotoBatchID = ""
+	stateCopy.InputPhotoURLs = nil
+	if err := d.State.Set(ctx, vkID, &stateCopy); err != nil {
+		log.Error().Err(err).Int64("vk_id", vkID).Msg("failed to clear consumed photo batch")
 	}
 
 	return state, photos, true

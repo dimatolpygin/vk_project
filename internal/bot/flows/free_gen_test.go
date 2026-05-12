@@ -158,22 +158,18 @@ func TestAppendPendingPhotoBatchCollectsSeparateMessages(t *testing.T) {
 	}
 
 	secondBatchID, ownsBatch := appendPendingPhotoBatch(context.Background(), fc, deps, []string{"https://example.com/2.png"})
-	if !ownsBatch {
-		t.Fatal("expected second message to wait on the photo batch")
+	if ownsBatch {
+		t.Fatal("second append should not own the batch (first-writer-wins)")
 	}
-	if secondBatchID == "" || secondBatchID == firstBatchID {
-		t.Fatalf("expected refreshed batch id, got first=%q second=%q", firstBatchID, secondBatchID)
-	}
-
-	if _, _, ok := waitForPendingPhotoBatch(context.Background(), deps, fc.VkID, firstBatchID); ok {
-		t.Fatal("expected stale first batch id to skip generation")
+	if secondBatchID == "" || secondBatchID != firstBatchID {
+		t.Fatalf("expected same batch id, got first=%q second=%q", firstBatchID, secondBatchID)
 	}
 
-	state, photos, ok := waitForPendingPhotoBatch(context.Background(), deps, fc.VkID, secondBatchID)
+	state, photos, ok := waitForPendingPhotoBatch(context.Background(), deps, fc.VkID, firstBatchID)
 	if !ok {
 		t.Fatal("expected collected photo batch")
 	}
-	if state.PhotoBatchID != secondBatchID {
+	if state.PhotoBatchID != firstBatchID {
 		t.Fatalf("unexpected state batch id %q", state.PhotoBatchID)
 	}
 	want := []string{"https://example.com/1.png", "https://example.com/2.png"}
