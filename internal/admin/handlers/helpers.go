@@ -3,7 +3,19 @@ package handlers
 import (
 	"encoding/json"
 	"html/template"
+	"net/http"
 )
+
+type ctxKey string
+
+const AdminBaseKey ctxKey = "adminBase"
+
+func GetAdminBase(r *http.Request) string {
+	if base, ok := r.Context().Value(AdminBaseKey).(string); ok && base != "" {
+		return base
+	}
+	return "/admin"
+}
 
 var tmplFuncs = template.FuncMap{
 	"inc": func(n int) int { return n + 1 },

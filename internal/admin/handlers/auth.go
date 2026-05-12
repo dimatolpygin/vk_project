@@ -74,14 +74,15 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 type changePasswordData struct {
-	Title  string
-	Active string
-	Error  string
-	OK     bool
+	Title     string
+	Active    string
+	AdminBase string
+	Error     string
+	OK        bool
 }
 
 func (h *AuthHandler) ChangePasswordGet(w http.ResponseWriter, r *http.Request) {
-	data := changePasswordData{Title: "Сменить пароль"}
+	data := changePasswordData{Title: "Сменить пароль", AdminBase: GetAdminBase(r)}
 	if err := h.changePwTmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		log.Error().Err(err).Msg("render change-password")
 	}
@@ -91,9 +92,10 @@ func (h *AuthHandler) ChangePasswordPost(w http.ResponseWriter, r *http.Request)
 	current := r.FormValue("current_password")
 	newPw := r.FormValue("new_password")
 	confirm := r.FormValue("confirm_password")
+	base := GetAdminBase(r)
 
 	render := func(errMsg string, ok bool) {
-		data := changePasswordData{Title: "Сменить пароль", Error: errMsg, OK: ok}
+		data := changePasswordData{Title: "Сменить пароль", AdminBase: base, Error: errMsg, OK: ok}
 		if err := h.changePwTmpl.ExecuteTemplate(w, "layout", data); err != nil {
 			log.Error().Err(err).Msg("render change-password")
 		}

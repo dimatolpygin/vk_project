@@ -22,6 +22,7 @@ type StatsHandler struct {
 type statsPageData struct {
 	Title             string
 	Active            string
+	AdminBase         string
 	Period            string
 	PeriodLabel       string
 	PeriodDescription string
@@ -127,13 +128,14 @@ func (h *StatsHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := buildStatsPageData(now, period, dashboard, registrations, activeUsers, generations, revenue, actionCounts)
+	data := buildStatsPageData(GetAdminBase(r), now, period, dashboard, registrations, activeUsers, generations, revenue, actionCounts)
 	if err := h.tmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		log.Error().Err(err).Msg("failed to render stats template")
 	}
 }
 
 func buildStatsPageData(
+	base string,
 	now time.Time,
 	period statsPeriod,
 	dashboard *repository.DashboardStats,
@@ -146,10 +148,11 @@ func buildStatsPageData(
 	return statsPageData{
 		Title:             "Статистика",
 		Active:            "stats",
+		AdminBase:         base,
 		Period:            period.Key,
 		PeriodLabel:       period.Label,
 		PeriodDescription: "Дашборд по регистрациям, активности, генерациям, оплатам и поведению пользователей в боте.",
-		PeriodLinks:       buildPeriodLinks(period),
+		PeriodLinks:       buildPeriodLinks(period, base),
 		KPIs:              buildStatsKPIs(period, dashboard),
 		Registrations:     fillCountSeries(now, period.Days, registrations),
 		ActiveUsers:       fillCountSeries(now, period.Days, activeUsers),
@@ -162,7 +165,7 @@ func buildStatsPageData(
 	}
 }
 
-func buildPeriodLinks(selected statsPeriod) []periodLinkView {
+func buildPeriodLinks(selected statsPeriod, base string) []periodLinkView {
 	periods := []statsPeriod{
 		{Key: "7d", Days: 7, Label: "7 дней"},
 		{Key: "30d", Days: 30, Label: "30 дней"},
@@ -173,7 +176,7 @@ func buildPeriodLinks(selected statsPeriod) []periodLinkView {
 	for _, period := range periods {
 		links = append(links, periodLinkView{
 			Label:  period.Label,
-			Href:   "/admin/stats?period=" + period.Key,
+			Href:   base + "/stats?period=" + period.Key,
 			Active: period.Key == selected.Key,
 		})
 	}

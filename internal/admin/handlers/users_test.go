@@ -19,7 +19,7 @@ func TestBuildUserListItemViewUsesFallbackDisplayName(t *testing.T) {
 			Status:   "free",
 		},
 		LastActivity: now,
-	})
+	}, "/admin")
 
 	if view.DisplayName != "Пользователь 42" {
 		t.Fatalf("unexpected display name %q", view.DisplayName)
@@ -56,7 +56,7 @@ func TestBuildUserDetailPageViewSummarizesOrders(t *testing.T) {
 		TotalSpent:         998,
 	}, []*repository.Order{
 		{ID: 10, TariffID: 2, Amount: 499, Status: "succeeded", CreatedAt: time.Date(2026, time.May, 8, 9, 0, 0, 0, time.Local)},
-	})
+	}, "/admin")
 
 	if view.DisplayName != "Ира" {
 		t.Fatalf("unexpected display name %q", view.DisplayName)

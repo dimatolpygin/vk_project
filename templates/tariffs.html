@@ -761,7 +761,7 @@ async function saveTariff() {
         is_active: document.getElementById('tariffActive').checked,
     };
 
-    const url = id ? `/admin/tariffs/${id}` : '/admin/tariffs';
+    const url = id ? `{{.AdminBase}}/tariffs/${id}` : '{{.AdminBase}}/tariffs';
     const method = id ? 'PUT' : 'POST';
 
     try {
@@ -787,7 +787,7 @@ async function deleteTariff(id) {
         return;
     }
 
-    const resp = await fetch(`/admin/tariffs/${id}`, { method: 'DELETE' });
+    const resp = await fetch(`{{.AdminBase}}/tariffs/${id}`, { method: 'DELETE' });
     if (resp.ok) {
         location.reload();
         return;

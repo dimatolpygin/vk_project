@@ -233,7 +233,7 @@ func TestBuildBroadcastsPageDataAndTemplateRender(t *testing.T) {
 			CreatedAt:       now,
 			CompletedAt:     &completed,
 		},
-	})
+	}, "/admin")
 
 	if len(data.Broadcasts) != 1 {
 		t.Fatalf("expected one broadcast, got %d", len(data.Broadcasts))

@@ -18,7 +18,7 @@ func TestBuildMessagesPageDataGroupsAndSortsScreens(t *testing.T) {
 		{Key: "unknown_custom_screen", Text: "Unknown screen body", Keyboard: content.Keyboard{}, UpdatedAt: now},
 		{Key: "main_menu", Text: "Main menu body", Keyboard: content.Keyboard{}, UpdatedAt: now},
 		{Key: "welcome", Text: "Welcome body", Keyboard: content.Keyboard{}, UpdatedAt: now},
-	})
+	}, "/admin")
 
 	if len(data.Sections) != 4 {
 		t.Fatalf("expected 4 sections, got %d", len(data.Sections))
@@ -54,7 +54,7 @@ func TestBuildMessagesPageDataUsesFallbackMetadataForUnknownScreens(t *testing.T
 			Keyboard:  content.Keyboard{Items: []content.Button{{SlotID: "a"}, {SlotID: "b"}}},
 			UpdatedAt: now,
 		},
-	})
+	}, "/admin")
 
 	if len(data.Screens) != 1 {
 		t.Fatalf("expected one screen, got %d", len(data.Screens))
@@ -90,7 +90,7 @@ func TestMessagesTemplateRendersWithPageData(t *testing.T) {
 			Keyboard:  content.Keyboard{},
 			UpdatedAt: now,
 		},
-	})
+	}, "/admin")
 
 	tmpl := template.Must(template.New("").Funcs(tmplFuncs).ParseFiles("../../../templates/layout.html", "../../../templates/messages.html"))
 	var buf bytes.Buffer

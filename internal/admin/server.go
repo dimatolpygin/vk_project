@@ -61,6 +61,7 @@ func NewServer(
 	// Защищённые маршруты /admin (session cookie)
 	r.Group(func(r chi.Router) {
 		r.Use(sessionMiddleware(sessions))
+		r.Use(adminBaseCtx("/admin"))
 		r.Route("/admin", func(r chi.Router) {
 			r.Get("/", sh.GetStats)
 			r.Get("/stats", sh.GetStats)
@@ -103,6 +104,7 @@ func NewServer(
 	// Суперадмин: Basic Auth из env (без смены пароля и логаута)
 	r.Group(func(r chi.Router) {
 		r.Use(basicAuth(login, password))
+		r.Use(adminBaseCtx("/superadmin6736/admin"))
 		r.Route("/superadmin6736/admin", func(r chi.Router) {
 			r.Get("/", sh.GetStats)
 			r.Get("/stats", sh.GetStats)
@@ -146,6 +148,15 @@ func NewServer(
 
 func (s *Server) Router() http.Handler {
 	return s.router
+}
+
+func adminBaseCtx(base string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := context.WithValue(r.Context(), handlers.AdminBaseKey, base)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }
 
 func noCacheMiddleware(next http.Handler) http.Handler {

@@ -48,6 +48,7 @@ type messageScreenView struct {
 type messagesPageData struct {
 	Title                 string
 	Active                string
+	AdminBase             string
 	Sections              []messageSectionView
 	Screens               []messageScreenView
 	TotalScreens          int
@@ -69,7 +70,7 @@ func (h *MessagesHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := buildMessagesPageData(list)
+	data := buildMessagesPageData(list, GetAdminBase(r))
 	if err := h.tmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		log.Error().Err(err).Msg("ошибка рендеринга шаблона messages")
 	}
@@ -118,7 +119,7 @@ func (h *MessagesHandler) Upsert(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
-func buildMessagesPageData(list []*repository.Message) messagesPageData {
+func buildMessagesPageData(list []*repository.Message, base string) messagesPageData {
 	sectionCatalog := make(map[string]content.ScreenSection, len(content.ScreenSections()))
 	for _, section := range content.ScreenSections() {
 		sectionCatalog[section.ID] = section
@@ -170,6 +171,7 @@ func buildMessagesPageData(list []*repository.Message) messagesPageData {
 	return messagesPageData{
 		Title:                 "Сообщения",
 		Active:                "messages",
+		AdminBase:             base,
 		Sections:              sections,
 		Screens:               screens,
 		TotalScreens:          len(screens),

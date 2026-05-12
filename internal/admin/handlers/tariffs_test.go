@@ -54,7 +54,7 @@ func TestTariffsTemplateRenders(t *testing.T) {
 			IsActive:    true,
 			SortOrder:   1,
 		},
-	})
+	}, "/admin")
 
 	tmpl := template.Must(template.New("").Funcs(tmplFuncs).ParseFiles("../../../templates/layout.html", "../../../templates/tariffs.html"))
 

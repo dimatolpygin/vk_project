@@ -28,6 +28,7 @@ type UsersHandler struct {
 type usersPageData struct {
 	Title          string
 	Active         string
+	AdminBase      string
 	Summary        usersSummaryView
 	Query          string
 	Status         string
@@ -117,6 +118,8 @@ func NewUsersHandler(users *repository.UserRepo, orders *repository.OrderRepo, r
 }
 
 func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
+	base := GetAdminBase(r)
+
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
 		page = 1
@@ -152,12 +155,13 @@ func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	views := make([]userListItemView, 0, len(users))
 	for _, item := range users {
-		views = append(views, buildUserListItemView(item))
+		views = append(views, buildUserListItemView(item, base))
 	}
 
 	data := usersPageData{
 		Title:          "Пользователи",
 		Active:         "users",
+		AdminBase:      base,
 		Summary:        buildUsersSummaryView(summary),
 		Query:          params.Query,
 		Status:         params.Status,
@@ -168,8 +172,8 @@ func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
 		Page:           page,
 		HasPrev:        page > 1,
 		HasNext:        params.Offset+usersPageSize < total,
-		PrevURL:        buildUsersListURL(page-1, params.Query, params.Status),
-		NextURL:        buildUsersListURL(page+1, params.Query, params.Status),
+		PrevURL:        buildUsersListURL(base, page-1, params.Query, params.Status),
+		NextURL:        buildUsersListURL(base, page+1, params.Query, params.Status),
 		FiltersApplied: params.Query != "" || params.Status != "",
 	}
 
@@ -193,7 +197,7 @@ func (h *UsersHandler) AddGens(w http.ResponseWriter, r *http.Request) {
 
 	count, err := strconv.Atoi(r.FormValue("count"))
 	if err != nil || count <= 0 {
-		http.Redirect(w, r, "/admin/users/"+vkIDStr, http.StatusSeeOther)
+		http.Redirect(w, r, GetAdminBase(r)+"/users/"+vkIDStr, http.StatusSeeOther)
 		return
 	}
 
@@ -209,7 +213,7 @@ func (h *UsersHandler) AddGens(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/admin/users/"+vkIDStr, http.StatusSeeOther)
+	http.Redirect(w, r, GetAdminBase(r)+"/users/"+vkIDStr, http.StatusSeeOther)
 }
 
 func (h *UsersHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -224,7 +228,7 @@ func (h *UsersHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = h.rdb.Del(r.Context(), fmt.Sprintf("state:%d", vkID))
-	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
+	http.Redirect(w, r, GetAdminBase(r)+"/users", http.StatusSeeOther)
 }
 
 func (h *UsersHandler) Detail(w http.ResponseWriter, r *http.Request) {
@@ -252,10 +256,12 @@ func (h *UsersHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		orders = nil
 	}
 
+	base := GetAdminBase(r)
 	data := usersPageData{
-		Title:  "Пользователь",
-		Active: "users",
-		Detail: buildUserDetailPageView(user, orders),
+		Title:     "Пользователь",
+		Active:    "users",
+		AdminBase: base,
+		Detail:    buildUserDetailPageView(user, orders, base),
 	}
 
 	if err := h.tmpl.ExecuteTemplate(w, "layout", data); err != nil {
@@ -275,7 +281,7 @@ func buildUsersSummaryView(summary *repository.AdminUserSummary) usersSummaryVie
 	}
 }
 
-func buildUserListItemView(user *repository.AdminUserListItem) userListItemView {
+func buildUserListItemView(user *repository.AdminUserListItem, base string) userListItemView {
 	statusLabel, statusClass := userStatusBadge(user.Status)
 	return userListItemView{
 		VKID:            user.VKID,
@@ -292,11 +298,11 @@ func buildUserListItemView(user *repository.AdminUserListItem) userListItemView 
 		LastActivity:    formatDateTime(user.LastActivity),
 		HasSavedPhoto:   len(user.SavedPhotoURLs) > 0,
 		HasSubscription: user.Subscribed,
-		DetailURL:       fmt.Sprintf("/admin/users/%d", user.VKID),
+		DetailURL:       fmt.Sprintf("%s/users/%d", base, user.VKID),
 	}
 }
 
-func buildUserDetailPageView(user *repository.AdminUserDetail, orders []*repository.Order) *userDetailPageView {
+func buildUserDetailPageView(user *repository.AdminUserDetail, orders []*repository.Order, base string) *userDetailPageView {
 	if user == nil {
 		return nil
 	}
@@ -347,13 +353,13 @@ func buildUserDetailPageView(user *repository.AdminUserDetail, orders []*reposit
 		PrefResolution:     fallbackValue(user.PrefResolution, "1k"),
 		PrefAspectRatio:    fallbackValue(user.PrefAspectRatio, "авто"),
 		Orders:             orderViews,
-		AddGensURL:         fmt.Sprintf("/admin/users/%d/add-gens", user.VKID),
-		DeleteURL:          fmt.Sprintf("/admin/users/%d/delete", user.VKID),
-		BackURL:            "/admin/users",
+		AddGensURL:         fmt.Sprintf("%s/users/%d/add-gens", base, user.VKID),
+		DeleteURL:          fmt.Sprintf("%s/users/%d/delete", base, user.VKID),
+		BackURL:            base + "/users",
 	}
 }
 
-func buildUsersListURL(page int, query, status string) string {
+func buildUsersListURL(base string, page int, query, status string) string {
 	if page < 1 {
 		page = 1
 	}
@@ -365,7 +371,7 @@ func buildUsersListURL(page int, query, status string) string {
 	if normalizeUserStatus(status) != "" {
 		values.Set("status", normalizeUserStatus(status))
 	}
-	return "/admin/users?" + values.Encode()
+	return base + "/users?" + values.Encode()
 }
 
 func normalizeUserStatus(status string) string {

@@ -15,6 +15,7 @@ import (
 type tariffsPageData struct {
 	Title        string
 	Active       string
+	AdminBase    string
 	Summary      tariffSummaryView
 	Tariffs      []tariffItemView
 	VisibleCount int
@@ -61,7 +62,7 @@ func (h *TariffsHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := buildTariffsPageData(list)
+	data := buildTariffsPageData(list, GetAdminBase(r))
 
 	if err := h.tmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		log.Error().Err(err).Msg("ошибка рендеринга шаблона tariffs")
@@ -139,7 +140,7 @@ func (h *TariffsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
-func buildTariffsPageData(tariffs []*repository.Tariff) tariffsPageData {
+func buildTariffsPageData(tariffs []*repository.Tariff, base string) tariffsPageData {
 	if tariffs == nil {
 		tariffs = []*repository.Tariff{}
 	}
@@ -147,6 +148,7 @@ func buildTariffsPageData(tariffs []*repository.Tariff) tariffsPageData {
 	return tariffsPageData{
 		Title:        "Тарифы",
 		Active:       "tariffs",
+		AdminBase:    base,
 		Summary:      buildTariffSummaryView(tariffs),
 		Tariffs:      buildTariffItemViews(tariffs),
 		VisibleCount: len(tariffs),

@@ -486,7 +486,7 @@ async function uploadBroadcastImage(file) {
     formData.append('file', file);
 
     try {
-        const response = await fetch('/admin/upload', {
+        const response = await fetch('{{.AdminBase}}/upload', {
             method: 'POST',
             body: formData,
             signal: controller.signal,
@@ -572,7 +572,7 @@ if (broadcastForm) {
         formData.set('image_upload_state', getBroadcastImageUploadStateValue());
 
         try {
-            const response = await fetch('/admin/broadcasts', {
+            const response = await fetch('{{.AdminBase}}/broadcasts', {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -631,7 +631,7 @@ async function pollBroadcastStatuses() {
 
     await Promise.all(liveCards.map(async (card) => {
         const id = card.dataset.broadcastId;
-        const response = await fetch(`/admin/broadcasts/${id}`);
+        const response = await fetch(`{{.AdminBase}}/broadcasts/${id}`);
         if (!response.ok) return;
         const payload = await response.json();
         updateBroadcastCard(card, payload);

@@ -77,6 +77,7 @@ func (h *CategoriesHandler) ListCategories(w http.ResponseWriter, r *http.Reques
 	data := map[string]any{
 		"Title":          "Категории и промты",
 		"Active":         "prompts",
+		"AdminBase":      GetAdminBase(r),
 		"Categories":     cats,
 		"Prompts":        allPrompts,
 		"CategoriesJSON": template.JS(string(catsJSON)),

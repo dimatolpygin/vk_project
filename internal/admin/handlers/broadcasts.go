@@ -46,6 +46,7 @@ type BroadcastsHandler struct {
 type broadcastsPageData struct {
 	Title      string
 	Active     string
+	AdminBase  string
 	Broadcasts []broadcastItemView
 }
 
@@ -102,7 +103,7 @@ func (h *BroadcastsHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := buildBroadcastsPageData(list)
+	data := buildBroadcastsPageData(list, GetAdminBase(r))
 	if err := h.tmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		log.Error().Err(err).Msg("failed to render broadcasts template")
 	}
@@ -198,7 +199,7 @@ func (h *BroadcastsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, buildBroadcastStatusResponse(broadcast))
 }
 
-func buildBroadcastsPageData(list []*repository.Broadcast) broadcastsPageData {
+func buildBroadcastsPageData(list []*repository.Broadcast, base string) broadcastsPageData {
 	views := make([]broadcastItemView, 0, len(list))
 	for _, item := range list {
 		if item == nil {
@@ -210,6 +211,7 @@ func buildBroadcastsPageData(list []*repository.Broadcast) broadcastsPageData {
 	return broadcastsPageData{
 		Title:      "Рассылки",
 		Active:     "broadcasts",
+		AdminBase:  base,
 		Broadcasts: views,
 	}
 }

@@ -902,7 +902,7 @@ async function uploadFile(key) {
 
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch('/admin/upload', { method: 'POST', body: formData });
+    const response = await fetch('{{.AdminBase}}/upload', { method: 'POST', body: formData });
 
     if (response.ok) {
         const { url } = await response.json();
@@ -950,7 +950,7 @@ async function saveMessage(key) {
         keyboard: collectKeyboard(key)
     };
 
-    const response = await fetch('/admin/messages', {
+    const response = await fetch('{{.AdminBase}}/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)

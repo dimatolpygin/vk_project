@@ -27,45 +27,47 @@
         <div class="brand"><i class="bi bi-robot"></i> VK Нейробот</div>
         <ul class="nav flex-column gap-1 mt-2">
             <li class="nav-item">
-                <a href="/admin/stats" class="nav-link px-3 py-2 {{if eq .Active "stats"}}active{{end}}">
+                <a href="{{.AdminBase}}/stats" class="nav-link px-3 py-2 {{if eq .Active "stats"}}active{{end}}">
                     <i class="bi bi-bar-chart-fill"></i> Статистика
                 </a>
             </li>
             <li class="nav-item">
-                <a href="/admin/users" class="nav-link px-3 py-2 {{if eq .Active "users"}}active{{end}}">
+                <a href="{{.AdminBase}}/users" class="nav-link px-3 py-2 {{if eq .Active "users"}}active{{end}}">
                     <i class="bi bi-people-fill"></i> Пользователи
                 </a>
             </li>
             <li class="nav-item">
-                <a href="/admin/tariffs" class="nav-link px-3 py-2 {{if eq .Active "tariffs"}}active{{end}}">
+                <a href="{{.AdminBase}}/tariffs" class="nav-link px-3 py-2 {{if eq .Active "tariffs"}}active{{end}}">
                     <i class="bi bi-credit-card-fill"></i> Тарифы
                 </a>
             </li>
             <li class="nav-item">
-                <a href="/admin/messages" class="nav-link px-3 py-2 {{if eq .Active "messages"}}active{{end}}">
+                <a href="{{.AdminBase}}/messages" class="nav-link px-3 py-2 {{if eq .Active "messages"}}active{{end}}">
                     <i class="bi bi-chat-dots-fill"></i> Сообщения
                 </a>
             </li>
             <li class="nav-item">
-                <a href="/admin/broadcasts" class="nav-link px-3 py-2 {{if eq .Active "broadcasts"}}active{{end}}">
+                <a href="{{.AdminBase}}/broadcasts" class="nav-link px-3 py-2 {{if eq .Active "broadcasts"}}active{{end}}">
                     <i class="bi bi-megaphone-fill"></i> Рассылки
                 </a>
             </li>
             <li class="nav-item">
-                <a href="/admin/categories" class="nav-link px-3 py-2 {{if eq .Active "prompts"}}active{{end}}">
+                <a href="{{.AdminBase}}/categories" class="nav-link px-3 py-2 {{if eq .Active "prompts"}}active{{end}}">
                     <i class="bi bi-palette-fill"></i> Категории / Промты
                 </a>
             </li>
         </ul>
         <div class="mt-auto p-2 border-top border-secondary border-opacity-25">
-            <a href="/admin/change-password" class="nav-link px-3 py-2 {{if eq .Active "change-password"}}active{{end}}">
+            {{if eq .AdminBase "/admin"}}
+            <a href="{{.AdminBase}}/change-password" class="nav-link px-3 py-2 {{if eq .Active "change-password"}}active{{end}}">
                 <i class="bi bi-key-fill"></i> Сменить пароль
             </a>
-            <form method="POST" action="/admin/logout" class="mt-1">
+            <form method="POST" action="{{.AdminBase}}/logout" class="mt-1">
                 <button type="submit" class="nav-link px-3 py-2 w-100 text-start border-0 bg-transparent text-danger">
                     <i class="bi bi-box-arrow-right"></i> Выход
                 </button>
             </form>
+            {{end}}
         </div>
     </nav>
     <main class="main-content p-4">

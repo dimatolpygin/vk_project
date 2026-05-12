@@ -66,6 +66,7 @@ func TestBuildTopActionViewsUsesHumanTitles(t *testing.T) {
 func TestStatsTemplateRenders(t *testing.T) {
 	now := time.Date(2026, time.May, 8, 15, 0, 0, 0, time.UTC)
 	data := buildStatsPageData(
+		"/admin",
 		now,
 		statsPeriod{Key: "30d", Days: 30, Label: "Последние 30 дней"},
 		&repository.DashboardStats{
