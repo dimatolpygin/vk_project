@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/rs/zerolog/log"
 	"vk_neuro_bot/internal/bot/flows"
@@ -43,6 +44,8 @@ type VKAttachment struct {
 }
 
 type VKPhoto struct {
+	OwnerID   int64         `json:"owner_id"`
+	ID        int64         `json:"id"`
 	Sizes     []VKPhotoSize `json:"sizes"`
 	Photo75   string        `json:"photo_75"`
 	Photo130  string        `json:"photo_130"`
@@ -170,11 +173,16 @@ func (h *Handler) handleMessage(ctx context.Context, raw json.RawMessage) {
 		return
 	}
 
+	photoURLs, photoAttachments := extractPhotoData(msg.Attachments)
 	fc := &flows.Context{
-		VkID:    vkID,
-		User:    toFlowUser(user),
-		State:   state,
-		Message: &flows.InMessage{Text: msg.Text, Photos: extractPhotos(msg.Attachments)},
+		VkID:  vkID,
+		User:  toFlowUser(user),
+		State: state,
+		Message: &flows.InMessage{
+			Text:             msg.Text,
+			Photos:           photoURLs,
+			PhotoAttachments: photoAttachments,
+		},
 	}
 
 	h.registry.HandleMessage(ctx, fc)
@@ -319,18 +327,23 @@ func (h *Handler) recordActivity(ctx context.Context, event repository.ActivityE
 	}
 }
 
-func extractPhotos(attachments []VKAttachment) []string {
-	var urls []string
+func extractPhotoData(attachments []VKAttachment) (urls []string, vkAttachments []string) {
 	for _, a := range attachments {
 		if a.Type != "photo" {
 			continue
 		}
-
-		if best := extractBestPhotoURL(a.Photo); best != "" {
-			urls = append(urls, best)
+		url := extractBestPhotoURL(a.Photo)
+		if url == "" {
+			continue
+		}
+		urls = append(urls, url)
+		if a.Photo.OwnerID != 0 && a.Photo.ID != 0 {
+			vkAttachments = append(vkAttachments, fmt.Sprintf("photo%d_%d", a.Photo.OwnerID, a.Photo.ID))
+		} else {
+			vkAttachments = append(vkAttachments, "")
 		}
 	}
-	return urls
+	return
 }
 
 func extractBestPhotoURL(photo VKPhoto) string {
@@ -373,16 +386,17 @@ func extractBestPhotoURL(photo VKPhoto) string {
 
 func toFlowUser(u *repository.User) *flows.User {
 	return &flows.User{
-		VKID:            u.VKID,
-		Gender:          u.Gender,
-		FreeGens:        u.FreeGens,
-		PaidGens:        u.PaidGens,
-		Status:          u.Status,
-		ReferralCode:    u.ReferralCode,
-		SavedPhotoURLs:  u.SavedPhotoURLs,
-		UseSavedPhoto:   u.UseSavedPhoto,
-		PrefModel:       u.PrefModel,
-		PrefResolution:  u.PrefResolution,
-		PrefAspectRatio: u.PrefAspectRatio,
+		VKID:                 u.VKID,
+		Gender:               u.Gender,
+		FreeGens:             u.FreeGens,
+		PaidGens:             u.PaidGens,
+		Status:               u.Status,
+		ReferralCode:         u.ReferralCode,
+		SavedPhotoURLs:       u.SavedPhotoURLs,
+		SavedPhotoAttachments: u.SavedPhotoAttachments,
+		UseSavedPhoto:        u.UseSavedPhoto,
+		PrefModel:            u.PrefModel,
+		PrefResolution:       u.PrefResolution,
+		PrefAspectRatio:      u.PrefAspectRatio,
 	}
 }

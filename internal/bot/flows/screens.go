@@ -11,12 +11,13 @@ import (
 )
 
 type ScreenOptions struct {
-	Data          map[string]any
-	SelectedValue string
-	ToggleOn      bool
-	Links         map[string]string
-	PrefixRows    [][]KbBtn
-	ImageOverride *string
+	Data                map[string]any
+	SelectedValue       string
+	ToggleOn            bool
+	Links               map[string]string
+	PrefixRows          [][]KbBtn
+	ImageOverride       *string
+	AttachmentsOverride []string // готовые VK attachment strings (без повторной загрузки)
 }
 
 func sendScreen(ctx context.Context, d *Deps, vkID int64, key string, opts ScreenOptions) error {
@@ -50,15 +51,21 @@ func sendScreen(ctx context.Context, d *Deps, vkID int64, key string, opts Scree
 
 	imageURL := msg.ImageURL
 	cacheKey := key
-	if opts.ImageOverride != nil {
+	var attachments []string
+
+	if len(opts.AttachmentsOverride) > 0 {
+		attachments = opts.AttachmentsOverride
+		cacheKey = ""
+	} else if opts.ImageOverride != nil {
 		imageURL = opts.ImageOverride
 		cacheKey = ""
 	}
 
 	return d.Sender.SendScreen(ctx, vkID, &ScreenMessage{
-		Key:      key,
-		Text:     text,
-		ImageURL: imageURL,
+		Key:         key,
+		Text:        text,
+		ImageURL:    imageURL,
+		Attachments: attachments,
 		Keyboard: RenderContentKeyboardWithRows(msg.Keyboard, opts.PrefixRows, KeyboardRenderOptions{
 			SelectedValue: opts.SelectedValue,
 			ToggleOn:      opts.ToggleOn,

@@ -118,7 +118,9 @@ func (s *Sender) SendScreen(ctx context.Context, vkID int64, screen *flows.Scree
 	}
 
 	var attachment string
-	if screen.ImageURL != nil && *screen.ImageURL != "" {
+	if len(screen.Attachments) > 0 {
+		attachment = strings.Join(screen.Attachments, ",")
+	} else if screen.ImageURL != nil && *screen.ImageURL != "" {
 		resolved, err := s.resolveAttachment(ctx, vkID, *screen.ImageURL, screen.CacheKey)
 		if err != nil {
 			if screen.CacheKey == "" {

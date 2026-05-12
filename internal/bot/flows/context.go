@@ -34,17 +34,18 @@ const (
 )
 
 type User struct {
-	VKID            int64
-	Gender          string
-	FreeGens        int
-	PaidGens        int
-	Status          string
-	ReferralCode    string
-	SavedPhotoURLs  []string
-	UseSavedPhoto   bool
-	PrefModel       string
-	PrefResolution  string
-	PrefAspectRatio string
+	VKID                 int64
+	Gender               string
+	FreeGens             int
+	PaidGens             int
+	Status               string
+	ReferralCode         string
+	SavedPhotoURLs       []string
+	SavedPhotoAttachments []string
+	UseSavedPhoto        bool
+	PrefModel            string
+	PrefResolution       string
+	PrefAspectRatio      string
 }
 
 func (u *User) TotalGens() int {
@@ -92,8 +93,9 @@ type State struct {
 }
 
 type InMessage struct {
-	Text   string
-	Photos []string
+	Text             string
+	Photos           []string
+	PhotoAttachments []string // VK attachment strings вида photo{owner_id}_{id}
 }
 
 type CallbackData struct {
@@ -114,11 +116,12 @@ type Context struct {
 }
 
 type ScreenMessage struct {
-	Key      string
-	Text     string
-	ImageURL *string
-	Keyboard string
-	CacheKey string
+	Key         string
+	Text        string
+	ImageURL    *string
+	Attachments []string // готовые VK attachment strings (joined в SendScreen через запятую)
+	Keyboard    string
+	CacheKey    string
 }
 
 // PhotoStorage — интерфейс S3-хранилища фото.
@@ -171,7 +174,7 @@ type UserStore interface {
 	GetByVKID(ctx context.Context, vkID int64) (*repository.User, error)
 	SetGender(ctx context.Context, vkID int64, gender string) error
 	SetSubscribed(ctx context.Context, vkID int64, subscribed bool) error
-	SetSavedPhotos(ctx context.Context, vkID int64, urls []string) error
+	SetSavedPhotos(ctx context.Context, vkID int64, urls []string, attachments []string) error
 	SetUseSavedPhoto(ctx context.Context, vkID int64, enabled bool) error
 	SaveSettings(ctx context.Context, vkID int64, model, resolution, aspectRatio string) error
 }

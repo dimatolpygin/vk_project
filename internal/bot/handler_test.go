@@ -156,7 +156,7 @@ func TestHandleMessageDoesNotReattachExistingUser(t *testing.T) {
 }
 
 func TestExtractPhotosKeepsAllPhotoAttachments(t *testing.T) {
-	got := extractPhotos([]VKAttachment{
+	got, _ := extractPhotoData([]VKAttachment{
 		{
 			Type: "photo",
 			Photo: VKPhoto{Sizes: []VKPhotoSize{
@@ -188,7 +188,7 @@ func TestExtractPhotosKeepsAllPhotoAttachments(t *testing.T) {
 }
 
 func TestExtractPhotosSupportsLegacyVKPhotoURLs(t *testing.T) {
-	got := extractPhotos([]VKAttachment{
+	got, _ := extractPhotoData([]VKAttachment{
 		{Type: "photo", Photo: VKPhoto{Photo604: "https://example.com/1-604.jpg", Photo1280: "https://example.com/1-1280.jpg"}},
 		{Type: "photo", Photo: VKPhoto{SrcSmall: "https://example.com/2-small.jpg", SrcBig: "https://example.com/2-big.jpg"}},
 	})

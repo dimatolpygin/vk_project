@@ -2,8 +2,6 @@ package flows
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"vk_neuro_bot/internal/repository"
@@ -19,6 +17,16 @@ func showSavedPhotoMenu(ctx context.Context, fc *Context, d *Deps) {
 		_ = sendScreen(ctx, d, fc.VkID, "saved_photo_empty", ScreenOptions{})
 		return
 	}
+	atts := nonEmpty(fc.User.SavedPhotoAttachments)
+	if len(atts) > 0 {
+		_ = sendScreen(ctx, d, fc.VkID, "saved_photo_filled", ScreenOptions{
+			Data:                map[string]any{"Status": savedPhotoStatus(fc.User.UseSavedPhoto)},
+			AttachmentsOverride: atts,
+			ToggleOn:            fc.User.UseSavedPhoto,
+		})
+		return
+	}
+	// Fallback для старых записей без attachment strings
 	photoURL := fc.User.SavedPhotoURLs[0]
 	_ = sendScreen(ctx, d, fc.VkID, "saved_photo_filled", ScreenOptions{
 		Data:          map[string]any{"Status": savedPhotoStatus(fc.User.UseSavedPhoto)},
@@ -33,44 +41,43 @@ func HandleSavedPhotoUploadStart(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func HandleSavedPhotoReceived(ctx context.Context, fc *Context, d *Deps) {
-	photos := normalizeGenerationInputPhotos(messagePhotos(fc.Message))
-	if len(photos) == 0 {
+	if fc.Message == nil || len(fc.Message.Photos) == 0 {
 		_ = sendScreen(ctx, d, fc.VkID, "saved_photo_upload_prompt", ScreenOptions{})
 		return
 	}
 
-	ts := time.Now().Unix()
-	finalURLs := make([]string, 0, len(photos))
-	for i, photoURL := range photos {
-		url := photoURL
-		if d.Storage != nil {
-			key := fmt.Sprintf("saved_photo/%d/%d_%d.png", fc.VkID, ts, i)
-			if _, err := d.Storage.UploadFromURL(ctx, key, photoURL); err != nil {
-				log.Error().Err(err).Msg("не удалось загрузить сохранённое фото в S3")
-			} else {
-				url = d.Storage.PublicURL(key)
-			}
-		}
-		finalURLs = append(finalURLs, url)
+	urls := fc.Message.Photos
+	atts := fc.Message.PhotoAttachments
+	if len(atts) != len(urls) {
+		atts = make([]string, len(urls))
 	}
 
-	if err := d.UserRepo.SetSavedPhotos(ctx, fc.VkID, finalURLs); err != nil {
+	if err := d.UserRepo.SetSavedPhotos(ctx, fc.VkID, urls, atts); err != nil {
 		log.Error().Err(err).Msg("не удалось сохранить фото пользователя")
 		_ = sendScreen(ctx, d, fc.VkID, "saved_photo_error", ScreenOptions{})
 		return
 	}
 
 	trackEvent(ctx, d, fc.VkID, repository.ActivityEventSavedPhotoSaved, "saved_photo_upload", "saved_photo_saved", map[string]any{
-		"has_storage": d.Storage != nil,
-		"photo_count": len(finalURLs),
+		"photo_count": len(urls),
 	})
 	_ = d.State.SetStep(ctx, fc.VkID, StepMainMenu)
-	previewURL := finalURLs[0]
-	_ = sendScreen(ctx, d, fc.VkID, "saved_photo_saved", ScreenOptions{
-		Data:          map[string]any{"Status": savedPhotoStatus(fc.User.UseSavedPhoto)},
-		ImageOverride: &previewURL,
-		ToggleOn:      fc.User.UseSavedPhoto,
-	})
+
+	displayAtts := nonEmpty(atts)
+	if len(displayAtts) > 0 {
+		_ = sendScreen(ctx, d, fc.VkID, "saved_photo_saved", ScreenOptions{
+			Data:                map[string]any{"Status": savedPhotoStatus(fc.User.UseSavedPhoto)},
+			AttachmentsOverride: displayAtts,
+			ToggleOn:            fc.User.UseSavedPhoto,
+		})
+	} else {
+		previewURL := urls[0]
+		_ = sendScreen(ctx, d, fc.VkID, "saved_photo_saved", ScreenOptions{
+			Data:          map[string]any{"Status": savedPhotoStatus(fc.User.UseSavedPhoto)},
+			ImageOverride: &previewURL,
+			ToggleOn:      fc.User.UseSavedPhoto,
+		})
+	}
 }
 
 func HandleToggleSavedPhoto(ctx context.Context, fc *Context, d *Deps) {
@@ -91,4 +98,15 @@ func savedPhotoStatus(enabled bool) string {
 		return "✅ вкл"
 	}
 	return "❌ выкл"
+}
+
+// nonEmpty возвращает срез, отфильтрованный от пустых строк.
+func nonEmpty(ss []string) []string {
+	result := ss[:0:0]
+	for _, s := range ss {
+		if s != "" {
+			result = append(result, s)
+		}
+	}
+	return result
 }

@@ -25,7 +25,7 @@ func (f *fakeUserStoreForSavedPhoto) SetSubscribed(context.Context, int64, bool)
 	return nil
 }
 
-func (f *fakeUserStoreForSavedPhoto) SetSavedPhotos(_ context.Context, vkID int64, urls []string) error {
+func (f *fakeUserStoreForSavedPhoto) SetSavedPhotos(_ context.Context, vkID int64, urls []string, _ []string) error {
 	f.savedPhotoVKID = vkID
 	f.savedPhotoURLs = urls
 	f.setCalls++
@@ -53,10 +53,10 @@ func TestHandleSavedPhotoReceivedAcceptsMultiplePhotos(t *testing.T) {
 		VkID:  801,
 		User:  &User{},
 		State: &State{Step: StepAwaitingSavedPhoto},
-		Message: &InMessage{Photos: []string{
-			"https://example.com/1.png",
-			"https://example.com/2.png",
-		}},
+		Message: &InMessage{
+			Photos:           []string{"https://example.com/1.png", "https://example.com/2.png"},
+			PhotoAttachments: []string{"photo1_1", "photo2_2"},
+		},
 	}
 
 	HandleSavedPhotoReceived(context.Background(), fc, deps)
