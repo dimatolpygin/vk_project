@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"vk_neuro_bot/internal/bot/flows"
 	"vk_neuro_bot/internal/repository"
+	"vk_neuro_bot/internal/vkgroup"
 )
 
 type userStore interface {
@@ -33,6 +34,7 @@ type VKMessage struct {
 	Ref         string         `json:"ref"`
 	Attachments []VKAttachment `json:"attachments"`
 	Payload     string         `json:"payload"`
+	IsCropped   bool           `json:"is_cropped"`
 }
 
 type VKAttachment struct {
@@ -82,6 +84,7 @@ type Handler struct {
 	statsRepo *repository.StatsRepo
 	activity  *repository.ActivityRepo
 	registry  *flows.Registry
+	vkClient  *vkgroup.Client
 }
 
 func NewHandler(
@@ -91,6 +94,7 @@ func NewHandler(
 	statsRepo *repository.StatsRepo,
 	activityRepo *repository.ActivityRepo,
 	reg *flows.Registry,
+	vkClient *vkgroup.Client,
 ) *Handler {
 	return &Handler{
 		state:     state,
@@ -99,6 +103,7 @@ func NewHandler(
 		statsRepo: statsRepo,
 		activity:  activityRepo,
 		registry:  reg,
+		vkClient:  vkClient,
 	}
 }
 
@@ -124,6 +129,19 @@ func (h *Handler) handleMessage(ctx context.Context, raw json.RawMessage) {
 	vkID := msg.FromID
 	if vkID <= 0 {
 		return
+	}
+
+	if msg.IsCropped && h.vkClient != nil {
+		log.Info().Int64("vk_id", msg.FromID).Int64("msg_id", msg.ID).Msg("message is_cropped, fetching full message")
+		if fullRaw, err := h.vkClient.GetMessageByID(ctx, msg.ID); err == nil {
+			var fullMsg VKMessage
+			if json.Unmarshal(fullRaw, &fullMsg) == nil {
+				msg.Attachments = fullMsg.Attachments
+				log.Info().Int64("vk_id", msg.FromID).Int("attachment_count", len(msg.Attachments)).Msg("full message fetched")
+			}
+		} else {
+			log.Warn().Err(err).Int64("vk_id", msg.FromID).Int64("msg_id", msg.ID).Msg("failed to fetch full message, using cropped attachments")
+		}
 	}
 
 	user := h.ensureUser(ctx, vkID, "", "", msg.Ref)

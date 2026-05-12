@@ -141,7 +141,7 @@ func main() {
 	}
 
 	registry := flows.NewRegistry(deps)
-	handler := bot.NewHandler(stateMgr, sender, userRepo, statsRepo, activityRepo, registry)
+	handler := bot.NewHandler(stateMgr, sender, userRepo, statsRepo, activityRepo, registry, vkClient)
 	botServer := bot.NewServer(cfg, handler, ykClient, deps)
 
 	adminServer := admin.NewServer(

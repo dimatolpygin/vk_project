@@ -133,6 +133,29 @@ func (c *Client) SendEventAnswer(ctx context.Context, eventID string, userID, pe
 	return err
 }
 
+// GetMessageByID возвращает JSON первого сообщения из messages.getById.
+// Нужен для получения полного списка вложений когда VK присылает is_cropped=true.
+func (c *Client) GetMessageByID(ctx context.Context, msgID int64) (json.RawMessage, error) {
+	params := url.Values{
+		"message_ids": {strconv.FormatInt(msgID, 10)},
+	}
+	raw, err := c.call(ctx, "messages.getById", params)
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		Count int               `json:"count"`
+		Items []json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	if len(result.Items) == 0 {
+		return nil, fmt.Errorf("message %d not found", msgID)
+	}
+	return result.Items[0], nil
+}
+
 // GetPhotoUploadServer возвращает URL для загрузки фото в сообщениях.
 func (c *Client) GetPhotoUploadServer(ctx context.Context, peerID int64) (string, error) {
 	params := url.Values{"peer_id": {strconv.FormatInt(peerID, 10)}}
