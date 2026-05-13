@@ -239,11 +239,7 @@ func processCanceledPayment(ctx context.Context, d *Deps, canceler paymentCancel
 }
 
 func buildPaymentReturnURL(publicBaseURL string) string {
-	publicBaseURL = strings.TrimSpace(publicBaseURL)
-	if publicBaseURL == "" {
-		return ""
-	}
-	return strings.TrimRight(publicBaseURL, "/") + "/vk/return"
+	return "https://vk.com/club238357711"
 }
 
 func gensCountFromPaymentMetadata(metadata map[string]any) int {
