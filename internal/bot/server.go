@@ -62,14 +62,14 @@ func (s *Server) handleVKWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.cfg.VKSecret != "" && event.Secret != s.cfg.VKSecret {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-
 	if event.Type == "confirmation" {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = fmt.Fprint(w, s.cfg.VKConfirmationToken)
+		return
+	}
+
+	if s.cfg.VKSecret != "" && event.Secret != s.cfg.VKSecret {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
