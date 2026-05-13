@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 )
 
 type Order struct {
@@ -63,6 +64,8 @@ func (r *OrderRepo) SetPaymentID(ctx context.Context, orderID int64, paymentID s
 func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID string, paidGensHint int) (*PaymentSettlementResult, error) {
 	const referralBonusGens = 2
 
+	log.Info().Str("payment_id", paymentID).Int("paid_gens_hint", paidGensHint).Msg("settle: beginning transaction")
+
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -77,10 +80,18 @@ func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID strin
 		FOR UPDATE`, paymentID).
 		Scan(&order.ID, &order.UserVKID, &order.TariffID, &order.YukassaPaymentID, &order.Amount, &order.Status, &order.CreatedAt); err != nil {
 		if err == pgx.ErrNoRows {
+			log.Warn().Str("payment_id", paymentID).Msg("settle: order not found")
 			return nil, fmt.Errorf("order not found for payment %s", paymentID)
 		}
 		return nil, err
 	}
+
+	log.Info().
+		Str("payment_id", paymentID).
+		Int64("order_id", order.ID).
+		Int64("vk_id", order.UserVKID).
+		Str("order_status", order.Status).
+		Msg("settle: order found")
 
 	result := &PaymentSettlementResult{
 		PaymentID: paymentID,
@@ -88,6 +99,7 @@ func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID strin
 		TariffID:  order.TariffID,
 	}
 	if order.Status == "succeeded" {
+		log.Info().Str("payment_id", paymentID).Int64("order_id", order.ID).Msg("settle: already processed")
 		result.AlreadyProcessed = true
 		if err := tx.Commit(ctx); err != nil {
 			return nil, err
@@ -115,6 +127,11 @@ func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID strin
 		WHERE vk_id = $1`, order.UserVKID, result.PaidGensAdded); err != nil {
 		return nil, err
 	}
+	log.Info().
+		Str("payment_id", paymentID).
+		Int64("vk_id", order.UserVKID).
+		Int("paid_gens_added", result.PaidGensAdded).
+		Msg("settle: user paid_gens updated")
 
 	err = tx.QueryRow(ctx, `
 		UPDATE referrals

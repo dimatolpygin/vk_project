@@ -165,13 +165,34 @@ func ProcessSuccessfulPaymentWithMetadata(ctx context.Context, d *Deps, paymentI
 func processSuccessfulPayment(ctx context.Context, d *Deps, settler paymentSettler, paymentID string, paymentMetadata map[string]any) error {
 	paidGensHint := gensCountFromPaymentMetadata(paymentMetadata)
 
+	log.Info().
+		Str("payment_id", paymentID).
+		Int("paid_gens_hint", paidGensHint).
+		Msg("processing successful payment")
+
 	result, err := settler.SettleSuccessfulPayment(ctx, paymentID, paidGensHint)
 	if err != nil {
+		log.Error().Err(err).Str("payment_id", paymentID).Msg("settle successful payment failed")
 		return err
 	}
-	if result == nil || result.AlreadyProcessed {
+	if result == nil {
+		log.Warn().Str("payment_id", paymentID).Msg("settle returned nil result")
 		return nil
 	}
+	if result.AlreadyProcessed {
+		log.Info().
+			Str("payment_id", paymentID).
+			Int64("vk_id", result.UserVKID).
+			Msg("payment already processed, skipping")
+		return nil
+	}
+
+	log.Info().
+		Str("payment_id", paymentID).
+		Int64("vk_id", result.UserVKID).
+		Int("gens_added", result.PaidGensAdded).
+		Bool("bonus_granted", result.BonusGranted).
+		Msg("payment settled, sending notification")
 
 	trackEvent(ctx, d, result.UserVKID, repository.ActivityEventPaymentSucceeded, "buy_tariff", "payment_success", map[string]any{
 		"payment_id": paymentID,

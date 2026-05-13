@@ -1,4 +1,4 @@
-package admin
+﻿package admin
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"vk_neuro_bot/internal/admin/handlers"
+	"vk_neuro_bot/internal/bot/flows"
 	"vk_neuro_bot/internal/repository"
 )
 
@@ -37,6 +38,7 @@ func NewServer(
 	rdb *redis.Client,
 	asynqClient *asynq.Client,
 	storage Storage,
+	flowDeps *flows.Deps,
 ) *Server {
 	s := &Server{}
 	r := chi.NewRouter()
@@ -53,6 +55,7 @@ func NewServer(
 	sh := handlers.NewStatsHandler(stats)
 	uploadH := handlers.NewUploadHandler(storage)
 	ah := handlers.NewAuthHandler(db, login, password, sessions)
+	ph := handlers.NewPaymentsHandler(flowDeps)
 
 	// Public: форма входа (без авторизации)
 	r.Get("/admin/login", ah.LoginGet)
@@ -98,6 +101,8 @@ func NewServer(
 			r.Post("/categories/{id}/prompts", ch.CreatePrompt)
 			r.Put("/prompts/{id}", ch.UpdatePrompt)
 			r.Delete("/prompts/{id}", ch.DeletePrompt)
+
+			r.Post("/payment/settle", ph.Settle)
 		})
 	})
 
@@ -137,6 +142,8 @@ func NewServer(
 			r.Post("/categories/{id}/prompts", ch.CreatePrompt)
 			r.Put("/prompts/{id}", ch.UpdatePrompt)
 			r.Delete("/prompts/{id}", ch.DeletePrompt)
+
+			r.Post("/payment/settle", ph.Settle)
 		})
 	})
 

@@ -99,6 +99,7 @@ func (s *Server) handleVKReturn(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleYukassaWebhook(w http.ResponseWriter, r *http.Request) {
+	log.Info().Str("remote_addr", r.RemoteAddr).Str("path", r.URL.Path).Msg("yukassa webhook received")
 	headers := sanitizeHeaders(r.Header)
 	decision := "failed"
 	payloadType := ""

@@ -151,6 +151,7 @@ func main() {
 		userRepo, tariffRepo, msgRepo, broadcastRepo, catRepo, promptRepo, statsRepo, orderRepo, rdb,
 		asynqClient,
 		adminStorage,
+		deps,
 	)
 
 	// Start bot HTTP server
