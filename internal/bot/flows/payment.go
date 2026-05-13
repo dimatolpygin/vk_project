@@ -239,7 +239,7 @@ func processCanceledPayment(ctx context.Context, d *Deps, canceler paymentCancel
 }
 
 func buildPaymentReturnURL(publicBaseURL string) string {
-	return "https://vk.com/club238357711"
+	return "https://vk.me/club238357711"
 }
 
 func gensCountFromPaymentMetadata(metadata map[string]any) int {
