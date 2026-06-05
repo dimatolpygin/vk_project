@@ -22,6 +22,8 @@ func (r *Registry) HandleMessage(ctx context.Context, fc *Context) {
 		HandleAfterGen(ctx, fc, r.d)
 	case StepReadyPromptsCategories, StepReadyPromptsPrompts:
 		HandleReadyPromptsBrowse(ctx, fc, r.d)
+	case StepCoupleAwaitingPhoto:
+		HandleCoupleAwaitingPhoto(ctx, fc, r.d)
 	case StepCoupleCategories, StepCouplePrompts:
 		HandleCoupleBrowse(ctx, fc, r.d)
 	case StepAwaitingPhoto:

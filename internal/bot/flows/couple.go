@@ -12,8 +12,70 @@ func HandleCoupleStart(ctx context.Context, fc *Context, d *Deps) {
 		return
 	}
 
+	// Сначала ждём фото, категории показываем только после загрузки.
+	state := copyPrefs(&State{
+		Step:       StepCoupleAwaitingPhoto,
+		PromptType: "couple",
+	}, fc.State)
+	state.CouplePhotoURLs = nil
+	state.InputPhotoURLs = nil
+	state.PhotoBatchID = ""
+	_ = d.State.Set(ctx, fc.VkID, state)
+
+	if err := sendScreen(ctx, d, fc.VkID, "couple_intro", ScreenOptions{}); err != nil {
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("ошибка отправки интро парных фото")
+	}
+}
+
+// HandleCoupleAwaitingPhoto принимает фото пары/семьи и только после успешной
+// загрузки показывает кнопки с категориями.
+func HandleCoupleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
+	photos := normalizeGenerationInputPhotos(messagePhotos(fc.Message))
+	log.Info().Int64("vk_id", fc.VkID).Int("message_photo_count", len(photos)).Msg("couple: фото во входящем сообщении")
+
+	if len(photos) == 0 {
+		_ = sendScreen(ctx, d, fc.VkID, "couple_intro", ScreenOptions{})
+		return
+	}
+	if !fc.User.HasGens() {
+		_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
+		return
+	}
+
+	batchID, ownsBatch := appendPendingPhotoBatch(ctx, fc, d, photos)
+	if !ownsBatch {
+		return
+	}
+
+	batchPhotos := photos
+	if batchID != "" {
+		pendingState, pendingPhotos, ok := waitForPendingPhotoBatch(ctx, d, fc.VkID, batchID)
+		if !ok {
+			return
+		}
+		fc.State = pendingState
+		batchPhotos = pendingPhotos
+	}
+
+	uploadedURLs := uploadGenerationInputPhotos(ctx, d, fc.VkID, batchPhotos, "couple_upload")
+	if len(uploadedURLs) == 0 {
+		_ = sendScreen(ctx, d, fc.VkID, "couple_intro", ScreenOptions{})
+		return
+	}
+
+	carried := copyPrefs(&State{
+		Step:       StepCoupleCategories,
+		PromptType: "couple",
+	}, fc.State)
+	carried.CouplePhotoURLs = uploadedURLs
+	carried.InputPhotoURLs = nil
+	carried.PhotoBatchID = ""
+	fc.State = carried
+
+	log.Info().Int64("vk_id", fc.VkID).Int("photo_count", len(uploadedURLs)).Msg("couple: фото загружены, показываю категории")
+
 	if err := showCoupleCategoryPage(ctx, fc, d, 1); err != nil {
-		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("ошибка отправки страницы парных категорий")
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("ошибка показа категорий после загрузки парных фото")
 	}
 }
 
@@ -57,5 +119,5 @@ func showCoupleCategoryPage(ctx context.Context, fc *Context, d *Deps, page int)
 		PromptPage:   1,
 	}, fc.State)
 	_ = d.State.Set(ctx, fc.VkID, state)
-	return sendScreen(ctx, d, fc.VkID, "couple_intro", ScreenOptions{PrefixRows: rows})
+	return sendScreen(ctx, d, fc.VkID, "couple_categories", ScreenOptions{PrefixRows: rows})
 }

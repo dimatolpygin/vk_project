@@ -131,9 +131,16 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 	"couple_intro": {
 		SectionID:   "generation",
 		Title:       "Парные и семейные фото",
-		Description: "Интро-экран для загрузки от 1 до 6 фото пары или семьи.",
+		Description: "Интро-экран для загрузки от 1 до 6 фото пары или семьи. Категории показываются только после загрузки фото.",
 		Order:       40,
 		Keywords:    []string{"пара", "семья", "совместное фото"},
+	},
+	"couple_categories": {
+		SectionID:   "generation",
+		Title:       "Парные фото: категории",
+		Description: "Экран выбора категории совместной фотосессии. Появляется после того, как пользователь загрузил фото.",
+		Order:       41,
+		Keywords:    []string{"пара", "семья", "категории", "совместное фото"},
 	},
 	"generating_wait": {
 		SectionID:   "generation",

@@ -29,23 +29,24 @@ const (
 	StepAwaitingSavedPhoto     = "awaiting_saved_photo"
 	StepReadyPromptsCategories = "ready_prompts_categories"
 	StepReadyPromptsPrompts    = "ready_prompts_prompts"
+	StepCoupleAwaitingPhoto    = "couple_awaiting_photo"
 	StepCoupleCategories       = "couple_categories"
 	StepCouplePrompts          = "couple_prompts"
 )
 
 type User struct {
-	VKID                 int64
-	Gender               string
-	FreeGens             int
-	PaidGens             int
-	Status               string
-	ReferralCode         string
-	SavedPhotoURLs       []string
+	VKID                  int64
+	Gender                string
+	FreeGens              int
+	PaidGens              int
+	Status                string
+	ReferralCode          string
+	SavedPhotoURLs        []string
 	SavedPhotoAttachments []string
-	UseSavedPhoto        bool
-	PrefModel            string
-	PrefResolution       string
-	PrefAspectRatio      string
+	UseSavedPhoto         bool
+	PrefModel             string
+	PrefResolution        string
+	PrefAspectRatio       string
 }
 
 func (u *User) TotalGens() int {
@@ -71,25 +72,31 @@ func copyPrefs(dst *State, src *State) *State {
 	if dst.AspectRatio == "" {
 		dst.AspectRatio = src.AspectRatio
 	}
+	// Парные фото загружаются до выбора категории, поэтому переносим их через
+	// промежуточные шаги выбора. Поле читает только couple-сценарий.
+	if len(dst.CouplePhotoURLs) == 0 && len(src.CouplePhotoURLs) > 0 {
+		dst.CouplePhotoURLs = clonePhotoURLs(src.CouplePhotoURLs)
+	}
 	return dst
 }
 
 type State struct {
-	Step           string   `json:"step"`
-	PrevStep       string   `json:"prev_step,omitempty"`
-	PromptType     string   `json:"prompt_type,omitempty"`
-	TemplateID     int      `json:"template_id,omitempty"`
-	CategoryID     int      `json:"category_id,omitempty"`
-	CategoryPage   int      `json:"category_page,omitempty"`
-	PromptPage     int      `json:"prompt_page,omitempty"`
-	GenerationID   int64    `json:"generation_id,omitempty"`
-	Model          string   `json:"model,omitempty"`
-	CustomPrompt   string   `json:"custom_prompt,omitempty"`
-	PhotoURL       string   `json:"photo_url,omitempty"`
-	InputPhotoURLs []string `json:"input_photo_urls,omitempty"`
-	PhotoBatchID   string   `json:"photo_batch_id,omitempty"`
-	Resolution     string   `json:"resolution,omitempty"`
-	AspectRatio    string   `json:"aspect_ratio,omitempty"`
+	Step            string   `json:"step"`
+	PrevStep        string   `json:"prev_step,omitempty"`
+	PromptType      string   `json:"prompt_type,omitempty"`
+	TemplateID      int      `json:"template_id,omitempty"`
+	CategoryID      int      `json:"category_id,omitempty"`
+	CategoryPage    int      `json:"category_page,omitempty"`
+	PromptPage      int      `json:"prompt_page,omitempty"`
+	GenerationID    int64    `json:"generation_id,omitempty"`
+	Model           string   `json:"model,omitempty"`
+	CustomPrompt    string   `json:"custom_prompt,omitempty"`
+	PhotoURL        string   `json:"photo_url,omitempty"`
+	InputPhotoURLs  []string `json:"input_photo_urls,omitempty"`
+	CouplePhotoURLs []string `json:"couple_photo_urls,omitempty"`
+	PhotoBatchID    string   `json:"photo_batch_id,omitempty"`
+	Resolution      string   `json:"resolution,omitempty"`
+	AspectRatio     string   `json:"aspect_ratio,omitempty"`
 }
 
 type InMessage struct {

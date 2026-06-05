@@ -99,6 +99,39 @@ func HandleSelectPrompt(ctx context.Context, fc *Context, d *Deps) {
 		promptType = "ready_prompt"
 	}
 
+	// Парный режим: фото уже загружены до выбора категории — запускаем генерацию сразу.
+	if promptType == "couple" {
+		couplePhotos := normalizeGenerationInputPhotos(fc.State.CouplePhotoURLs)
+		if len(couplePhotos) == 0 {
+			state := copyPrefs(&State{Step: StepCoupleAwaitingPhoto, PromptType: "couple"}, fc.State)
+			state.CouplePhotoURLs = nil
+			state.InputPhotoURLs = nil
+			state.PhotoBatchID = ""
+			_ = d.State.Set(ctx, fc.VkID, state)
+			_ = sendScreen(ctx, d, fc.VkID, "couple_intro", ScreenOptions{})
+			return
+		}
+		if !fc.User.HasGens() {
+			_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
+			return
+		}
+
+		genState := copyPrefs(&State{
+			Step:         StepCouplePrompts,
+			PromptType:   "couple",
+			TemplateID:   promptID,
+			CategoryID:   fc.State.CategoryID,
+			CategoryPage: fc.State.CategoryPage,
+			PromptPage:   fc.State.PromptPage,
+		}, fc.State)
+		genState.CouplePhotoURLs = couplePhotos
+		fc.State = genState
+		_ = d.State.Set(ctx, fc.VkID, genState)
+
+		startGeneration(ctx, fc, d, couplePhotos, prompt.Prompt, "couple", "generating_wait", nil)
+		return
+	}
+
 	_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{
 		Step:         StepAwaitingPhoto,
 		PromptType:   promptType,

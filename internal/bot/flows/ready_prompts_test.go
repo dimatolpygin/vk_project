@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 
 	"vk_neuro_bot/internal/repository"
@@ -247,7 +248,7 @@ func TestHandleBackFromPromptListReturnsToStoredCategoryPage(t *testing.T) {
 	}
 }
 
-func TestHandleCoupleStartUsesPaginatedCategories(t *testing.T) {
+func TestHandleCoupleStartAwaitsPhotoBeforeCategories(t *testing.T) {
 	sender := &fakeSender{}
 	stateMgr := newFakeStateMgr()
 	deps := &Deps{
@@ -269,14 +270,72 @@ func TestHandleCoupleStartUsesPaginatedCategories(t *testing.T) {
 	if state == nil {
 		t.Fatal("expected state to be saved")
 	}
-	if state.Step != StepCoupleCategories {
-		t.Fatalf("expected %q step, got %q", StepCoupleCategories, state.Step)
+	if state.Step != StepCoupleAwaitingPhoto {
+		t.Fatalf("expected %q step, got %q", StepCoupleAwaitingPhoto, state.Step)
 	}
 	if state.PromptType != "couple" {
 		t.Fatalf("expected prompt type couple, got %q", state.PromptType)
 	}
 
-	keyboard := decodeKeyboard(t, sender.screens[len(sender.screens)-1].Keyboard)
+	if len(sender.screens) == 0 {
+		t.Fatal("expected a screen to be sent")
+	}
+	last := sender.screens[len(sender.screens)-1]
+	if last.Key != "couple_intro" {
+		t.Fatalf("expected couple_intro screen, got %q", last.Key)
+	}
+	// На шаге ожидания фото категории показываться не должны.
+	keyboard := decodeKeyboard(t, last.Keyboard)
+	for _, row := range keyboard.Buttons {
+		for _, btn := range row {
+			if strings.HasPrefix(btn.Action.Label, "Category ") {
+				t.Fatalf("did not expect category buttons before photo upload, got %q", btn.Action.Label)
+			}
+		}
+	}
+}
+
+func TestHandleCoupleAwaitingPhotoShowsPaginatedCategories(t *testing.T) {
+	oldDelay := photoBatchCollectDelay
+	photoBatchCollectDelay = 0
+	defer func() { photoBatchCollectDelay = oldDelay }()
+
+	sender := &fakeSender{}
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{
+		Sender: sender,
+		State:  stateMgr,
+		CatRepo: &fakeCategoryRepo{
+			couple: makeCategories(6),
+		},
+	}
+	fc := &Context{
+		VkID:  114,
+		User:  &User{FreeGens: 1},
+		State: &State{Step: StepCoupleAwaitingPhoto, PromptType: "couple"},
+		Message: &InMessage{
+			Photos: []string{"https://example.com/couple1.jpg", "https://example.com/couple2.jpg"},
+		},
+	}
+
+	HandleCoupleAwaitingPhoto(context.Background(), fc, deps)
+
+	state := stateMgr.states[114]
+	if state == nil {
+		t.Fatal("expected state to be saved")
+	}
+	if state.Step != StepCoupleCategories {
+		t.Fatalf("expected %q step, got %q", StepCoupleCategories, state.Step)
+	}
+	if len(state.CouplePhotoURLs) != 2 {
+		t.Fatalf("expected 2 stored couple photos, got %d", len(state.CouplePhotoURLs))
+	}
+
+	last := sender.screens[len(sender.screens)-1]
+	if last.Key != "couple_categories" {
+		t.Fatalf("expected couple_categories screen, got %q", last.Key)
+	}
+	keyboard := decodeKeyboard(t, last.Keyboard)
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(keyboard.Buttons[2][0].Action.Payload), &payload); err != nil {
 		t.Fatalf("unmarshal couple pager payload: %v", err)

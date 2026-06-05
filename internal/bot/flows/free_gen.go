@@ -249,6 +249,7 @@ func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, gener
 	nextState := *fc.State
 	nextState.Step = StepMainMenu
 	nextState.InputPhotoURLs = nil
+	nextState.CouplePhotoURLs = nil
 	nextState.PhotoBatchID = ""
 	_ = d.State.Set(ctx, fc.VkID, &nextState)
 	_ = sendScreen(ctx, d, fc.VkID, waitKey, ScreenOptions{Data: waitData})
