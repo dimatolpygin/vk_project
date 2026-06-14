@@ -45,48 +45,11 @@ function resolveFromRoot(value, fallback) {
   return path.resolve(rootDir, raw);
 }
 
-function splitArgs(value) {
-  if (!value) return [];
-
-  const args = [];
-  let current = "";
-  let quote = null;
-
-  for (let index = 0; index < value.length; index += 1) {
-    const char = value[index];
-    if (quote) {
-      if (char === "\\" && value[index + 1] === quote) {
-        current += quote;
-        index += 1;
-        continue;
-      }
-      if (char === quote) quote = null;
-      else current += char;
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      quote = char;
-      continue;
-    }
-
-    if (/\s/.test(char)) {
-      if (current) {
-        args.push(current);
-        current = "";
-      }
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (current) args.push(current);
-  return args;
-}
-
 export function loadConfig() {
   loadDotEnv(path.resolve(rootDir, ".env"));
+  if (process.env.PI_ENV_FILE) {
+    loadDotEnv(resolveFromRoot(process.env.PI_ENV_FILE, process.env.PI_ENV_FILE));
+  }
 
   const defaultChromium =
     "C:\\Users\\GigaChat\\AppData\\Local\\ms-playwright\\chromium-1208\\chrome-win64\\chrome.exe";
@@ -127,13 +90,9 @@ export function loadConfig() {
       examplesFile: resolveFromRoot(process.env.KWORK_EXAMPLES_FILE, "data/examples.md"),
     },
     ai: {
-      engine: (process.env.AI_ENGINE || "pi").toLowerCase(),
-      piCommand: process.env.PI_COMMAND || "pi",
-      piArgs: splitArgs(process.env.PI_ARGS || "--mode rpc --no-session"),
+      model: process.env.PI_MODEL || "",
+      thinkingLevel: process.env.PI_THINKING_LEVEL || "medium",
       piTimeoutMs: intEnv("PI_TIMEOUT_MS", 240000),
-      openaiBaseUrl: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
-      openaiApiKey: process.env.OPENAI_API_KEY || "",
-      openaiModel: process.env.OPENAI_MODEL || "gpt-4.1-mini",
     },
     telegram: {
       botToken: process.env.TELEGRAM_BOT_TOKEN || "",

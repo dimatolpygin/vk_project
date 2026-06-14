@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { askOpenAICompatible } from "./ai/openai-compatible.js";
-import { askPi } from "./ai/pi-rpc.js";
+import { askPi } from "./ai/pi-sdk.js";
 
 function readOptional(filePath, fallback) {
   if (!fs.existsSync(filePath)) return fallback;
@@ -36,18 +35,7 @@ export async function generateDraft(inquiry, config) {
   const knowledge = loadKnowledge(config);
   const prompt = buildPrompt(inquiry, knowledge);
 
-  let raw;
-  if (config.ai.engine === "openai") {
-    raw = await askOpenAICompatible(prompt, config);
-  } else if (config.ai.engine === "auto") {
-    raw = await askPi(prompt, config).catch(async (error) => {
-      if (!config.ai.openaiApiKey) throw error;
-      return askOpenAICompatible(prompt, config);
-    });
-  } else {
-    raw = await askPi(prompt, config);
-  }
-
+  const raw = await askPi(prompt, config);
   const parsed = extractJson(raw);
   return normalizeDraft(parsed, raw);
 }
@@ -170,4 +158,3 @@ export function readDraft(filePath) {
 
   return { filePath, url, reply };
 }
-

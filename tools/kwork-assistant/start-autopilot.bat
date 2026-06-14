@@ -15,6 +15,9 @@ if not exist "node_modules\playwright-core\package.json" (
 
 set KWORK_AUTO_SEND=true
 set KWORK_HEADLESS=false
+if not defined PI_ENV_FILE (
+  if exist "D:\claude\stady\.env" set "PI_ENV_FILE=D:\claude\stady\.env"
+)
 
 echo Starting Kwork assistant autopilot...
 call npm.cmd start

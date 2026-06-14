@@ -38,12 +38,19 @@ KWORK_USER_DATA_DIR=.\profile
 KWORK_INBOX_URL=https://kwork.ru/inbox
 KWORK_AUTO_SEND=true
 KWORK_AUTOPRIME_ON_FIRST_RUN=true
-AI_ENGINE=pi
-PI_COMMAND=pi
-PI_ARGS=--mode rpc --no-session
+PI_ENV_FILE=
+PI_MODEL=
+PI_THINKING_LEVEL=medium
+PI_TIMEOUT_MS=240000
 ```
 
-If Pi is installed but the `pi` command is not in PATH, set `PI_COMMAND` to the real executable path or wrapper command.
+The assistant uses `@earendil-works/pi-coding-agent` directly, like the existing Pi bot in `D:\claude\stady`. It reads the same Pi auth/model storage as the installed Pi agent. If no model is available, open Pi once in a terminal and run `/login`.
+
+If the working Pi bot keeps provider keys in its own env file, set:
+
+```env
+PI_ENV_FILE=D:\claude\stady\.env
+```
 
 ## Service Commands
 
@@ -56,4 +63,3 @@ npm.cmd run once
 npm.cmd run monitor
 npm.cmd run reply -- data\drafts\file.md --send
 ```
-
