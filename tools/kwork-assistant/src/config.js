@@ -107,6 +107,7 @@ export function loadConfig() {
       pollMs: intEnv("KWORK_POLL_MS", 60000),
       maxThreadsPerRun: intEnv("KWORK_MAX_THREADS_PER_RUN", 3),
       autoSend: boolEnv("KWORK_AUTO_SEND", false),
+      autoprimeOnFirstRun: boolEnv("KWORK_AUTOPRIME_ON_FIRST_RUN", true),
       selectors: {
         threadLink:
           process.env.KWORK_THREAD_LINK_SELECTOR ||

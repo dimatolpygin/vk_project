@@ -5,6 +5,8 @@
   "type": "module",
   "description": "Playwright + Pi agent assistant for drafting replies to new Kwork seller requests.",
   "scripts": {
+    "start": "node src/index.js autopilot",
+    "autopilot": "node src/index.js autopilot",
     "login": "node src/index.js login",
     "prime": "node src/index.js prime",
     "once": "node src/index.js once",

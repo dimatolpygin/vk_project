@@ -7,7 +7,7 @@ import { extractInquiry, scanThreadLinks } from "./extract.js";
 import { isProcessed, loadState, markProcessed, saveState } from "./state.js";
 import { sendTelegramDraft } from "./telegram.js";
 
-const command = process.argv[2] || "help";
+const command = process.argv[2] || "autopilot";
 
 async function main() {
   const config = loadConfig();
@@ -19,6 +19,11 @@ async function main() {
 
   if (command === "login") {
     await runLogin(config);
+    return;
+  }
+
+  if (command === "autopilot" || command === "start") {
+    await runAutopilot(config);
     return;
   }
 
@@ -87,6 +92,29 @@ async function runLogin(config) {
 async function runMonitor(config) {
   const context = await launchKworkBrowser(config);
   try {
+    while (true) {
+      await processOnce(context, config).catch((error) => {
+        console.error(`[${new Date().toISOString()}] ${error.stack || error.message}`);
+      });
+      await sleep(config.kwork.pollMs);
+    }
+  } finally {
+    await context.close();
+  }
+}
+
+async function runAutopilot(config) {
+  config.kwork.autoSend = true;
+  ensureKnowledgeFiles(config);
+
+  const context = await launchKworkBrowser(config);
+  try {
+    if (config.kwork.autoprimeOnFirstRun && !fs.existsSync(config.data.stateFile)) {
+      console.log("Autopilot first run: marking currently visible threads as old.");
+      await primeSeenThreads(context, config);
+    }
+
+    console.log("Autopilot is running. New Kwork requests will be answered automatically.");
     while (true) {
       await processOnce(context, config).catch((error) => {
         console.error(`[${new Date().toISOString()}] ${error.stack || error.message}`);
@@ -192,10 +220,11 @@ function printHelp() {
   console.log(`Kwork assistant
 
 Commands:
-  npm run login
-  npm run prime
-  npm run once
-  npm run monitor
+  npm start                 Autopilot: monitor and send replies automatically
+  npm run login             Service: open browser profile for manual login
+  npm run prime             Service: mark visible threads as already seen
+  npm run once              Service: process one polling cycle
+  npm run monitor           Service: monitor using .env KWORK_AUTO_SEND
   npm run reply -- <draft-file> [--send]
 `);
 }
