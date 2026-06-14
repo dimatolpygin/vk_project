@@ -5,3 +5,9 @@ tmp/
 deploy_key
 deploy_key.pub
 .claude/
+tools/kwork-assistant/node_modules/
+tools/kwork-assistant/profile/
+tools/kwork-assistant/data/state.json
+tools/kwork-assistant/data/drafts/
+tools/kwork-assistant/data/profile.md
+tools/kwork-assistant/data/examples.md

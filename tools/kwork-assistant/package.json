@@ -1,0 +1,19 @@
+{
+  "name": "kwork-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Playwright + Pi agent assistant for drafting replies to new Kwork seller requests.",
+  "scripts": {
+    "login": "node src/index.js login",
+    "prime": "node src/index.js prime",
+    "once": "node src/index.js once",
+    "monitor": "node src/index.js monitor",
+    "reply": "node src/index.js reply",
+    "help": "node src/index.js help",
+    "check": "node --check src/index.js && node --check src/config.js && node --check src/browser.js && node --check src/extract.js && node --check src/state.js && node --check src/drafts.js && node --check src/telegram.js && node --check src/ai/pi-rpc.js && node --check src/ai/openai-compatible.js"
+  },
+  "dependencies": {
+    "playwright-core": "^1.56.0"
+  }
+}
