@@ -71,6 +71,8 @@ async function main() {
 }
 
 async function runLogin(config) {
+  ensureKnowledgeFiles(config);
+
   const context = await launchKworkBrowser(config);
   try {
     await openPage(context, config.kwork.loginUrl || config.kwork.inboxUrl, config);
@@ -139,6 +141,8 @@ async function processOnce(context, config) {
 }
 
 async function primeSeenThreads(context, config) {
+  ensureKnowledgeFiles(config);
+
   const state = loadState(config.data.stateFile);
   const page = await openPage(context, config.kwork.inboxUrl, config);
   const threads = await scanThreadLinks(page, config);
