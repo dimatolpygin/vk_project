@@ -139,6 +139,18 @@ func TestBuildReferralLinkUsesCommunityBotDeepLink(t *testing.T) {
 	}
 }
 
+func TestBuildPaymentReturnURLUsesConfiguredGroup(t *testing.T) {
+	got := buildPaymentReturnURL(238989543)
+	want := "https://vk.com/write-238989543"
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+
+	if got := buildPaymentReturnURL(0); got != "" {
+		t.Fatalf("expected empty return url for unset group id, got %q", got)
+	}
+}
+
 func TestGensCountFromPaymentMetadataSupportsSeveralTypes(t *testing.T) {
 	cases := []struct {
 		name     string

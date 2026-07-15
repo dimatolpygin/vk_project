@@ -60,12 +60,12 @@ func HandleBuyTariff(ctx context.Context, fc *Context, d *Deps) {
 		return
 	}
 
-	returnURL := buildPaymentReturnURL(d.PublicBaseURL)
+	returnURL := buildPaymentReturnURL(d.VKGroupID)
 	if returnURL == "" {
 		log.Error().
 			Int64("vk_id", fc.VkID).
-			Str("public_base_url", d.PublicBaseURL).
-			Msg("public base url is not configured for payment return url")
+			Int64("vk_group_id", d.VKGroupID).
+			Msg("vk group id is not configured for payment return url")
 		_ = sendScreen(ctx, d, fc.VkID, "payment_link_error", ScreenOptions{})
 		return
 	}
@@ -238,8 +238,11 @@ func processCanceledPayment(ctx context.Context, d *Deps, canceler paymentCancel
 	return nil
 }
 
-func buildPaymentReturnURL(publicBaseURL string) string {
-	return "https://vk.me/club238357711"
+func buildPaymentReturnURL(groupID int64) string {
+	if groupID <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("https://vk.com/write-%d", groupID)
 }
 
 func gensCountFromPaymentMetadata(metadata map[string]any) int {
