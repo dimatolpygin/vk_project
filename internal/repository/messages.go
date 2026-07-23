@@ -104,11 +104,15 @@ func (r *MessageRepo) EnsureDefaults(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		var defaultImageURL any
+		if def.DefaultImageURL != "" {
+			defaultImageURL = def.DefaultImageURL
+		}
 		if _, err := r.db.Exec(ctx, `
-			INSERT INTO messages (key, text, keyboard, updated_at)
-			VALUES ($1, $2, $3, now())
+			INSERT INTO messages (key, text, image_url, keyboard, updated_at)
+			VALUES ($1, $2, $3, $4, now())
 			ON CONFLICT (key) DO NOTHING`,
-			def.Key, def.DefaultText, keyboardJSON); err != nil {
+			def.Key, def.DefaultText, defaultImageURL, keyboardJSON); err != nil {
 			return err
 		}
 	}

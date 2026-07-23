@@ -61,7 +61,7 @@ func sendScreen(ctx context.Context, d *Deps, vkID int64, key string, opts Scree
 		cacheKey = ""
 	}
 
-	return d.Sender.SendScreen(ctx, vkID, &ScreenMessage{
+	err = d.Sender.SendScreen(ctx, vkID, &ScreenMessage{
 		Key:         key,
 		Text:        text,
 		ImageURL:    imageURL,
@@ -73,6 +73,12 @@ func sendScreen(ctx context.Context, d *Deps, vkID int64, key string, opts Scree
 		}),
 		CacheKey: cacheKey,
 	})
+	if err != nil {
+		// Большинство вызовов игнорируют ошибку, поэтому логируем здесь:
+		// иначе отвергнутое ВК сообщение выглядит как «кнопка не работает».
+		log.Error().Err(err).Str("screen_key", key).Int64("vk_id", vkID).Msg("не удалось отправить экран")
+	}
+	return err
 }
 
 // TariffRows строит ряды кнопок покупки тарифов — используется и в экране тарифов,

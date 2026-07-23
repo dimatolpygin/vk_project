@@ -43,12 +43,14 @@ var screenDefinitions = map[string]ScreenDefinition{
 	),
 	"free_gen_prompt": screen("free_gen_prompt", "professional portrait photo of a {{.GenderLabel}}, studio lighting, high quality, photorealistic"),
 	"examples_collage": screen("examples_collage", "🌟 Примеры наших работ\n\nВыбери, что хочешь посмотреть:",
+		// Две колонки: у inline-клавиатуры ВК не больше 6 строк, а с «Назад»
+		// шесть категорий по одной в строке уже не помещаются.
 		callback("examples_self", "examples_self", "🙋 Фото для себя", "primary", 0, 0),
-		callback("examples_couple", "examples_couple", "👫 Парные фото", "primary", 1, 0),
-		callback("examples_kids", "examples_kids", "🧒 Детские фото", "primary", 2, 0),
-		callback("examples_edit", "examples_edit", "✏️ Изменение фото", "primary", 3, 0),
-		callback("examples_greetings", "examples_greetings", "🎉 Поздравления", "primary", 4, 0),
-		callback("examples_misc", "examples_misc", "🎨 Разное", "primary", 5, 0),
+		callback("examples_couple", "examples_couple", "👫 Парные фото", "primary", 0, 1),
+		callback("examples_kids", "examples_kids", "🧒 Детские фото", "primary", 1, 0),
+		callback("examples_edit", "examples_edit", "✏️ Изменение фото", "primary", 1, 1),
+		callback("examples_greetings", "examples_greetings", "🎉 Поздравления", "primary", 2, 0),
+		callback("examples_misc", "examples_misc", "🎨 Разное", "primary", 2, 1),
 		callback("back", "back", "◀️ Назад", "secondary", 100, 0),
 	),
 	"examples_self":      exampleCategoryScreen("examples_self", "🙋 Фото для себя\n\nПортреты в разных стилях: деловые, атмосферные, для соцсетей и резюме.\n\nТакие же сделаем с твоим лицом — нужно только загрузить фото."),
@@ -218,13 +220,19 @@ func screen(key, text string, items ...Button) ScreenDefinition {
 	}
 }
 
+// examplesPlaceholderImage — временный коллаж, пока заказчик не загрузил свои
+// картинки для каждой категории в админке.
+const examplesPlaceholderImage = "https://s3.ru1.storage.beget.cloud/bbd5f068f995-project/admin_uploads/1778658113_photo_2026-05-13_16-37-11.jpg"
+
 // exampleCategoryScreen — экран одной категории примеров работ: картинка и текст
 // задаются в админке, кнопки одинаковые для всех категорий.
 func exampleCategoryScreen(key, text string) ScreenDefinition {
-	return screen(key, text,
+	def := screen(key, text,
 		callback("tariffs", "tariffs", "🚀 Активировать все функции", "positive", 0, 0),
 		callback("examples", "examples", "◀️ Назад", "secondary", 1, 0),
 	)
+	def.DefaultImageURL = examplesPlaceholderImage
+	return def
 }
 
 func replyScreen(key, text string, items ...Button) ScreenDefinition {

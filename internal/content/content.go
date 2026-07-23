@@ -41,9 +41,10 @@ type Button struct {
 }
 
 type ScreenDefinition struct {
-	Key         string
-	DefaultText string
-	Keyboard    Keyboard
+	Key             string
+	DefaultText     string
+	DefaultImageURL string
+	Keyboard        Keyboard
 }
 
 type byRowPosition []Button
@@ -151,9 +152,10 @@ func RenderText(raw string, data any) (string, error) {
 
 func cloneDefinition(def ScreenDefinition) ScreenDefinition {
 	return ScreenDefinition{
-		Key:         def.Key,
-		DefaultText: def.DefaultText,
-		Keyboard:    cloneKeyboard(def.Keyboard),
+		Key:             def.Key,
+		DefaultText:     def.DefaultText,
+		DefaultImageURL: def.DefaultImageURL,
+		Keyboard:        cloneKeyboard(def.Keyboard),
 	}
 }
 

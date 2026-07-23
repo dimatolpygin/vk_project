@@ -3,6 +3,7 @@ package content
 import (
 	"encoding/json"
 	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -162,16 +163,31 @@ func TestExamplesMenuListsAllCategories(t *testing.T) {
 		}
 	}
 
-	// «Фото для себя» — первой кнопкой, «Назад» — последней строкой и одна в ряду.
-	first := byAction["examples_self"]
+	// «Фото для себя» — первой кнопкой, «Назад» — последней и одна в своей строке.
+	ordered := make([]Button, len(def.Keyboard.Items))
+	copy(ordered, def.Keyboard.Items)
+	sort.Sort(byRowPosition(ordered))
+
+	if got := ordered[0].ActionKey; got != "examples_self" {
+		t.Fatalf("expected «Фото для себя» first, got %q", got)
+	}
 	back := byAction["back"]
+	if got := ordered[len(ordered)-1].ActionKey; got != "back" {
+		t.Fatalf("expected «Назад» last, got %q", got)
+	}
 	for _, item := range def.Keyboard.Items {
-		if item.ActionKey != "examples_self" && item.Row <= first.Row {
-			t.Fatalf("button %q sits above or beside «Фото для себя» (rows %d vs %d)", item.ActionKey, item.Row, first.Row)
-		}
 		if item.ActionKey != "back" && item.Row >= back.Row {
-			t.Fatalf("button %q sits below or beside «Назад» (rows %d vs %d)", item.ActionKey, item.Row, back.Row)
+			t.Fatalf("button %q shares or follows the back row (rows %d vs %d)", item.ActionKey, item.Row, back.Row)
 		}
+	}
+
+	// Клавиатура должна помещаться в лимит ВК: не больше 6 строк.
+	uniqueRows := map[int]struct{}{}
+	for _, item := range def.Keyboard.Items {
+		uniqueRows[item.Row] = struct{}{}
+	}
+	if len(uniqueRows) > 6 {
+		t.Fatalf("examples menu uses %d rows, VK inline keyboard allows 6", len(uniqueRows))
 	}
 }
 

@@ -70,6 +70,56 @@ func TestRenderContentKeyboardWithRowsKeepsPrefixRows(t *testing.T) {
 	}
 }
 
+func TestRenderContentKeyboardFitsVKInlineRowLimit(t *testing.T) {
+	def, ok := content.Definition("examples_collage")
+	if !ok {
+		t.Fatal("examples_collage definition not found")
+	}
+
+	raw := RenderContentKeyboard(def.Keyboard, KeyboardRenderOptions{})
+
+	var keyboard Keyboard
+	if err := json.Unmarshal([]byte(raw), &keyboard); err != nil {
+		t.Fatalf("unmarshal rendered keyboard: %v", err)
+	}
+	if len(keyboard.Buttons) > vkInlineMaxRows {
+		t.Fatalf("examples menu renders %d rows, VK allows %d", len(keyboard.Buttons), vkInlineMaxRows)
+	}
+	if got := keyboard.Buttons[0][0].Action.Label; got != "🙋 Фото для себя" {
+		t.Fatalf("expected «Фото для себя» first, got %q", got)
+	}
+	lastRow := keyboard.Buttons[len(keyboard.Buttons)-1]
+	if got := lastRow[len(lastRow)-1].Action.Payload; got != cbPayload("back") {
+		t.Fatalf("expected back button last, got %q", got)
+	}
+}
+
+func TestFitInlineRowsMergesOverflowingRows(t *testing.T) {
+	rows := make([][]KbBtn, 0, 9)
+	for i := 0; i < 9; i++ {
+		rows = append(rows, []KbBtn{{Action: KbAction{Type: "callback", Label: string(rune('a' + i))}}})
+	}
+
+	fitted := fitInlineRows(rows)
+
+	if len(fitted) > vkInlineMaxRows {
+		t.Fatalf("expected at most %d rows, got %d", vkInlineMaxRows, len(fitted))
+	}
+
+	var flattened []string
+	for _, row := range fitted {
+		for _, btn := range row {
+			flattened = append(flattened, btn.Action.Label)
+		}
+	}
+	if len(flattened) != 9 {
+		t.Fatalf("expected all 9 buttons to survive, got %d", len(flattened))
+	}
+	if flattened[0] != "a" || flattened[8] != "i" {
+		t.Fatalf("expected original button order, got %v", flattened)
+	}
+}
+
 func TestKbBottomMenuUsesContentDefinition(t *testing.T) {
 	raw := KbBottomMenu()
 

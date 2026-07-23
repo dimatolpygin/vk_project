@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/rs/zerolog/log"
 	"vk_neuro_bot/internal/content"
 	"vk_neuro_bot/internal/repository"
 )
@@ -244,11 +245,56 @@ func RenderContentKeyboardWithRows(cfg content.Keyboard, prefixRows [][]KbBtn, o
 	return renderContentKeyboardWithRows(cfg, prefixRows, opts)
 }
 
+// Лимиты ВК: у inline-клавиатуры не больше 6 строк, в строке — не больше 5 кнопок.
+// Клавиатура сверх лимита приводит к ошибке messages.send, и сообщение не уходит вовсе.
+const (
+	vkInlineMaxRows    = 6
+	vkMaxButtonsPerRow = 5
+)
+
 func renderContentKeyboardWithRows(cfg content.Keyboard, prefixRows [][]KbBtn, opts KeyboardRenderOptions) string {
 	rows := make([][]KbBtn, 0, len(prefixRows)+len(cfg.Items))
 	rows = append(rows, prefixRows...)
 	rows = append(rows, contentRows(cfg, opts)...)
+	if cfg.Inline {
+		rows = fitInlineRows(rows)
+	}
 	return kbJSON(&Keyboard{Inline: cfg.Inline, OneTime: cfg.OneTime, Buttons: rows})
+}
+
+// fitInlineRows укладывает клавиатуру в лимит строк ВК, склеивая соседние строки.
+// Порядок кнопок сохраняется, поэтому «Назад» остаётся последней.
+func fitInlineRows(rows [][]KbBtn) [][]KbBtn {
+	if len(rows) <= vkInlineMaxRows {
+		return rows
+	}
+
+	merged := make([][]KbBtn, len(rows))
+	copy(merged, rows)
+
+	for len(merged) > vkInlineMaxRows {
+		joined := -1
+		for i := 0; i+1 < len(merged); i++ {
+			if len(merged[i])+len(merged[i+1]) <= vkMaxButtonsPerRow {
+				joined = i
+				break
+			}
+		}
+		if joined == -1 {
+			break
+		}
+		row := append(append([]KbBtn{}, merged[joined]...), merged[joined+1]...)
+		merged = append(merged[:joined], append([][]KbBtn{row}, merged[joined+2:]...)...)
+	}
+
+	if len(merged) > vkInlineMaxRows {
+		log.Error().
+			Int("rows", len(merged)).
+			Msg("клавиатура не помещается в лимит ВК даже после склейки строк, лишние строки отброшены")
+		merged = merged[:vkInlineMaxRows]
+	}
+
+	return merged
 }
 
 func contentRows(cfg content.Keyboard, opts KeyboardRenderOptions) [][]KbBtn {
