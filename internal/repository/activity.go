@@ -3,7 +3,10 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,6 +22,7 @@ const (
 	ActivityEventSubscriptionConfirmed = "subscription_confirmed"
 	ActivityEventReferralCreated       = "referral_created"
 	ActivityEventReferralBonusAwarded  = "referral_bonus_awarded"
+	ActivityEventPaymentReminderSent   = "payment_reminder_sent"
 )
 
 type ActivityEvent struct {
@@ -48,6 +52,25 @@ func (r *ActivityRepo) Record(ctx context.Context, event ActivityEvent) error {
 		VALUES ($1, $2, $3, $4, $5)`,
 		event.UserVKID, event.EventType, nullIfEmpty(event.ActionKey), nullIfEmpty(event.ScreenKey), meta)
 	return err
+}
+
+// LastEventAt возвращает время последнего события указанного типа у пользователя.
+// nil означает, что события ещё не было.
+func (r *ActivityRepo) LastEventAt(ctx context.Context, vkID int64, eventType string) (*time.Time, error) {
+	var createdAt time.Time
+	err := r.db.QueryRow(ctx, `
+		SELECT created_at
+		FROM activity_events
+		WHERE user_vk_id = $1 AND event_type = $2
+		ORDER BY created_at DESC
+		LIMIT 1`, vkID, eventType).Scan(&createdAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &createdAt, nil
 }
 
 func nullIfEmpty(v string) any {

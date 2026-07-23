@@ -2,12 +2,16 @@ package flows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/hibiken/asynq"
 	"github.com/rs/zerolog/log"
 	"vk_neuro_bot/internal/repository"
+	"vk_neuro_bot/internal/worker"
 	"vk_neuro_bot/internal/yukassa"
 )
 
@@ -40,6 +44,48 @@ func HandleShowTariffs(ctx context.Context, fc *Context, d *Deps) {
 		InputPhotoURLs: clonePhotoURLs(fc.State.InputPhotoURLs),
 	})
 	_ = sendScreen(ctx, d, fc.VkID, "tariffs", ScreenOptions{PrefixRows: tariffRows(tariffs)})
+
+	schedulePaymentReminder(ctx, d, fc)
+}
+
+// schedulePaymentReminder ставит догоняющее сообщение через 3 минуты после показа
+// тарифов. Оплатившим оно не уйдёт — воркер перепроверяет баланс перед отправкой.
+func schedulePaymentReminder(ctx context.Context, d *Deps, fc *Context) {
+	if d.AsynqClient == nil {
+		return
+	}
+	if fc.User != nil && (fc.User.Status == "paid" || fc.User.PaidGens > 0) {
+		return
+	}
+
+	payloadBytes, err := worker.PaymentReminderPayload{UserVKID: fc.VkID}.Bytes()
+	if err != nil {
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("не удалось собрать payload напоминания об оплате")
+		return
+	}
+
+	task := asynq.NewTask(
+		worker.TaskPaymentReminder,
+		payloadBytes,
+		asynq.ProcessIn(worker.PaymentReminderDelay),
+		asynq.MaxRetry(3),
+		asynq.Timeout(time.Minute),
+		// Повторные заходы в тарифы внутри окна ожидания не плодят дубли.
+		asynq.Unique(worker.PaymentReminderDelay+time.Minute),
+	)
+	if _, err := d.AsynqClient.Enqueue(task); err != nil {
+		if errors.Is(err, asynq.ErrDuplicateTask) {
+			log.Debug().Int64("vk_id", fc.VkID).Msg("напоминание об оплате уже запланировано")
+			return
+		}
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("не удалось запланировать напоминание об оплате")
+		return
+	}
+
+	log.Info().
+		Int64("vk_id", fc.VkID).
+		Dur("delay", worker.PaymentReminderDelay).
+		Msg("напоминание об оплате запланировано")
 }
 
 // HandleBroadcastCTA обрабатывает кнопку «Сделать такие фото» из рассылки:

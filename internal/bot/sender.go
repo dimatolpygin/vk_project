@@ -118,6 +118,40 @@ func (s *Sender) SendBroadcast(ctx context.Context, vkID int64, text string, ima
 	})
 }
 
+// SendPaymentReminder отправляет догоняющее сообщение с кнопкой покупки конкретного тарифа.
+func (s *Sender) SendPaymentReminder(ctx context.Context, vkID int64, tariff *repository.Tariff) error {
+	if tariff == nil {
+		return fmt.Errorf("payment reminder: tariff is nil")
+	}
+
+	const key = "payment_reminder"
+	msg, err := s.msgRepo.Get(ctx, key)
+	if err != nil {
+		return err
+	}
+
+	text, err := content.RenderText(msg.Text, map[string]any{
+		"TariffName": tariff.Name,
+		"Price":      fmt.Sprintf("%.0f₽", tariff.Price),
+		"GensCount":  tariff.GensCount,
+	})
+	if err != nil {
+		log.Warn().Err(err).Str("key", key).Msg("failed to render payment reminder text")
+	}
+
+	return s.SendScreen(ctx, vkID, &flows.ScreenMessage{
+		Key:      key,
+		Text:     text,
+		ImageURL: msg.ImageURL,
+		Keyboard: flows.RenderContentKeyboardWithRows(
+			msg.Keyboard,
+			flows.TariffRows([]*repository.Tariff{tariff}),
+			flows.KeyboardRenderOptions{},
+		),
+		CacheKey: key,
+	})
+}
+
 func (s *Sender) SendScreen(ctx context.Context, vkID int64, screen *flows.ScreenMessage) error {
 	if screen == nil {
 		return nil

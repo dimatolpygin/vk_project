@@ -96,6 +96,7 @@ var screenDefinitions = map[string]ScreenDefinition{
 	"payment_canceled": screen("payment_canceled", "Оплата была отменена.\n\nЕсли хочешь, можешь выбрать тариф и попробовать снова.",
 		callback("main_menu", "main_menu", "В главное меню", "primary", 0, 0),
 	),
+	"payment_reminder": screen("payment_reminder", "👀 Вижу, ты заглянул в тарифы, но так и не выбрал.\n\nМожно начать с малого — {{.GensCount}} генерации за {{.Price}}. Этого хватит, чтобы попробовать и понять, нравится ли результат."),
 	"payment_success": screen("payment_success", "🎉 Оплата прошла успешно!\n\nЗачислено генераций: {{.GensCount}}\n\nДобро пожаловать в мир нейрофотосессий!",
 		callback("main_menu", "main_menu", "🎨 Начать генерацию", "primary", 0, 0),
 	),

@@ -75,6 +75,12 @@ func sendScreen(ctx context.Context, d *Deps, vkID int64, key string, opts Scree
 	})
 }
 
+// TariffRows строит ряды кнопок покупки тарифов — используется и в экране тарифов,
+// и в догоняющем напоминании из воркера.
+func TariffRows(tariffs []*repository.Tariff) [][]KbBtn {
+	return tariffRows(tariffs)
+}
+
 func tariffRows(tariffs []*repository.Tariff) [][]KbBtn {
 	rows := make([][]KbBtn, 0, len(tariffs))
 	for _, tariff := range tariffs {

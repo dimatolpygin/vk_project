@@ -4,6 +4,7 @@ import "encoding/json"
 
 const TaskGenerate = "generation:process"
 const TaskBroadcastProcess = "broadcast:process"
+const TaskPaymentReminder = "payment:reminder"
 
 type GeneratePayload struct {
 	GenerationID int64    `json:"generation_id"`
@@ -36,5 +37,20 @@ func (p BroadcastPayload) Bytes() ([]byte, error) {
 
 func ParseBroadcastPayload(data []byte) (*BroadcastPayload, error) {
 	var p BroadcastPayload
+	return &p, json.Unmarshal(data, &p)
+}
+
+// PaymentReminderPayload — догоняющее сообщение пользователю, который открыл
+// экран тарифов и не оплатил.
+type PaymentReminderPayload struct {
+	UserVKID int64 `json:"user_vk_id"`
+}
+
+func (p PaymentReminderPayload) Bytes() ([]byte, error) {
+	return json.Marshal(p)
+}
+
+func ParsePaymentReminderPayload(data []byte) (*PaymentReminderPayload, error) {
+	var p PaymentReminderPayload
 	return &p, json.Unmarshal(data, &p)
 }

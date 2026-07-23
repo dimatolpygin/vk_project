@@ -310,6 +310,13 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 		Order:       20,
 		Keywords:    []string{"оплата", "checkout", "ссылка"},
 	},
+	"payment_reminder": {
+		SectionID:   "billing",
+		Title:       "Напоминание об оплате",
+		Description: "Автосообщение через 3 минуты после экрана тарифов, если оплаты не было. Доступны шаблоны {{.TariffName}}, {{.Price}}, {{.GensCount}}. Кнопка тарифа подставляется автоматически.",
+		Order:       25,
+		Keywords:    []string{"напоминание", "догон", "брошенная оплата"},
+	},
 	"payment_canceled": {
 		SectionID:   "billing",
 		Title:       "Оплата отменена",

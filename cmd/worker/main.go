@@ -52,6 +52,9 @@ func main() {
 	msgRepo := repository.NewMessageRepo(pool)
 	userRepo := repository.NewUserRepo(pool)
 	broadcastRepo := repository.NewBroadcastRepo(pool)
+	tariffRepo := repository.NewTariffRepo(pool)
+	activityRepo := repository.NewActivityRepo(pool)
+	adminConfigRepo := repository.NewAdminConfigRepo(pool)
 	if err := msgRepo.WaitForKeyboardSchema(ctx, 30*time.Second); err != nil {
 		log.Fatal().Err(err).Msg("не удалось дождаться миграции content-экранов")
 	}
@@ -78,11 +81,13 @@ func main() {
 	asynqClient := worker.NewAsynqClient(cfg.RedisAddr, cfg.RedisPassword)
 	defer func() { _ = asynqClient.Close() }()
 	broadcastHandler := worker.NewBroadcastHandler(broadcastRepo, sender, asynqClient)
+	reminderHandler := worker.NewPaymentReminderHandler(userRepo, tariffRepo, sender, activityRepo, adminConfigRepo)
 
 	srv := worker.NewAsynqServer(cfg.RedisAddr, cfg.RedisPassword)
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(worker.TaskGenerate, generateHandler.ProcessTask)
 	mux.HandleFunc(worker.TaskBroadcastProcess, broadcastHandler.ProcessTask)
+	mux.HandleFunc(worker.TaskPaymentReminder, reminderHandler.ProcessTask)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
