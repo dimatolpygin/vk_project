@@ -69,6 +69,8 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleShowTariffs(ctx, fc, r.d)
 	case "buy_tariff":
 		HandleBuyTariff(ctx, fc, r.d)
+	case "broadcast_cta":
+		HandleBroadcastCTA(ctx, fc, r.d)
 	case "referral":
 		HandleReferral(ctx, fc, r.d)
 	case "main_menu":

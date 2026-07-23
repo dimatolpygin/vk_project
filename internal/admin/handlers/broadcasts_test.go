@@ -118,6 +118,48 @@ func TestBroadcastsHandlerCreateEnqueuesTask(t *testing.T) {
 	}
 }
 
+func TestBroadcastsHandlerCreatePassesCTAFlag(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{name: "checked", value: "true", want: true},
+		{name: "browser checkbox", value: "on", want: true},
+		{name: "unchecked", value: "false", want: false},
+		{name: "missing", value: "", want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeBroadcastStore{
+				createFn: func(_ context.Context, params repository.CreateBroadcastParams) (*repository.Broadcast, error) {
+					if params.CTAEnabled != tc.want {
+						t.Fatalf("expected cta_enabled=%v, got %v", tc.want, params.CTAEnabled)
+					}
+					return &repository.Broadcast{ID: 1, TotalRecipients: 0}, nil
+				},
+			}
+			handler := &BroadcastsHandler{repo: store, asynqClient: &fakeBroadcastTaskClient{}}
+
+			form := url.Values{}
+			form.Set("audience_filter", repository.BroadcastAudienceAll)
+			form.Set("text", "hello")
+			if tc.value != "" {
+				form.Set("cta_enabled", tc.value)
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/admin/broadcasts", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			rr := httptest.NewRecorder()
+
+			handler.Create(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
 func TestBroadcastsHandlerCreateRejectsUploadingImage(t *testing.T) {
 	store := &fakeBroadcastStore{
 		createFn: func(context.Context, repository.CreateBroadcastParams) (*repository.Broadcast, error) {

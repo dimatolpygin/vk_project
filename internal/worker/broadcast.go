@@ -26,7 +26,7 @@ type BroadcastStore interface {
 }
 
 type BroadcastSender interface {
-	SendBroadcast(ctx context.Context, vkID int64, text string, imageURL *string, broadcastID int64) error
+	SendBroadcast(ctx context.Context, vkID int64, text string, imageURL *string, broadcastID int64, ctaEnabled bool) error
 }
 
 type BroadcastTaskEnqueuer interface {
@@ -90,7 +90,7 @@ func (h *BroadcastHandler) ProcessTask(ctx context.Context, task *asynq.Task) er
 	}
 
 	for _, delivery := range deliveries {
-		sendErr := h.sender.SendBroadcast(ctx, delivery.UserVKID, broadcast.Text, broadcast.ImageURL, broadcast.ID)
+		sendErr := h.sender.SendBroadcast(ctx, delivery.UserVKID, broadcast.Text, broadcast.ImageURL, broadcast.ID, broadcast.CTAEnabled)
 		if sendErr != nil {
 			log.Warn().
 				Err(sendErr).

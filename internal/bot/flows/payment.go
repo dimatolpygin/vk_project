@@ -42,6 +42,15 @@ func HandleShowTariffs(ctx context.Context, fc *Context, d *Deps) {
 	_ = sendScreen(ctx, d, fc.VkID, "tariffs", ScreenOptions{PrefixRows: tariffRows(tariffs)})
 }
 
+// HandleBroadcastCTA обрабатывает кнопку «Сделать такие фото» из рассылки:
+// пользователю без генераций сначала показываем нулевой баланс, затем — тарифы.
+func HandleBroadcastCTA(ctx context.Context, fc *Context, d *Deps) {
+	if !fc.User.HasGens() {
+		_ = sendScreen(ctx, d, fc.VkID, "broadcast_no_gens", ScreenOptions{})
+	}
+	HandleShowTariffs(ctx, fc, d)
+}
+
 func HandleBuyTariff(ctx context.Context, fc *Context, d *Deps) {
 	if d.TariffRepo == nil || d.OrderRepo == nil || d.Yukassa == nil {
 		_ = sendScreen(ctx, d, fc.VkID, "payment_unavailable", ScreenOptions{})

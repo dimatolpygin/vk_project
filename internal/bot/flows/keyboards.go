@@ -198,6 +198,16 @@ func KbAspectRatio(current string) string {
 	}})
 }
 
+// BroadcastCTALabel — подпись кнопки, которую админ может приложить к рассылке.
+const BroadcastCTALabel = "📸 Сделать такие фото"
+
+// KbBroadcastCTA — клавиатура рассылки с кнопкой перехода к покупке генераций.
+func KbBroadcastCTA() string {
+	return kbJSON(&Keyboard{Inline: true, Buttons: [][]KbBtn{
+		{{Action: KbAction{Type: "callback", Label: BroadcastCTALabel, Payload: cbPayload("broadcast_cta")}, Color: "positive"}},
+	}})
+}
+
 func KbBottomMenu() string {
 	if def, ok := content.Definition("bottom_menu"); ok {
 		return RenderContentKeyboard(def.Keyboard, KeyboardRenderOptions{})

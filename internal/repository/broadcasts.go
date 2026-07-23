@@ -36,6 +36,7 @@ type Broadcast struct {
 	ImageURL        *string
 	VkAttachment    *string
 	Status          string
+	CTAEnabled      bool
 	TotalRecipients int
 	SentCount       int
 	FailedCount     int
@@ -63,6 +64,7 @@ type CreateBroadcastParams struct {
 	AudienceFilter string
 	Text           string
 	ImageURL       *string
+	CTAEnabled     bool
 }
 
 type BroadcastRepo struct {
@@ -100,17 +102,18 @@ func (r *BroadcastRepo) CreateWithSnapshot(ctx context.Context, params CreateBro
 
 	broadcast := &Broadcast{}
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO broadcasts (audience_filter, text, image_url, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, now(), now())
+		INSERT INTO broadcasts (audience_filter, text, image_url, status, cta_enabled, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, now(), now())
 		RETURNING id, audience_filter, text, image_url, vk_attachment, status,
 		          total_recipients, sent_count, failed_count, last_error,
-		          started_at, completed_at, created_at, updated_at`,
-		audience, params.Text, params.ImageURL, BroadcastStatusQueued,
+		          started_at, completed_at, created_at, updated_at, cta_enabled`,
+		audience, params.Text, params.ImageURL, BroadcastStatusQueued, params.CTAEnabled,
 	).Scan(
 		&broadcast.ID, &broadcast.AudienceFilter, &broadcast.Text, &broadcast.ImageURL,
 		&broadcast.VkAttachment, &broadcast.Status, &broadcast.TotalRecipients,
 		&broadcast.SentCount, &broadcast.FailedCount, &broadcast.LastError,
 		&broadcast.StartedAt, &broadcast.CompletedAt, &broadcast.CreatedAt, &broadcast.UpdatedAt,
+		&broadcast.CTAEnabled,
 	); err != nil {
 		return nil, err
 	}
@@ -152,13 +155,14 @@ func (r *BroadcastRepo) CreateWithSnapshot(ctx context.Context, params CreateBro
 		WHERE id = $1
 		RETURNING id, audience_filter, text, image_url, vk_attachment, status,
 		          total_recipients, sent_count, failed_count, last_error,
-		          started_at, completed_at, created_at, updated_at`,
+		          started_at, completed_at, created_at, updated_at, cta_enabled`,
 		broadcast.ID, broadcast.TotalRecipients, status, completedAt,
 	).Scan(
 		&broadcast.ID, &broadcast.AudienceFilter, &broadcast.Text, &broadcast.ImageURL,
 		&broadcast.VkAttachment, &broadcast.Status, &broadcast.TotalRecipients,
 		&broadcast.SentCount, &broadcast.FailedCount, &broadcast.LastError,
 		&broadcast.StartedAt, &broadcast.CompletedAt, &broadcast.CreatedAt, &broadcast.UpdatedAt,
+		&broadcast.CTAEnabled,
 	); err != nil {
 		return nil, err
 	}
@@ -177,7 +181,7 @@ func (r *BroadcastRepo) List(ctx context.Context, limit int) ([]*Broadcast, erro
 	rows, err := r.db.Query(ctx, `
 		SELECT id, audience_filter, text, image_url, vk_attachment, status,
 		       total_recipients, sent_count, failed_count, last_error,
-		       started_at, completed_at, created_at, updated_at
+		       started_at, completed_at, created_at, updated_at, cta_enabled
 		FROM broadcasts
 		ORDER BY created_at DESC, id DESC
 		LIMIT $1`, limit)
@@ -193,6 +197,7 @@ func (r *BroadcastRepo) List(ctx context.Context, limit int) ([]*Broadcast, erro
 			&item.ID, &item.AudienceFilter, &item.Text, &item.ImageURL, &item.VkAttachment,
 			&item.Status, &item.TotalRecipients, &item.SentCount, &item.FailedCount,
 			&item.LastError, &item.StartedAt, &item.CompletedAt, &item.CreatedAt, &item.UpdatedAt,
+			&item.CTAEnabled,
 		); err != nil {
 			return nil, err
 		}
@@ -207,13 +212,14 @@ func (r *BroadcastRepo) Get(ctx context.Context, id int64) (*Broadcast, error) {
 	err := r.db.QueryRow(ctx, `
 		SELECT id, audience_filter, text, image_url, vk_attachment, status,
 		       total_recipients, sent_count, failed_count, last_error,
-		       started_at, completed_at, created_at, updated_at
+		       started_at, completed_at, created_at, updated_at, cta_enabled
 		FROM broadcasts
 		WHERE id = $1`, id).
 		Scan(
 			&item.ID, &item.AudienceFilter, &item.Text, &item.ImageURL, &item.VkAttachment,
 			&item.Status, &item.TotalRecipients, &item.SentCount, &item.FailedCount,
 			&item.LastError, &item.StartedAt, &item.CompletedAt, &item.CreatedAt, &item.UpdatedAt,
+			&item.CTAEnabled,
 		)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -386,7 +392,7 @@ func (r *BroadcastRepo) RefreshStatus(ctx context.Context, broadcastID int64) (*
 		WHERE b.id = $1
 		RETURNING b.id, b.audience_filter, b.text, b.image_url, b.vk_attachment, b.status,
 		          b.total_recipients, b.sent_count, b.failed_count, b.last_error,
-		          b.started_at, b.completed_at, b.created_at, b.updated_at`,
+		          b.started_at, b.completed_at, b.created_at, b.updated_at, b.cta_enabled`,
 		broadcastID,
 		BroadcastDeliveryStatusPending,
 		BroadcastDeliveryStatusProcessing,
@@ -399,6 +405,7 @@ func (r *BroadcastRepo) RefreshStatus(ctx context.Context, broadcastID int64) (*
 		&item.ID, &item.AudienceFilter, &item.Text, &item.ImageURL, &item.VkAttachment,
 		&item.Status, &item.TotalRecipients, &item.SentCount, &item.FailedCount,
 		&item.LastError, &item.StartedAt, &item.CompletedAt, &item.CreatedAt, &item.UpdatedAt,
+		&item.CTAEnabled,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil

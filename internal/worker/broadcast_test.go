@@ -51,10 +51,12 @@ func (f *fakeWorkerBroadcastRepo) HasPendingDeliveries(context.Context, int64, t
 type fakeWorkerBroadcastSender struct {
 	failVKID map[int64]error
 	calls    []int64
+	ctaFlags []bool
 }
 
-func (f *fakeWorkerBroadcastSender) SendBroadcast(_ context.Context, vkID int64, _ string, _ *string, _ int64) error {
+func (f *fakeWorkerBroadcastSender) SendBroadcast(_ context.Context, vkID int64, _ string, _ *string, _ int64, ctaEnabled bool) error {
 	f.calls = append(f.calls, vkID)
+	f.ctaFlags = append(f.ctaFlags, ctaEnabled)
 	if err := f.failVKID[vkID]; err != nil {
 		return err
 	}
@@ -101,6 +103,31 @@ func TestBroadcastHandlerProcessTaskSuccess(t *testing.T) {
 	}
 	if len(queue.tasks) != 0 {
 		t.Fatalf("expected no follow-up tasks, got %d", len(queue.tasks))
+	}
+}
+
+func TestBroadcastHandlerPassesCTAFlagToSender(t *testing.T) {
+	repo := &fakeWorkerBroadcastRepo{
+		broadcast: &repository.Broadcast{
+			ID:         3,
+			Text:       "hello",
+			Status:     repository.BroadcastStatusQueued,
+			CTAEnabled: true,
+		},
+		deliveries: []*repository.BroadcastDelivery{
+			{ID: 31, BroadcastID: 3, UserVKID: 3001},
+		},
+		refreshResult: &repository.Broadcast{ID: 3, Status: repository.BroadcastStatusCompleted},
+	}
+	sender := &fakeWorkerBroadcastSender{}
+	handler := NewBroadcastHandler(repo, sender, &fakeWorkerTaskClient{})
+
+	payloadBytes, _ := BroadcastPayload{BroadcastID: 3, BatchSize: 10}.Bytes()
+	if err := handler.ProcessTask(context.Background(), asynq.NewTask(TaskBroadcastProcess, payloadBytes)); err != nil {
+		t.Fatalf("process task: %v", err)
+	}
+	if len(sender.ctaFlags) != 1 || !sender.ctaFlags[0] {
+		t.Fatalf("expected cta flag to reach sender, got %#v", sender.ctaFlags)
 	}
 }
 

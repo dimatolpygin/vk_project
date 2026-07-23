@@ -324,6 +324,13 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 		Order:       40,
 		Keywords:    []string{"успех", "оплата", "payment"},
 	},
+	"broadcast_no_gens": {
+		SectionID:   "billing",
+		Title:       "Рассылка: нулевой баланс",
+		Description: "Сообщение перед экраном тарифов после нажатия кнопки «Сделать такие фото» в рассылке.",
+		Order:       35,
+		Keywords:    []string{"рассылка", "нет генераций", "cta"},
+	},
 	"no_gens_left": {
 		SectionID:   "billing",
 		Title:       "Закончились генерации",

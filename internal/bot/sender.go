@@ -94,9 +94,14 @@ func (s *Sender) SendPhoto(ctx context.Context, vkID int64, photoURL, caption, k
 	})
 }
 
-func (s *Sender) SendBroadcast(ctx context.Context, vkID int64, text string, imageURL *string, broadcastID int64) error {
+func (s *Sender) SendBroadcast(ctx context.Context, vkID int64, text string, imageURL *string, broadcastID int64, ctaEnabled bool) error {
+	var keyboard string
+	if ctaEnabled {
+		keyboard = flows.KbBroadcastCTA()
+	}
+
 	if imageURL == nil || *imageURL == "" {
-		return s.SendText(ctx, vkID, text, "")
+		return s.SendText(ctx, vkID, text, keyboard)
 	}
 
 	attachment, err := s.resolveBroadcastAttachment(ctx, vkID, *imageURL, broadcastID)
@@ -108,6 +113,7 @@ func (s *Sender) SendBroadcast(ctx context.Context, vkID int64, text string, ima
 		PeerID:     vkID,
 		Text:       text,
 		Attachment: attachment,
+		Keyboard:   keyboard,
 		RandomID:   uniqueID(),
 	})
 }

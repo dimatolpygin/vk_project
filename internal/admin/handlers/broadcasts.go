@@ -58,6 +58,7 @@ type broadcastItemView struct {
 	StatusClass     string
 	TextPreview     string
 	HasImage        bool
+	HasCTA          bool
 	TotalRecipients int
 	SentCount       int
 	FailedCount     int
@@ -142,6 +143,7 @@ func (h *BroadcastsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		AudienceFilter: audience,
 		Text:           text,
 		ImageURL:       imageURL,
+		CTAEnabled:     parseBroadcastCTAFlag(r.FormValue("cta_enabled")),
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create broadcast")
@@ -231,6 +233,7 @@ func buildBroadcastItemView(item *repository.Broadcast) broadcastItemView {
 		StatusClass:     statusClass,
 		TextPreview:     compactPreview(item.Text),
 		HasImage:        item.ImageURL != nil && strings.TrimSpace(*item.ImageURL) != "",
+		HasCTA:          item.CTAEnabled,
 		TotalRecipients: item.TotalRecipients,
 		SentCount:       item.SentCount,
 		FailedCount:     item.FailedCount,
@@ -335,6 +338,17 @@ func parseBroadcastCreateRequest(r *http.Request) error {
 	}
 
 	return r.ParseForm()
+}
+
+// parseBroadcastCTAFlag читает чекбокс кнопки «Сделать такие фото».
+// Браузер шлёт "on", JS-форма — "true"/"1"; всё остальное считаем выключенным.
+func parseBroadcastCTAFlag(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "on", "true", "1", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeBroadcastImageUploadState(value string) string {

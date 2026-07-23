@@ -62,6 +62,12 @@ var actionAdminMeta = map[string]ActionAdminMeta{
 		Description: "Выбор конкретного тарифа для оплаты.",
 		Order:       90,
 	},
+	"broadcast_cta": {
+		SectionID:   "billing",
+		Title:       "Кнопка рассылки «Сделать такие фото»",
+		Description: "Переход из рассылки к выбору тарифа. Пользователю без генераций сначала показывается нулевой баланс.",
+		Order:       95,
+	},
 	"referral": {
 		SectionID:   "referrals",
 		Title:       "Реферальная программа",
