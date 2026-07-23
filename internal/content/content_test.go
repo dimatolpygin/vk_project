@@ -149,7 +149,9 @@ func TestExamplesMenuListsAllCategories(t *testing.T) {
 		"examples_misc":      false,
 		"back":               false,
 	}
+	byAction := make(map[string]Button, len(def.Keyboard.Items))
 	for _, item := range def.Keyboard.Items {
+		byAction[item.ActionKey] = item
 		if _, ok := want[item.ActionKey]; ok {
 			want[item.ActionKey] = true
 		}
@@ -157,6 +159,18 @@ func TestExamplesMenuListsAllCategories(t *testing.T) {
 	for action, found := range want {
 		if !found {
 			t.Fatalf("examples menu has no button for action %q", action)
+		}
+	}
+
+	// «Фото для себя» — первой кнопкой, «Назад» — последней строкой и одна в ряду.
+	first := byAction["examples_self"]
+	back := byAction["back"]
+	for _, item := range def.Keyboard.Items {
+		if item.ActionKey != "examples_self" && item.Row <= first.Row {
+			t.Fatalf("button %q sits above or beside «Фото для себя» (rows %d vs %d)", item.ActionKey, item.Row, first.Row)
+		}
+		if item.ActionKey != "back" && item.Row >= back.Row {
+			t.Fatalf("button %q sits below or beside «Назад» (rows %d vs %d)", item.ActionKey, item.Row, back.Row)
 		}
 	}
 }
