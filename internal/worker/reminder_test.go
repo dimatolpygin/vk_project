@@ -19,11 +19,16 @@ func (f *fakeReminderUsers) GetByVKID(context.Context, int64) (*repository.User,
 
 type fakeReminderTariffs struct {
 	active []*repository.Tariff
+	hidden []*repository.Tariff
 	byID   map[int]*repository.Tariff
 }
 
 func (f *fakeReminderTariffs) ListActive(context.Context) ([]*repository.Tariff, error) {
 	return f.active, nil
+}
+
+func (f *fakeReminderTariffs) List(context.Context) ([]*repository.Tariff, error) {
+	return append(append([]*repository.Tariff{}, f.active...), f.hidden...), nil
 }
 
 func (f *fakeReminderTariffs) GetByID(_ context.Context, id int) (*repository.Tariff, error) {
@@ -157,6 +162,59 @@ func TestPaymentReminderUsesConfiguredTariff(t *testing.T) {
 	}
 	if len(sender.sent) != 1 || sender.sent[0].ID != 1 {
 		t.Fatalf("expected configured tariff to win, got %#v", sender.sent)
+	}
+}
+
+func TestPaymentReminderUsesHiddenThreeGensTariff(t *testing.T) {
+	sender := &fakeReminderSender{}
+	hidden := &repository.Tariff{ID: 5, Name: "3 генерации", Price: 90, GensCount: 3, IsActive: false}
+	tariffs := &fakeReminderTariffs{
+		active: []*repository.Tariff{
+			{ID: 1, Name: "Стартовый", Price: 199, GensCount: 10, IsActive: true},
+		},
+		hidden: []*repository.Tariff{hidden},
+		byID:   map[int]*repository.Tariff{5: hidden},
+	}
+	handler := NewPaymentReminderHandler(
+		&fakeReminderUsers{user: &repository.User{VKID: 106, Status: "free"}},
+		tariffs,
+		sender,
+		&fakeReminderActivity{},
+		&fakeReminderConfig{},
+	)
+
+	if err := handler.ProcessTask(context.Background(), reminderTask(t, 106)); err != nil {
+		t.Fatalf("process task: %v", err)
+	}
+	// Тариф-дожим скрыт из общего списка, но в напоминании обязан работать.
+	if len(sender.sent) != 1 || sender.sent[0].ID != 5 {
+		t.Fatalf("expected hidden 3-gens tariff, got %#v", sender.sent)
+	}
+}
+
+func TestPaymentReminderUsesConfiguredInactiveTariff(t *testing.T) {
+	sender := &fakeReminderSender{}
+	hidden := &repository.Tariff{ID: 5, Name: "3 генерации", Price: 90, GensCount: 3, IsActive: false}
+	tariffs := &fakeReminderTariffs{
+		active: []*repository.Tariff{
+			{ID: 1, Name: "Стартовый", Price: 199, GensCount: 10, IsActive: true},
+		},
+		hidden: []*repository.Tariff{hidden},
+		byID:   map[int]*repository.Tariff{5: hidden},
+	}
+	handler := NewPaymentReminderHandler(
+		&fakeReminderUsers{user: &repository.User{VKID: 107, Status: "free"}},
+		tariffs,
+		sender,
+		&fakeReminderActivity{},
+		&fakeReminderConfig{values: map[string]string{reminderTariffConfigKey: "5"}},
+	)
+
+	if err := handler.ProcessTask(context.Background(), reminderTask(t, 107)); err != nil {
+		t.Fatalf("process task: %v", err)
+	}
+	if len(sender.sent) != 1 || sender.sent[0].ID != 5 {
+		t.Fatalf("expected configured inactive tariff, got %#v", sender.sent)
 	}
 }
 

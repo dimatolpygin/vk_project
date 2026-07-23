@@ -30,6 +30,7 @@ type ReminderUserStore interface {
 
 type ReminderTariffStore interface {
 	ListActive(ctx context.Context) ([]*repository.Tariff, error)
+	List(ctx context.Context) ([]*repository.Tariff, error)
 	GetByID(ctx context.Context, id int) (*repository.Tariff, error)
 }
 
@@ -153,8 +154,14 @@ func (h *PaymentReminderHandler) recentlyReminded(ctx context.Context, vkID int6
 	return time.Since(*lastAt) < h.cooldown, nil
 }
 
-// resolveTariff выбирает тариф для кнопки: сначала переопределение из админ-конфига,
-// затем активный тариф на 3 генерации, иначе — самый дешёвый активный.
+// resolveTariff выбирает тариф для кнопки напоминания:
+//  1. переопределение из админ-конфига — даже если тариф выключен;
+//  2. тариф на 3 генерации, в том числе скрытый из общего списка;
+//  3. самый дешёвый активный.
+//
+// Пункты 1–2 намеренно допускают неактивный тариф: тариф-дожим не должен
+// показываться всем на экране тарифов, но обязан работать в кнопке напоминания
+// (оплата по нему создаётся штатным HandleBuyTariff, он не проверяет is_active).
 func (h *PaymentReminderHandler) resolveTariff(ctx context.Context) (*repository.Tariff, error) {
 	if h.config != nil {
 		raw, err := h.config.Get(ctx, reminderTariffConfigKey)
@@ -165,36 +172,56 @@ func (h *PaymentReminderHandler) resolveTariff(ctx context.Context) (*repository
 			if err != nil {
 				return nil, err
 			}
-			if tariff != nil && tariff.IsActive {
+			if tariff != nil {
 				return tariff, nil
 			}
-			log.Warn().Int("tariff_id", id).Msg("reminder_tariff_id указывает на отсутствующий или отключённый тариф")
+			log.Warn().Int("tariff_id", id).Msg("reminder_tariff_id указывает на отсутствующий тариф")
 		}
 	}
 
-	tariffs, err := h.tariffs.ListActive(ctx)
+	all, err := h.tariffs.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if len(tariffs) == 0 {
-		return nil, nil
+	if tariff := pickByGensCount(all, reminderTariffGensCount); tariff != nil {
+		return tariff, nil
 	}
 
+	active, err := h.tariffs.ListActive(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return cheapestTariff(active), nil
+}
+
+// pickByGensCount ищет тариф с нужным числом генераций: сначала среди активных,
+// затем среди скрытых.
+func pickByGensCount(tariffs []*repository.Tariff, gensCount int) *repository.Tariff {
+	var hidden *repository.Tariff
 	for _, tariff := range tariffs {
-		if tariff != nil && tariff.GensCount == reminderTariffGensCount {
-			return tariff, nil
+		if tariff == nil || tariff.GensCount != gensCount {
+			continue
+		}
+		if tariff.IsActive {
+			return tariff
+		}
+		if hidden == nil {
+			hidden = tariff
 		}
 	}
+	return hidden
+}
 
-	cheapest := make([]*repository.Tariff, 0, len(tariffs))
+func cheapestTariff(tariffs []*repository.Tariff) *repository.Tariff {
+	candidates := make([]*repository.Tariff, 0, len(tariffs))
 	for _, tariff := range tariffs {
 		if tariff != nil {
-			cheapest = append(cheapest, tariff)
+			candidates = append(candidates, tariff)
 		}
 	}
-	if len(cheapest) == 0 {
-		return nil, nil
+	if len(candidates) == 0 {
+		return nil
 	}
-	sort.Slice(cheapest, func(i, j int) bool { return cheapest[i].Price < cheapest[j].Price })
-	return cheapest[0], nil
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].Price < candidates[j].Price })
+	return candidates[0]
 }
