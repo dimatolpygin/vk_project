@@ -33,11 +33,16 @@ func TestBuildLegacyKeyboardUsesLegacyLabels(t *testing.T) {
 		{Label: "New referral", Payload: "referral"},
 	})
 
-	if got := keyboard.Items[0].Label; got != "New CTA" {
-		t.Fatalf("expected first label to be replaced, got %q", got)
+	labels := make(map[string]string, len(keyboard.Items))
+	for _, item := range keyboard.Items {
+		labels[item.ActionKey] = item.Label
 	}
-	if got := keyboard.Items[1].Label; got != "New referral" {
-		t.Fatalf("expected second label to be replaced, got %q", got)
+
+	if got := labels["free_gen"]; got != "New CTA" {
+		t.Fatalf("expected free_gen label to be replaced, got %q", got)
+	}
+	if got := labels["referral"]; got != "New referral" {
+		t.Fatalf("expected referral label to be replaced, got %q", got)
 	}
 }
 
@@ -95,6 +100,94 @@ func TestMergeEditableKeyboardAllowsEditableFields(t *testing.T) {
 	}
 	if toggleButton.LabelOn != "Enabled label" {
 		t.Fatalf("expected label_on override, got %q", toggleButton.LabelOn)
+	}
+}
+
+func TestExampleCategoryScreensHaveCTAAndBack(t *testing.T) {
+	keys := []string{
+		"examples_self",
+		"examples_couple",
+		"examples_kids",
+		"examples_edit",
+		"examples_greetings",
+		"examples_misc",
+	}
+
+	for _, key := range keys {
+		def, ok := Definition(key)
+		if !ok {
+			t.Fatalf("screen %q definition not found", key)
+		}
+
+		actions := make(map[string]Button, len(def.Keyboard.Items))
+		for _, item := range def.Keyboard.Items {
+			actions[item.ActionKey] = item
+		}
+
+		if _, ok := actions["tariffs"]; !ok {
+			t.Fatalf("screen %q has no «Активировать все функции» button", key)
+		}
+		// Назад в категории возвращает в меню примеров, а не в общий back-сценарий.
+		if _, ok := actions["examples"]; !ok {
+			t.Fatalf("screen %q has no back-to-examples button", key)
+		}
+	}
+}
+
+func TestExamplesMenuListsAllCategories(t *testing.T) {
+	def, ok := Definition("examples_collage")
+	if !ok {
+		t.Fatal("examples_collage definition not found")
+	}
+
+	want := map[string]bool{
+		"examples_self":      false,
+		"examples_couple":    false,
+		"examples_kids":      false,
+		"examples_edit":      false,
+		"examples_greetings": false,
+		"examples_misc":      false,
+		"back":               false,
+	}
+	for _, item := range def.Keyboard.Items {
+		if _, ok := want[item.ActionKey]; ok {
+			want[item.ActionKey] = true
+		}
+	}
+	for action, found := range want {
+		if !found {
+			t.Fatalf("examples menu has no button for action %q", action)
+		}
+	}
+}
+
+func TestExamplesEntryPointsAreVisible(t *testing.T) {
+	for _, key := range []string{"welcome", "tariffs"} {
+		def, ok := Definition(key)
+		if !ok {
+			t.Fatalf("screen %q definition not found", key)
+		}
+
+		var examples, back Button
+		var hasExamples, hasBack bool
+		for _, item := range def.Keyboard.Items {
+			switch item.ActionKey {
+			case "examples":
+				examples, hasExamples = item, true
+			case "back":
+				back, hasBack = item, true
+			}
+		}
+
+		if !hasExamples {
+			t.Fatalf("screen %q has no «Примеры работ» button", key)
+		}
+		if !examples.Visible {
+			t.Fatalf("screen %q has hidden «Примеры работ» button", key)
+		}
+		if hasBack && examples.Row >= back.Row {
+			t.Fatalf("screen %q shows examples button below back button (rows %d vs %d)", key, examples.Row, back.Row)
+		}
 	}
 }
 

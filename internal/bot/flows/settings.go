@@ -141,6 +141,12 @@ func HandleExamples(ctx context.Context, fc *Context, d *Deps) {
 	_ = sendScreen(ctx, d, fc.VkID, "examples_collage", ScreenOptions{})
 }
 
+// HandleExampleCategory отдаёт экран одной категории примеров работ.
+// Картинка и текст берутся из messages, поэтому меняются в админке без релиза.
+func HandleExampleCategory(ctx context.Context, fc *Context, d *Deps, screenKey string) {
+	_ = sendScreen(ctx, d, fc.VkID, screenKey, ScreenOptions{})
+}
+
 func modelActionKey(modelID string) string {
 	switch modelID {
 	case "google/nano-banana-pro":

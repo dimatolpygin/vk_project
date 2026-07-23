@@ -245,8 +245,44 @@ var actionAdminMeta = map[string]ActionAdminMeta{
 	"examples": {
 		SectionID:   "navigation",
 		Title:       "Примеры работ",
-		Description: "Открытие экрана с примерами сгенерированных работ.",
+		Description: "Открытие меню с категориями примеров работ.",
 		Order:       370,
+	},
+	"examples_self": {
+		SectionID:   "navigation",
+		Title:       "Примеры: фото для себя",
+		Description: "Показ примеров одиночных портретов.",
+		Order:       371,
+	},
+	"examples_couple": {
+		SectionID:   "navigation",
+		Title:       "Примеры: парные фото",
+		Description: "Показ примеров парных и семейных фотосессий.",
+		Order:       372,
+	},
+	"examples_kids": {
+		SectionID:   "navigation",
+		Title:       "Примеры: детские фото",
+		Description: "Показ примеров детских фотосессий.",
+		Order:       373,
+	},
+	"examples_edit": {
+		SectionID:   "navigation",
+		Title:       "Примеры: изменение фото",
+		Description: "Показ примеров редактирования фото.",
+		Order:       374,
+	},
+	"examples_greetings": {
+		SectionID:   "navigation",
+		Title:       "Примеры: поздравления",
+		Description: "Показ примеров поздравительных открыток.",
+		Order:       375,
+	},
+	"examples_misc": {
+		SectionID:   "navigation",
+		Title:       "Примеры: разное",
+		Description: "Показ прочих примеров работ.",
+		Order:       376,
 	},
 }
 

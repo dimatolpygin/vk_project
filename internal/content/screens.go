@@ -41,9 +41,21 @@ var screenDefinitions = map[string]ScreenDefinition{
 		callback("back", "back", "◀️ Назад", "secondary", 0, 0),
 	),
 	"free_gen_prompt": screen("free_gen_prompt", "professional portrait photo of a {{.GenderLabel}}, studio lighting, high quality, photorealistic"),
-	"examples_collage": screen("examples_collage", "🌟 Примеры наших работ",
-		callback("back", "back", "◀️ Назад", "secondary", 0, 0),
+	"examples_collage": screen("examples_collage", "🌟 Примеры наших работ\n\nВыбери, что хочешь посмотреть:",
+		callback("examples_self", "examples_self", "🙋 Фото для себя", "primary", 0, 0),
+		callback("examples_couple", "examples_couple", "👫 Парные фото", "primary", 1, 0),
+		callback("examples_kids", "examples_kids", "🧒 Детские фото", "primary", 2, 0),
+		callback("examples_edit", "examples_edit", "✏️ Изменение фото", "primary", 3, 0),
+		callback("examples_greetings", "examples_greetings", "🎉 Поздравления", "primary", 4, 0),
+		callback("examples_misc", "examples_misc", "🎨 Разное", "primary", 5, 0),
+		callback("back", "back", "◀️ Назад", "secondary", 6, 0),
 	),
+	"examples_self":      exampleCategoryScreen("examples_self", "🙋 Фото для себя\n\nПортреты в разных стилях: деловые, атмосферные, для соцсетей и резюме.\n\nТакие же сделаем с твоим лицом — нужно только загрузить фото."),
+	"examples_couple":    exampleCategoryScreen("examples_couple", "👫 Парные фото\n\nСовместные фотосессии для пары или всей семьи: от студийных портретов до атмосферных прогулок.\n\nЗагрузи ваши фото — и получишь такие же кадры."),
+	"examples_kids":      exampleCategoryScreen("examples_kids", "🧒 Детские фото\n\nСказочные и праздничные сюжеты, детские портреты в любимых образах.\n\nОдно фото ребёнка — и готова целая фотосессия."),
+	"examples_edit":      exampleCategoryScreen("examples_edit", "✏️ Изменение фото\n\nМеняем фон, одежду, причёску, убираем лишнее — фото остаётся твоим, меняются только детали.\n\nОпиши правку словами, остальное сделает нейросеть."),
+	"examples_greetings": exampleCategoryScreen("examples_greetings", "🎉 Поздравления\n\nПерсональные открытки к дню рождения, 8 марта, Новому году и любому празднику — с лицом того, кого поздравляешь.\n\nОтличный подарок за пару минут."),
+	"examples_misc":      exampleCategoryScreen("examples_misc", "🎨 Разное\n\nВсё остальное: аватарки, мемы, обложки, фантазийные образы и любые идеи из головы.\n\nОпиши задумку — соберём кадр под неё."),
 	"generation_error": screen("generation_error", "❌ Произошла ошибка. Попробуй позже.",
 		callback("back", "back", "◀️ Назад", "secondary", 0, 0),
 	),
@@ -174,6 +186,7 @@ var screenDefinitions = map[string]ScreenDefinition{
 		callback("back", "back", "◀️ Назад", "secondary", 0, 0),
 	),
 	"tariffs": screen("tariffs", "💳 Выбери тариф для продолжения:",
+		callback("examples", "examples", "🖼 Примеры работ", "positive", 50, 0),
 		callback("back", "back", "◀️ Назад", "secondary", 100, 0),
 	),
 	"unknown_command": screen("unknown_command", "Неизвестная команда. Возвращаю в главное меню.",
@@ -181,7 +194,8 @@ var screenDefinitions = map[string]ScreenDefinition{
 	),
 	"welcome": screen("welcome", "👋 Привет! Я бот для создания нейрофотосессий.\n\nЯ превращу твои фото в профессиональные снимки с помощью AI.\n\nГотов попробовать?",
 		callback("free_gen", "free_gen", "✨ Попробовать бесплатно", "positive", 0, 0),
-		callback("referral", "referral", "🎁 Реферальная программа", "secondary", 1, 0),
+		callback("examples", "examples", "🖼 Примеры работ", "positive", 1, 0),
+		callback("referral", "referral", "🎁 Реферальная программа", "secondary", 2, 0),
 	),
 	"worker_generation_failed": screen("worker_generation_failed", "❌ Генерация завершилась с ошибкой. Попробуй позже."),
 	"worker_no_output":         screen("worker_no_output", "❌ Не удалось получить результат."),
@@ -198,6 +212,15 @@ func screen(key, text string, items ...Button) ScreenDefinition {
 			Items:  items,
 		},
 	}
+}
+
+// exampleCategoryScreen — экран одной категории примеров работ: картинка и текст
+// задаются в админке, кнопки одинаковые для всех категорий.
+func exampleCategoryScreen(key, text string) ScreenDefinition {
+	return screen(key, text,
+		callback("tariffs", "tariffs", "🚀 Активировать все функции", "positive", 0, 0),
+		callback("examples", "examples", "◀️ Назад", "secondary", 1, 0),
+	)
 }
 
 func replyScreen(key, text string, items ...Button) ScreenDefinition {

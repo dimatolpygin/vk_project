@@ -131,6 +131,8 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleSupport(ctx, fc, r.d)
 	case "examples":
 		HandleExamples(ctx, fc, r.d)
+	case "examples_self", "examples_couple", "examples_kids", "examples_edit", "examples_greetings", "examples_misc":
+		HandleExampleCategory(ctx, fc, r.d, fc.Callback.Type)
 	default:
 		log.Warn().Str("type", fc.Callback.Type).Msg("неизвестный callback")
 		_ = sendScreen(ctx, r.d, fc.VkID, "unknown_command", ScreenOptions{})

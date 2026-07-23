@@ -253,6 +253,9 @@ func upgradedDefaultMessageText(key, text string) string {
 }
 
 var legacyDefaultMessageTexts = map[string][]string{
+	"examples_collage": {
+		"🌟 Примеры наших работ",
+	},
 	"custom_prompt_intro": {
 		"✍️ Опиши желаемый стиль фотосессии своими словами.\n\nПример: «деловой костюм на фоне небоскрёбов, профессиональное освещение»\n\nВведи описание:",
 	},
