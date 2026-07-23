@@ -43,15 +43,16 @@ var screenDefinitions = map[string]ScreenDefinition{
 	),
 	"free_gen_prompt": screen("free_gen_prompt", "professional portrait photo of a {{.GenderLabel}}, studio lighting, high quality, photorealistic"),
 	"examples_collage": screen("examples_collage", "🌟 Примеры наших работ\n\nВыбери, что хочешь посмотреть:",
-		// Две колонки: у inline-клавиатуры ВК не больше 6 строк, а с «Назад»
-		// шесть категорий по одной в строке уже не помещаются.
+		// У inline-клавиатуры ВК не больше 6 строк, а кнопок здесь семь. Длинные
+		// названия держим по одной в строке, а короткие «Разное» и «Назад»
+		// ставим в общий последний ряд — так ничего не обрезается.
 		callback("examples_self", "examples_self", "🙋 Фото для себя", "primary", 0, 0),
-		callback("examples_couple", "examples_couple", "👫 Парные фото", "primary", 0, 1),
-		callback("examples_kids", "examples_kids", "🧒 Детские фото", "primary", 1, 0),
-		callback("examples_edit", "examples_edit", "✏️ Изменение фото", "primary", 1, 1),
-		callback("examples_greetings", "examples_greetings", "🎉 Поздравления", "primary", 2, 0),
-		callback("examples_misc", "examples_misc", "🎨 Разное", "primary", 2, 1),
-		callback("back", "back", "◀️ Назад", "secondary", 100, 0),
+		callback("examples_couple", "examples_couple", "👫 Парные фото", "primary", 1, 0),
+		callback("examples_kids", "examples_kids", "🧒 Детские фото", "primary", 2, 0),
+		callback("examples_edit", "examples_edit", "✏️ Изменение фото", "primary", 3, 0),
+		callback("examples_greetings", "examples_greetings", "🎉 Поздравления", "primary", 4, 0),
+		callback("examples_misc", "examples_misc", "🎨 Разное", "primary", 5, 0),
+		callback("back", "back", "◀️ Назад", "secondary", 5, 1),
 	),
 	"examples_self":      exampleCategoryScreen("examples_self", "🙋 Фото для себя\n\nПортреты в разных стилях: деловые, атмосферные, для соцсетей и резюме.\n\nТакие же сделаем с твоим лицом — нужно только загрузить фото."),
 	"examples_couple":    exampleCategoryScreen("examples_couple", "👫 Парные фото\n\nСовместные фотосессии для пары или всей семьи: от студийных портретов до атмосферных прогулок.\n\nЗагрузи ваши фото — и получишь такие же кадры."),

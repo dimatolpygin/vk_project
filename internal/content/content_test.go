@@ -176,8 +176,8 @@ func TestExamplesMenuListsAllCategories(t *testing.T) {
 		t.Fatalf("expected «Назад» last, got %q", got)
 	}
 	for _, item := range def.Keyboard.Items {
-		if item.ActionKey != "back" && item.Row >= back.Row {
-			t.Fatalf("button %q shares or follows the back row (rows %d vs %d)", item.ActionKey, item.Row, back.Row)
+		if item.Row > back.Row {
+			t.Fatalf("button %q sits below «Назад» (rows %d vs %d)", item.ActionKey, item.Row, back.Row)
 		}
 	}
 
