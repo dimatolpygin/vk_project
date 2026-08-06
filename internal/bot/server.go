@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"net/http"
 	"strings"
@@ -40,6 +41,7 @@ func (s *Server) Router() http.Handler {
 func (s *Server) setupRoutes() {
 	s.router.Post("/vk/webhook", s.handleVKWebhook)
 	s.router.Get("/vk/return", s.handleVKReturn)
+	s.router.Get("/pay/{token}", s.handlePayRedirect)
 	s.router.Post("/webhook/yukassa", s.handleYukassaWebhook)
 	s.router.Post("/webhook/wavespeed", s.handleWavespeedWebhook)
 	s.router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -211,6 +213,88 @@ func (s *Server) handleYukassaWebhook(w http.ResponseWriter, r *http.Request) {
 	decision = "processed"
 	w.WriteHeader(http.StatusOK)
 }
+
+// handlePayRedirect — прослойка между кнопкой ВК и страницей ЮKassa.
+//
+// Раньше в кнопку уходил confirmation_url ЮKassa напрямую. ВК заворачивает
+// внешние ссылки через away.vk.com и открывает их во встроенном браузере, где
+// тяжёлая страница ЮKassa у части людей не поднималась — оставался пустой экран,
+// и по логам это выглядело как «платёж просто истёк». Здесь отдаётся лёгкая
+// страница: она сама уходит на оплату, а если редирект не сработал — на экране
+// остаётся живая кнопка, по которой человек дойдёт вручную.
+func (s *Server) handlePayRedirect(w http.ResponseWriter, r *http.Request) {
+	token := strings.TrimSpace(chi.URLParam(r, "token"))
+	entry := log.Info().Str("pay_token", token).Str("user_agent", r.UserAgent())
+
+	if token == "" || s.flowDeps == nil || s.flowDeps.OrderRepo == nil {
+		entry.Str("decision", "not_found").Msg("pay redirect")
+		s.writePayError(w, http.StatusNotFound)
+		return
+	}
+
+	order, err := s.flowDeps.OrderRepo.GetByPayToken(r.Context(), token)
+	if err != nil {
+		entry.Err(err).Str("decision", "error").Msg("pay redirect")
+		s.writePayError(w, http.StatusInternalServerError)
+		return
+	}
+	if order == nil || order.PaymentURL == nil || *order.PaymentURL == "" {
+		entry.Str("decision", "not_found").Msg("pay redirect")
+		s.writePayError(w, http.StatusNotFound)
+		return
+	}
+
+	entry.
+		Int64("order_id", order.ID).
+		Int64("vk_id", order.UserVKID).
+		Str("order_status", order.Status).
+		Str("decision", "redirect").
+		Msg("pay redirect")
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	if err := payRedirectTmpl.Execute(w, map[string]any{"PaymentURL": *order.PaymentURL}); err != nil {
+		log.Error().Err(err).Str("pay_token", token).Msg("failed to render pay redirect page")
+	}
+}
+
+func (s *Server) writePayError(w http.ResponseWriter, status int) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = io.WriteString(w, `<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ссылка недействительна</title></head>
+<body style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f6f8fb;color:#162033;margin:0;padding:32px;">
+  <main style="max-width:480px;margin:0 auto;background:#fff;border-radius:18px;padding:28px;text-align:center;">
+    <h1 style="margin-top:0;font-size:20px;">Ссылка на оплату недействительна</h1>
+    <p style="line-height:1.6;">Вернитесь в сообщения сообщества и выберите тариф заново — бот пришлёт новую ссылку.</p>
+  </main>
+</body>
+</html>`)
+}
+
+// Страница намеренно без внешних ресурсов и скриптов сверх одной строки: во
+// встроенном браузере ВК всё лишнее — это лишний шанс не отрисоваться. Редирект
+// продублирован тремя способами, кнопка видна сразу, ещё до срабатывания любого
+// из них.
+var payRedirectTmpl = template.Must(template.New("pay").Parse(`<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="0;url={{.PaymentURL}}">
+  <title>Переход к оплате</title>
+</head>
+<body style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f6f8fb;color:#162033;margin:0;padding:32px;">
+  <main style="max-width:480px;margin:0 auto;background:#fff;border-radius:18px;padding:28px;text-align:center;box-shadow:0 10px 30px rgba(22,32,51,0.08);">
+    <h1 style="margin-top:0;font-size:20px;">Открываем страницу оплаты…</h1>
+    <p style="line-height:1.6;">Если через пару секунд ничего не произошло, нажмите кнопку ниже.</p>
+    <p><a href="{{.PaymentURL}}" style="display:inline-block;background:#4c6ef5;color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-size:17px;font-weight:600;">Перейти к оплате</a></p>
+  </main>
+  <script>location.replace({{.PaymentURL}});</script>
+</body>
+</html>`))
 
 func (s *Server) handleWavespeedWebhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)

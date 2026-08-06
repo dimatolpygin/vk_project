@@ -169,3 +169,40 @@ func TestGensCountFromPaymentMetadataSupportsSeveralTypes(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildPayRedirectURLUsesPublicBase(t *testing.T) {
+	cases := []struct {
+		name  string
+		base  string
+		token string
+		want  string
+	}{
+		{name: "обычный", base: "https://admplaya.ru", token: "abc123", want: "https://admplaya.ru/pay/abc123"},
+		{name: "со слэшем", base: "https://admplaya.ru/", token: "abc123", want: "https://admplaya.ru/pay/abc123"},
+		{name: "без базы", base: "", token: "abc123", want: ""},
+		{name: "без токена", base: "https://admplaya.ru", token: "", want: ""},
+	}
+
+	for _, tc := range cases {
+		if got := buildPayRedirectURL(tc.base, tc.token); got != tc.want {
+			t.Fatalf("%s: expected %q, got %q", tc.name, tc.want, got)
+		}
+	}
+}
+
+func TestNewPayTokenIsRandomAndHex(t *testing.T) {
+	seen := make(map[string]bool, 50)
+	for i := 0; i < 50; i++ {
+		token, err := newPayToken()
+		if err != nil {
+			t.Fatalf("newPayToken returned error: %v", err)
+		}
+		if len(token) != 32 {
+			t.Fatalf("expected 32 hex chars, got %d (%q)", len(token), token)
+		}
+		if seen[token] {
+			t.Fatalf("duplicate token generated: %q", token)
+		}
+		seen[token] = true
+	}
+}

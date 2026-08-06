@@ -51,6 +51,10 @@ type fakeServerOrderStore struct {
 	cancelResult *repository.PaymentCancellationResult
 	settleErr    error
 	cancelErr    error
+
+	payTokenCalls []string
+	payTokenOrder *repository.Order
+	payTokenErr   error
 }
 
 func (f *fakeServerOrderStore) Create(context.Context, int64, int, float64) (*repository.Order, error) {
@@ -59,6 +63,15 @@ func (f *fakeServerOrderStore) Create(context.Context, int64, int, float64) (*re
 
 func (f *fakeServerOrderStore) SetPaymentID(context.Context, int64, string) error {
 	return nil
+}
+
+func (f *fakeServerOrderStore) SetPaymentLink(context.Context, int64, string, string, string) error {
+	return nil
+}
+
+func (f *fakeServerOrderStore) GetByPayToken(_ context.Context, payToken string) (*repository.Order, error) {
+	f.payTokenCalls = append(f.payTokenCalls, payToken)
+	return f.payTokenOrder, f.payTokenErr
 }
 
 func (f *fakeServerOrderStore) SettleSuccessfulPayment(_ context.Context, paymentID string, paidGensHint int) (*repository.PaymentSettlementResult, error) {
@@ -204,5 +217,54 @@ func TestHandleVKReturnRendersSuccessPage(t *testing.T) {
 	}
 	if body := rec.Body.String(); !strings.Contains(body, "Оплата принята") {
 		t.Fatalf("expected return page body, got %q", body)
+	}
+}
+
+func TestHandlePayRedirectServesPaymentPage(t *testing.T) {
+	paymentURL := "https://yoomoney.ru/checkout/payments/v2/contract?orderId=31f9998c"
+	orderRepo := &fakeServerOrderStore{
+		payTokenOrder: &repository.Order{
+			ID:         594,
+			UserVKID:   170333486,
+			Status:     "pending",
+			PaymentURL: &paymentURL,
+		},
+	}
+
+	server := NewServer(&config.Config{}, nil, nil, &flows.Deps{OrderRepo: orderRepo})
+
+	req := httptest.NewRequest(http.MethodGet, "/pay/deadbeef", nil)
+	rec := httptest.NewRecorder()
+	server.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	if len(orderRepo.payTokenCalls) != 1 || orderRepo.payTokenCalls[0] != "deadbeef" {
+		t.Fatalf("expected lookup by token deadbeef, got %#v", orderRepo.payTokenCalls)
+	}
+
+	body := rec.Body.String()
+	// Ссылка обязана быть и в meta refresh, и в кнопке, и в скрипте: страница
+	// существует ровно ради того, чтобы человек дошёл до оплаты хотя бы одним
+	// из трёх путей.
+	if strings.Count(body, "yoomoney.ru/checkout/payments/v2/contract") < 3 {
+		t.Fatalf("expected payment url in meta, link and script, got: %s", body)
+	}
+	if !strings.Contains(body, "Перейти к оплате") {
+		t.Fatalf("expected visible fallback button, got: %s", body)
+	}
+}
+
+func TestHandlePayRedirectUnknownTokenReturns404(t *testing.T) {
+	orderRepo := &fakeServerOrderStore{}
+	server := NewServer(&config.Config{}, nil, nil, &flows.Deps{OrderRepo: orderRepo})
+
+	req := httptest.NewRequest(http.MethodGet, "/pay/nope", nil)
+	rec := httptest.NewRecorder()
+	server.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", rec.Code)
 	}
 }

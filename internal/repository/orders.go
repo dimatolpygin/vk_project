@@ -18,6 +18,8 @@ type Order struct {
 	Amount           float64
 	Status           string
 	CreatedAt        time.Time
+	PaymentURL       *string
+	PayToken         *string
 }
 
 type PaymentSettlementResult struct {
@@ -59,6 +61,34 @@ func (r *OrderRepo) Create(ctx context.Context, userVKID int64, tariffID int, am
 func (r *OrderRepo) SetPaymentID(ctx context.Context, orderID int64, paymentID string) error {
 	_, err := r.db.Exec(ctx, `UPDATE orders SET yukassa_payment_id = $2 WHERE id = $1`, orderID, paymentID)
 	return err
+}
+
+// SetPaymentLink сохраняет платёж целиком: id в ЮKassa, confirmation_url и наш
+// публичный токен, по которому /pay/<token> отдаёт редирект на оплату.
+func (r *OrderRepo) SetPaymentLink(ctx context.Context, orderID int64, paymentID, paymentURL, payToken string) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE orders
+		SET yukassa_payment_id = $2, payment_url = $3, pay_token = $4
+		WHERE id = $1`, orderID, paymentID, paymentURL, payToken)
+	return err
+}
+
+// GetByPayToken отдаёт заказ по публичному токену и заодно отмечает открытие
+// платёжной страницы. Счётчик нужен, чтобы отличать «человек не дошёл до оплаты»
+// от «дошёл, но не заплатил» — иначе оба случая выглядят одинаково.
+func (r *OrderRepo) GetByPayToken(ctx context.Context, payToken string) (*Order, error) {
+	o := &Order{}
+	err := r.db.QueryRow(ctx, `
+		UPDATE orders
+		SET pay_opened_at = now(), pay_opened_count = pay_opened_count + 1
+		WHERE pay_token = $1
+		RETURNING id, user_vk_id, tariff_id, yukassa_payment_id, amount, status, created_at, payment_url, pay_token`,
+		payToken).
+		Scan(&o.ID, &o.UserVKID, &o.TariffID, &o.YukassaPaymentID, &o.Amount, &o.Status, &o.CreatedAt, &o.PaymentURL, &o.PayToken)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	return o, err
 }
 
 func (r *OrderRepo) SettleSuccessfulPayment(ctx context.Context, paymentID string, paidGensHint int) (*PaymentSettlementResult, error) {
