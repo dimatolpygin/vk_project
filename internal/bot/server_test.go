@@ -226,6 +226,7 @@ func TestHandlePayRedirectServesPaymentPage(t *testing.T) {
 		payTokenOrder: &repository.Order{
 			ID:         594,
 			UserVKID:   170333486,
+			Amount:     90,
 			Status:     "pending",
 			PaymentURL: &paymentURL,
 		},
@@ -245,14 +246,23 @@ func TestHandlePayRedirectServesPaymentPage(t *testing.T) {
 	}
 
 	body := rec.Body.String()
-	// Ссылка обязана быть и в meta refresh, и в кнопке, и в скрипте: страница
-	// существует ровно ради того, чтобы человек дошёл до оплаты хотя бы одним
-	// из трёх путей.
-	if strings.Count(body, "yoomoney.ru/checkout/payments/v2/contract") < 3 {
-		t.Fatalf("expected payment url in meta, link and script, got: %s", body)
+	if !strings.Contains(body, "href=\"https://yoomoney.ru/checkout/payments/v2/contract?orderId=31f9998c\"") {
+		t.Fatalf("expected payment url in the button href, got: %s", body)
 	}
 	if !strings.Contains(body, "Перейти к оплате") {
-		t.Fatalf("expected visible fallback button, got: %s", body)
+		t.Fatalf("expected visible payment button, got: %s", body)
+	}
+	if !strings.Contains(body, "90") {
+		t.Fatalf("expected order amount on the page, got: %s", body)
+	}
+
+	// Авто-редирект запрещён осознанно: он уносил человека на страницу ЮKassa
+	// раньше, чем тот успевал увидеть кнопку, и при белом экране у него не
+	// оставалось ни одного рабочего пути.
+	for _, forbidden := range []string{"http-equiv=\"refresh\"", "location.replace", "<script"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("page must not auto-redirect, found %q in: %s", forbidden, body)
+		}
 	}
 }
 

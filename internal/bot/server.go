@@ -254,7 +254,11 @@ func (s *Server) handlePayRedirect(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
-	if err := payRedirectTmpl.Execute(w, map[string]any{"PaymentURL": *order.PaymentURL}); err != nil {
+	data := map[string]any{
+		"PaymentURL": *order.PaymentURL,
+		"Amount":     fmt.Sprintf("%.0f", order.Amount),
+	}
+	if err := payRedirectTmpl.Execute(w, data); err != nil {
 		log.Error().Err(err).Str("pay_token", token).Msg("failed to render pay redirect page")
 	}
 }
@@ -274,25 +278,36 @@ func (s *Server) writePayError(w http.ResponseWriter, status int) {
 </html>`)
 }
 
-// Страница намеренно без внешних ресурсов и скриптов сверх одной строки: во
-// встроенном браузере ВК всё лишнее — это лишний шанс не отрисоваться. Редирект
-// продублирован тремя способами, кнопка видна сразу, ещё до срабатывания любого
-// из них.
+// Авто-редиректа здесь намеренно нет.
+//
+// Первая версия страницы уходила на ЮKassa сама (meta refresh + location.replace),
+// и запасная кнопка оказалась бесполезной: человека выбрасывало на тяжёлый SPA
+// ЮKassa раньше, чем он что-то видел, а когда тот не отрисовывался — он оставался
+// на белом экране уже без всякого запасного пути, наша страница к тому моменту
+// была уничтожена навигацией.
+//
+// Поэтому переход делается только по тапу. Это стоит одного лишнего нажатия, но
+// даёт две вещи: при сбое у человека всегда остаётся рабочая кнопка, и навигация
+// идёт как пользовательский жест — встроенные браузеры обрабатывают такие
+// переходы надёжнее программных. preconnect прогревает соединение со static
+// заранее, чтобы к моменту тапа страница оплаты поднималась быстрее.
 var payRedirectTmpl = template.Must(template.New("pay").Parse(`<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="0;url={{.PaymentURL}}">
+  <link rel="preconnect" href="https://yoomoney.ru" crossorigin>
+  <link rel="preconnect" href="https://static.yoomoney.ru" crossorigin>
+  <link rel="dns-prefetch" href="https://static.yoomoney.ru">
   <title>Переход к оплате</title>
 </head>
 <body style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f6f8fb;color:#162033;margin:0;padding:32px;">
   <main style="max-width:480px;margin:0 auto;background:#fff;border-radius:18px;padding:28px;text-align:center;box-shadow:0 10px 30px rgba(22,32,51,0.08);">
-    <h1 style="margin-top:0;font-size:20px;">Открываем страницу оплаты…</h1>
-    <p style="line-height:1.6;">Если через пару секунд ничего не произошло, нажмите кнопку ниже.</p>
-    <p><a href="{{.PaymentURL}}" style="display:inline-block;background:#4c6ef5;color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-size:17px;font-weight:600;">Перейти к оплате</a></p>
+    <h1 style="margin-top:0;font-size:20px;">Оплата заказа</h1>
+    <p style="font-size:30px;font-weight:700;margin:12px 0 4px;">{{.Amount}}&nbsp;₽</p>
+    <p><a href="{{.PaymentURL}}" style="display:block;background:#4c6ef5;color:#fff;text-decoration:none;padding:18px 28px;border-radius:12px;font-size:18px;font-weight:600;margin:22px 0 14px;">Перейти к оплате</a></p>
+    <p style="line-height:1.6;color:#6b7789;font-size:14px;margin:0;">Если страница оплаты откроется пустой — вернитесь назад и нажмите кнопку ещё раз.</p>
   </main>
-  <script>location.replace({{.PaymentURL}});</script>
 </body>
 </html>`))
 
