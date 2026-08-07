@@ -132,17 +132,17 @@ func TestHandleReadyPromptsMenuShowsFirstCategoryPage(t *testing.T) {
 		t.Fatalf("expected category/prompt page to be 1, got %d/%d", state.CategoryPage, state.PromptPage)
 	}
 
-	// «Вперёд» + четыре категории по одной в ряд + служебная «В меню» — ровно
-	// шесть строк, предел inline-клавиатуры ВК.
+	// Четыре категории по одной в ряд + ряд листалки + служебная «В меню» —
+	// ровно шесть строк, предел inline-клавиатуры ВК.
 	keyboard := decodeKeyboard(t, sender.screens[len(sender.screens)-1].Keyboard)
 	if len(keyboard.Buttons) != 6 {
 		t.Fatalf("expected 6 rows, got %d", len(keyboard.Buttons))
 	}
-	if got := keyboard.Buttons[0][0].Action.Label; got != "Вперёд ➡️" {
-		t.Fatalf("expected forward pager on the first row, got %q", got)
+	if got := keyboard.Buttons[0][0].Action.Label; got != "Category 1" {
+		t.Fatalf("expected the list to start from the first category, got %q", got)
 	}
-	if got := keyboard.Buttons[1][0].Action.Label; got != "Category 1" {
-		t.Fatalf("expected first category right under the pager, got %q", got)
+	if got := keyboard.Buttons[4][0].Action.Label; got != "Вперёд ➡️" {
+		t.Fatalf("expected the pager row under the list, got %q", got)
 	}
 	if got := keyboard.Buttons[5][0].Action.Payload; got != cbPayload("back") {
 		t.Fatalf("expected service back row last, got %q", got)
@@ -193,7 +193,7 @@ func TestHandleSelectCategoryShowsFirstPromptPageAndStoresState(t *testing.T) {
 	}
 
 	var payload map[string]any
-	if err := json.Unmarshal([]byte(keyboard.Buttons[0][0].Action.Payload), &payload); err != nil {
+	if err := json.Unmarshal([]byte(keyboard.Buttons[4][0].Action.Payload), &payload); err != nil {
 		t.Fatalf("unmarshal pager payload: %v", err)
 	}
 	if got := payload["type"]; got != "prompts_page" {
@@ -241,14 +241,14 @@ func TestHandleBackFromPromptListReturnsToStoredCategoryPage(t *testing.T) {
 		t.Fatalf("expected category page 2, got %d", state.CategoryPage)
 	}
 
-	// Последняя страница: «Вперёд» не показываем, «Назад» листалки стоит под
-	// списком, служебная «В меню» — последней.
+	// Последняя страница: «Вперёд» не показываем, ряд листалки с одним «Назад»
+	// стоит под списком, служебная «В меню» — последней.
 	keyboard := decodeKeyboard(t, sender.screens[len(sender.screens)-1].Keyboard)
 	if got := keyboard.Buttons[0][0].Action.Label; got != "Category 5" {
 		t.Fatalf("expected second page to start from category 5, got %q", got)
 	}
 	if got := keyboard.Buttons[2][0].Action.Label; got != "⬅️ Назад" {
-		t.Fatalf("expected backward pager under the list, got %q", got)
+		t.Fatalf("expected the pager row under the list, got %q", got)
 	}
 	if got := keyboard.Buttons[3][0].Action.Payload; got != cbPayload("back") {
 		t.Fatalf("expected service back row last, got %q", got)
@@ -344,7 +344,7 @@ func TestHandleCoupleAwaitingPhotoShowsPaginatedCategories(t *testing.T) {
 	}
 	keyboard := decodeKeyboard(t, last.Keyboard)
 	var payload map[string]any
-	if err := json.Unmarshal([]byte(keyboard.Buttons[0][0].Action.Payload), &payload); err != nil {
+	if err := json.Unmarshal([]byte(keyboard.Buttons[4][0].Action.Payload), &payload); err != nil {
 		t.Fatalf("unmarshal couple pager payload: %v", err)
 	}
 	if got := payload["type"]; got != "couple_page" {

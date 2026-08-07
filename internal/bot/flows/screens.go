@@ -178,13 +178,7 @@ func buildPaginatedRows(buttons []KbBtn, page int, pagerType string, pagerExtra 
 		end = len(buttons)
 	}
 
-	rows := make([][]KbBtn, 0, paginatedRowsPerPage+2)
-
-	// «Вперёд» стоит над списком, «Назад» — под ним: пользователь листает
-	// вперёд, не уводя глаз от начала страницы.
-	if forward := pagerForward(page, totalPages, pagerType, pagerExtra); forward != nil {
-		rows = append(rows, []KbBtn{*forward})
-	}
+	rows := make([][]KbBtn, 0, paginatedRowsPerPage+1)
 
 	for i := start; i < end; i += paginatedColumns {
 		rowEnd := i + paginatedColumns
@@ -196,27 +190,30 @@ func buildPaginatedRows(buttons []KbBtn, page int, pagerType string, pagerExtra 
 		rows = append(rows, row)
 	}
 
-	if back := pagerBack(page, pagerType, pagerExtra); back != nil {
-		rows = append(rows, []KbBtn{*back})
+	if pagerRow := buildPagerRow(page, totalPages, pagerType, pagerExtra); len(pagerRow) > 0 {
+		rows = append(rows, pagerRow)
 	}
 
 	return rows, page, totalPages
 }
 
-func pagerForward(page, totalPages int, pagerType string, pagerExtra map[string]any) *KbBtn {
-	if totalPages <= 1 || pagerType == "" || page >= totalPages {
+// buildPagerRow держит обе кнопки листалки в одном ряду под списком: это одно
+// действие «пролистать», и разносить его по разным концам экрана незачем.
+// Четыре кнопки контента + ряд листалки + служебная строка экрана — ровно
+// шесть строк, предел inline-клавиатуры ВК.
+func buildPagerRow(page, totalPages int, pagerType string, pagerExtra map[string]any) []KbBtn {
+	if totalPages <= 1 || pagerType == "" {
 		return nil
 	}
-	btn := pagerButton("Вперёд ➡️", pagerType, page+1, pagerExtra)
-	return &btn
-}
 
-func pagerBack(page int, pagerType string, pagerExtra map[string]any) *KbBtn {
-	if pagerType == "" || page <= 1 {
-		return nil
+	row := make([]KbBtn, 0, 2)
+	if page > 1 {
+		row = append(row, pagerButton("⬅️ Назад", pagerType, page-1, pagerExtra))
 	}
-	btn := pagerButton("⬅️ Назад", pagerType, page-1, pagerExtra)
-	return &btn
+	if page < totalPages {
+		row = append(row, pagerButton("Вперёд ➡️", pagerType, page+1, pagerExtra))
+	}
+	return row
 }
 
 func pagerButton(label, pagerType string, page int, pagerExtra map[string]any) KbBtn {
