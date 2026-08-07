@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"html/template"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog/log"
@@ -20,6 +22,44 @@ type CategoriesHandler struct {
 func NewCategoriesHandler(cats *repository.CategoryRepo, prompts *repository.PromptRepo) *CategoriesHandler {
 	tmpl := parseTemplates("templates/layout.html", "templates/prompts.html")
 	return &CategoriesHandler{cats: cats, prompts: prompts, tmpl: tmpl}
+}
+
+// categoryRequest — тело запроса на создание и правку узла дерева.
+// ParentID приходит нулём, когда узел кладут в корень раздела.
+type categoryRequest struct {
+	Name         string  `json:"name"`
+	Gender       string  `json:"gender"`
+	SortOrder    int     `json:"sort_order"`
+	IsActive     bool    `json:"is_active"`
+	PreviewURL   *string `json:"preview_url"`
+	ParentID     int     `json:"parent_id"`
+	Section      string  `json:"section"`
+	ScreenKey    string  `json:"screen_key"`
+	MediaKind    string  `json:"media_kind"`
+	PromptGender string  `json:"prompt_gender"`
+}
+
+func (req categoryRequest) toInput() repository.CategoryInput {
+	in := repository.CategoryInput{
+		Name:       strings.TrimSpace(req.Name),
+		Gender:     req.Gender,
+		SortOrder:  req.SortOrder,
+		IsActive:   req.IsActive,
+		PreviewURL: req.PreviewURL,
+		Section:    req.Section,
+		MediaKind:  req.MediaKind,
+	}
+	if req.ParentID > 0 {
+		parentID := req.ParentID
+		in.ParentID = &parentID
+	}
+	if screenKey := strings.TrimSpace(req.ScreenKey); screenKey != "" {
+		in.ScreenKey = &screenKey
+	}
+	if promptGender := strings.TrimSpace(req.PromptGender); promptGender != "" {
+		in.PromptGender = &promptGender
+	}
+	return in
 }
 
 func (h *CategoriesHandler) ListCategories(w http.ResponseWriter, r *http.Request) {
@@ -42,23 +82,44 @@ func (h *CategoriesHandler) ListCategories(w http.ResponseWriter, r *http.Reques
 	}
 
 	type categoryView struct {
-		ID         int     `json:"id"`
-		Name       string  `json:"name"`
-		PreviewURL *string `json:"preview_url"`
-		Gender     string  `json:"gender"`
-		SortOrder  int     `json:"sort_order"`
-		IsActive   bool    `json:"is_active"`
+		ID           int     `json:"id"`
+		Name         string  `json:"name"`
+		PreviewURL   *string `json:"preview_url"`
+		Gender       string  `json:"gender"`
+		SortOrder    int     `json:"sort_order"`
+		IsActive     bool    `json:"is_active"`
+		ParentID     *int    `json:"parent_id"`
+		Section      string  `json:"section"`
+		ScreenKey    *string `json:"screen_key"`
+		MediaKind    string  `json:"media_kind"`
+		PromptGender *string `json:"prompt_gender"`
+		// Depth считается на сервере: дерево уже приходит в порядке обхода,
+		// и UI остаётся простым списком с отступами.
+		Depth int `json:"depth"`
 	}
 
+	depths := make(map[int]int, len(cats))
 	catViews := make([]categoryView, 0, len(cats))
 	for _, cat := range cats {
+		depth := 0
+		if cat.ParentID != nil {
+			depth = depths[*cat.ParentID] + 1
+		}
+		depths[cat.ID] = depth
+
 		catViews = append(catViews, categoryView{
-			ID:         cat.ID,
-			Name:       cat.Name,
-			PreviewURL: cat.PreviewURL,
-			Gender:     cat.Gender,
-			SortOrder:  cat.SortOrder,
-			IsActive:   cat.IsActive,
+			ID:           cat.ID,
+			Name:         cat.Name,
+			PreviewURL:   cat.PreviewURL,
+			Gender:       cat.Gender,
+			SortOrder:    cat.SortOrder,
+			IsActive:     cat.IsActive,
+			ParentID:     cat.ParentID,
+			Section:      cat.Section,
+			ScreenKey:    cat.ScreenKey,
+			MediaKind:    cat.MediaKind,
+			PromptGender: cat.PromptGender,
+			Depth:        depth,
 		})
 	}
 
@@ -90,20 +151,16 @@ func (h *CategoriesHandler) ListCategories(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *CategoriesHandler) CreateCategory(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name      string `json:"name"`
-		Gender    string `json:"gender"`
-		SortOrder int    `json:"sort_order"`
-	}
+	var req categoryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if req.Gender == "" {
-		req.Gender = "any"
-	}
 
-	cat, err := h.cats.Create(r.Context(), req.Name, req.Gender, req.SortOrder)
+	in := req.toInput()
+	in.IsActive = true
+
+	cat, err := h.cats.Create(r.Context(), in)
 	if err != nil {
 		log.Error().Err(err).Msg("ошибка создания категории")
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -121,19 +178,17 @@ func (h *CategoriesHandler) UpdateCategory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var req struct {
-		Name       string  `json:"name"`
-		Gender     string  `json:"gender"`
-		SortOrder  int     `json:"sort_order"`
-		IsActive   bool    `json:"is_active"`
-		PreviewURL *string `json:"preview_url"`
-	}
+	var req categoryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.cats.Update(r.Context(), id, req.Name, req.Gender, req.SortOrder, req.IsActive, req.PreviewURL); err != nil {
+	if err := h.cats.Update(r.Context(), id, req.toInput()); err != nil {
+		if errors.Is(err, repository.ErrCategoryCycle) {
+			http.Error(w, "нельзя вложить раздел сам в себя", http.StatusBadRequest)
+			return
+		}
 		log.Error().Err(err).Msg("ошибка обновления категории")
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return

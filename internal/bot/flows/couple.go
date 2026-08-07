@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/rs/zerolog/log"
+	"vk_neuro_bot/internal/repository"
 )
 
 func HandleCoupleStart(ctx context.Context, fc *Context, d *Deps) {
@@ -106,18 +107,5 @@ func HandleCoupleBrowse(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func showCoupleCategoryPage(ctx context.Context, fc *Context, d *Deps, page int) error {
-	categories, err := d.CatRepo.ListActiveCouple(ctx)
-	if err != nil || len(categories) == 0 {
-		return sendScreen(ctx, d, fc.VkID, "categories_empty", ScreenOptions{})
-	}
-
-	rows, currentPage, _ := buildPaginatedRows(categoryButtons(categories), page, "couple_page", nil)
-	state := copyPrefs(&State{
-		Step:         StepCoupleCategories,
-		PromptType:   "couple",
-		CategoryPage: currentPage,
-		PromptPage:   1,
-	}, fc.State)
-	_ = d.State.Set(ctx, fc.VkID, state)
-	return sendScreen(ctx, d, fc.VkID, "couple_categories", ScreenOptions{PrefixRows: rows})
+	return showSectionRoots(ctx, fc, d, specForSection(repository.SectionCouple), page)
 }

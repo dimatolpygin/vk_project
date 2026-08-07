@@ -81,11 +81,15 @@ func copyPrefs(dst *State, src *State) *State {
 }
 
 type State struct {
-	Step            string   `json:"step"`
-	PrevStep        string   `json:"prev_step,omitempty"`
-	PromptType      string   `json:"prompt_type,omitempty"`
-	TemplateID      int      `json:"template_id,omitempty"`
-	CategoryID      int      `json:"category_id,omitempty"`
+	Step       string `json:"step"`
+	PrevStep   string `json:"prev_step,omitempty"`
+	PromptType string `json:"prompt_type,omitempty"`
+	TemplateID int    `json:"template_id,omitempty"`
+	CategoryID int    `json:"category_id,omitempty"`
+	// Section — раздел дерева, в котором сейчас находится пользователь,
+	// SectionID — узел, чьи дети показаны (0 = корень раздела).
+	Section         string   `json:"section,omitempty"`
+	SectionID       int      `json:"section_id,omitempty"`
 	CategoryPage    int      `json:"category_page,omitempty"`
 	PromptPage      int      `json:"prompt_page,omitempty"`
 	GenerationID    int64    `json:"generation_id,omitempty"`
@@ -165,6 +169,11 @@ type CategoryReader interface {
 	ListReadyPromptCategories(ctx context.Context, gender string) ([]*repository.Category, error)
 	ListActive(ctx context.Context, gender string) ([]*repository.Category, error)
 	ListActiveCouple(ctx context.Context) ([]*repository.Category, error)
+	// Обход дерева разделов.
+	ListRoots(ctx context.Context, section string, filter repository.CategoryFilter) ([]*repository.Category, error)
+	ListChildren(ctx context.Context, parentID int, filter repository.CategoryFilter) ([]*repository.Category, error)
+	Path(ctx context.Context, id int) ([]*repository.Category, error)
+	GetByID(ctx context.Context, id int) (*repository.Category, error)
 }
 
 type PromptReader interface {

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/rs/zerolog/log"
+	"vk_neuro_bot/internal/repository"
 )
 
 func HandleReadyPromptsMenu(ctx context.Context, fc *Context, d *Deps) {
@@ -50,40 +51,10 @@ func HandlePromptsPage(ctx context.Context, fc *Context, d *Deps) {
 	}
 }
 
+// HandleSelectCategory — старый callback выбора категории. Оставлен алиасом
+// навигатора: клавиатуры с ним уже разосланы пользователям.
 func HandleSelectCategory(ctx context.Context, fc *Context, d *Deps) {
-	categoryID := fc.Callback.CategoryID
-	promptType := "ready_prompt"
-	gender := fc.User.Gender
-	step := StepReadyPromptsPrompts
-	if fc.State.PromptType == "couple" || fc.State.Step == StepCoupleCategories || fc.State.Step == StepCouplePrompts {
-		promptType = "couple"
-		gender = "couple"
-		step = StepCouplePrompts
-	}
-
-	prompts, err := d.PromptRepo.ListByCategory(ctx, categoryID, gender)
-	if err != nil || len(prompts) == 0 {
-		_ = sendScreen(ctx, d, fc.VkID, "prompts_empty", ScreenOptions{})
-		return
-	}
-
-	rows, promptPage, _ := buildPaginatedRows(
-		promptButtons(prompts),
-		1,
-		"prompts_page",
-		map[string]any{"category_id": categoryID},
-	)
-	state := copyPrefs(&State{
-		Step:         step,
-		PromptType:   promptType,
-		CategoryID:   categoryID,
-		CategoryPage: normalizePage(fc.State.CategoryPage),
-		PromptPage:   promptPage,
-	}, fc.State)
-	_ = d.State.Set(ctx, fc.VkID, state)
-	if err := sendScreen(ctx, d, fc.VkID, "prompts_list", ScreenOptions{PrefixRows: rows}); err != nil {
-		log.Error().Err(err).Int64("vk_id", fc.VkID).Int("category_id", categoryID).Msg("ошибка отправки первой страницы шаблонов")
-	}
+	HandleOpenCategory(ctx, fc, d)
 }
 
 func HandleSelectPrompt(ctx context.Context, fc *Context, d *Deps) {
@@ -175,6 +146,8 @@ func HandleReadyPromptsBrowse(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func showReadyPromptsCategoryPage(ctx context.Context, fc *Context, d *Deps, page int) error {
+	// Пол нужен раньше категорий: в разделе «Фото для себя» промты отбираются
+	// по полу пользователя.
 	if fc.User.Gender == "unknown" {
 		_ = d.State.Set(ctx, fc.VkID, copyPrefs(&State{
 			Step:       StepAwaitingGender,
@@ -183,30 +156,22 @@ func showReadyPromptsCategoryPage(ctx context.Context, fc *Context, d *Deps, pag
 		return sendScreen(ctx, d, fc.VkID, "gender_select", ScreenOptions{})
 	}
 
-	categories, err := d.CatRepo.ListReadyPromptCategories(ctx, fc.User.Gender)
-	if err != nil || len(categories) == 0 {
-		return sendScreen(ctx, d, fc.VkID, "categories_empty", ScreenOptions{})
-	}
-
-	rows, currentPage, _ := buildPaginatedRows(categoryButtons(categories), page, "ready_prompts_page", nil)
-	state := copyPrefs(&State{
-		Step:         StepReadyPromptsCategories,
-		PromptType:   "ready_prompt",
-		CategoryPage: currentPage,
-		PromptPage:   1,
-	}, fc.State)
-	_ = d.State.Set(ctx, fc.VkID, state)
-	return sendScreen(ctx, d, fc.VkID, "ready_prompts_intro", ScreenOptions{PrefixRows: rows})
+	return showSectionRoots(ctx, fc, d, specForSection(repository.SectionSelf), page)
 }
 
 func showPromptPage(ctx context.Context, fc *Context, d *Deps, categoryID, categoryPage, promptPage int) error {
-	promptType := "ready_prompt"
-	gender := fc.User.Gender
-	step := StepReadyPromptsPrompts
-	if fc.State.PromptType == "couple" || fc.State.Step == StepCoupleCategories || fc.State.Step == StepCouplePrompts {
-		promptType = "couple"
-		gender = "couple"
-		step = StepCouplePrompts
+	cat, err := d.CatRepo.GetByID(ctx, categoryID)
+	if err != nil {
+		log.Error().Err(err).Int("category_id", categoryID).Msg("ошибка получения категории для списка шаблонов")
+	}
+
+	// Узел мог быть удалён из админки между отправкой клавиатуры и нажатием —
+	// тогда опираемся на раздел из состояния пользователя.
+	spec := specForState(fc)
+	gender := sectionGender(spec, fc)
+	if cat != nil {
+		spec = specForSection(cat.Section)
+		gender = resolveNodeGender(ctx, d, cat, fc)
 	}
 
 	prompts, err := d.PromptRepo.ListByCategory(ctx, categoryID, gender)
@@ -221,14 +186,26 @@ func showPromptPage(ctx context.Context, fc *Context, d *Deps, categoryID, categ
 		map[string]any{"category_id": categoryID},
 	)
 	state := copyPrefs(&State{
-		Step:         step,
-		PromptType:   promptType,
+		Step:         spec.promptsStep,
+		PromptType:   spec.promptType,
+		Section:      spec.section,
+		SectionID:    parentNodeID(cat),
 		CategoryID:   categoryID,
 		CategoryPage: normalizePage(categoryPage),
 		PromptPage:   currentPage,
 	}, fc.State)
+	fc.State = state
 	_ = d.State.Set(ctx, fc.VkID, state)
 	return sendScreen(ctx, d, fc.VkID, "prompts_list", ScreenOptions{PrefixRows: rows})
+}
+
+// parentNodeID — уровень, с которого пользователь пришёл в категорию: 0 означает
+// корень раздела.
+func parentNodeID(cat *repository.Category) int {
+	if cat == nil || cat.ParentID == nil {
+		return 0
+	}
+	return *cat.ParentID
 }
 
 func normalizePage(page int) int {

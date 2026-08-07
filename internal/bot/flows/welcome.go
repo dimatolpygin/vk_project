@@ -14,17 +14,9 @@ func HandleWelcome(ctx context.Context, fc *Context, d *Deps) {
 }
 
 func HandleBack(ctx context.Context, fc *Context, d *Deps) {
-	if fc.State.Step == StepReadyPromptsPrompts {
-		if err := showReadyPromptsCategoryPage(ctx, fc, d, normalizePage(fc.State.CategoryPage)); err != nil {
-			log.Error().Err(err).Int64("vk_id", fc.VkID).Int("page", fc.State.CategoryPage).Msg("РѕС€РёР±РєР° РІРѕР·РІСЂР°С‚Р° Рє РєР°С‚РµРіРѕСЂРёСЏРј РіРѕС‚РѕРІС‹С… РїСЂРѕРјС‚РѕРІ")
-		}
-		return
-	}
-
-	if fc.State.Step == StepCouplePrompts {
-		if err := showCoupleCategoryPage(ctx, fc, d, normalizePage(fc.State.CategoryPage)); err != nil {
-			log.Error().Err(err).Int64("vk_id", fc.VkID).Int("page", fc.State.CategoryPage).Msg("РѕС€РёР±РєР° РІРѕР·РІСЂР°С‚Р° Рє РїР°СЂРЅС‹Рј РєР°С‚РµРіРѕСЂРёСЏРј")
-		}
+	// Внутри дерева разделов «Назад» всегда ведёт ровно на уровень выше;
+	// наружу, в главное меню, выходим только с корня раздела.
+	if sectionBack(ctx, fc, d) {
 		return
 	}
 

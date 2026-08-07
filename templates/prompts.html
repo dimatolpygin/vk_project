@@ -786,11 +786,27 @@
             <div class="modal-body">
                 <input type="hidden" id="catId">
                 <div class="prompt-modal__hint">
-                    Категория управляет навигацией в библиотеке. Для этой итерации меняем только название, тип и порядок отображения.
+                    Раздел — узел дерева навигации. Если у него есть подразделы, бот покажет их кнопками; если нет — сразу промты.
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="catName">Название</label>
                     <input type="text" class="form-control" id="catName" placeholder="Например, Природа">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="catParent">Родительский раздел</label>
+                    <select class="form-select" id="catParent"></select>
+                    <div class="text-muted small mt-1">Кнопка появится внутри выбранного раздела.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="catSection">Раздел главного меню</label>
+                    <select class="form-select" id="catSection">
+                        <option value="self">Фото для себя</option>
+                        <option value="couple">Парное фото</option>
+                        <option value="kids">Детские фото</option>
+                        <option value="trends">Тренды</option>
+                        <option value="greetings">Поздравления</option>
+                    </select>
+                    <div class="text-muted small mt-1" id="catSectionHint"></div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="catGender">Пол</label>
@@ -799,6 +815,33 @@
                         <option value="male">Мужской</option>
                         <option value="female">Женский</option>
                         <option value="couple">Парный</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="catPromptGender">Пол промтов задаёт раздел</label>
+                    <select class="form-select" id="catPromptGender">
+                        <option value="">Брать пол пользователя</option>
+                        <option value="male">Мужской</option>
+                        <option value="female">Женский</option>
+                        <option value="couple">Парный</option>
+                        <option value="any">Любой</option>
+                    </select>
+                    <div class="text-muted small mt-1">Нужно там, где пол выбирается кнопкой — например, адресат поздравления. Наследуется подразделами.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="catScreenKey">Экран при входе</label>
+                    <input type="text" class="form-control" id="catScreenKey" placeholder="Например, kids_intro">
+                    <div class="text-muted small mt-1">Ключ экрана из раздела «Сообщения» — оттуда берутся текст и картинка. Пусто — экран раздела по умолчанию.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="catPreviewURL">Превью раздела</label>
+                    <input type="text" class="form-control" id="catPreviewURL" placeholder="https://...">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="catMediaKind">Что генерирует</label>
+                    <select class="form-select" id="catMediaKind">
+                        <option value="photo">Фото</option>
+                        <option value="video">Видео</option>
                     </select>
                 </div>
                 <div class="mb-3">
@@ -859,6 +902,11 @@
                         <input type="number" class="form-control" id="promptSort" value="0">
                     </div>
                 </div>
+                <div class="mt-3" id="promptMoveWrap">
+                    <label class="form-label" for="promptCategory">Раздел промта</label>
+                    <select class="form-select" id="promptCategory"></select>
+                    <div class="text-muted small mt-1">Смена раздела переносит промт: пользователь увидит его в новом месте.</div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
@@ -898,6 +946,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('openCategoryCreateBtn').addEventListener('click', () => openCategoryModal());
     document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
+    document.getElementById('catParent').addEventListener('change', syncSectionAvailability);
     document.getElementById('savePromptBtn').addEventListener('click', savePrompt);
     document.getElementById('categoryList').addEventListener('click', handleCategoryListClick);
     document.getElementById('categoryList').addEventListener('show.bs.dropdown', handleCategoryDropdownShow);
@@ -934,7 +983,13 @@ function normalizeCategory(category) {
         preview_url: category.preview_url ?? null,
         gender: category.gender ?? 'any',
         sort_order: Number(category.sort_order ?? 0),
-        is_active: category.is_active !== false
+        is_active: category.is_active !== false,
+        parent_id: category.parent_id ?? null,
+        section: category.section ?? 'self',
+        screen_key: category.screen_key ?? null,
+        media_kind: category.media_kind ?? 'photo',
+        prompt_gender: category.prompt_gender ?? null,
+        depth: Number(category.depth ?? 0)
     };
 }
 
@@ -983,11 +1038,89 @@ function sortPrompts(a, b) {
     return a.name.localeCompare(b.name, 'ru');
 }
 
-function sortCategories(a, b) {
-    if (a.sort_order !== b.sort_order) {
-        return a.sort_order - b.sort_order;
+// Порядок категорий больше не считается на клиенте: сервер отдаёт дерево уже
+// в порядке обхода (раздел → корень → дети), и пересортировка плоским списком
+// растащила бы детей от родителей.
+
+const sectionMeta = {
+    self: 'Фото для себя',
+    couple: 'Парное фото',
+    kids: 'Детские фото',
+    trends: 'Тренды',
+    greetings: 'Поздравления'
+};
+
+function getSectionLabel(section) {
+    return sectionMeta[section] ?? section;
+}
+
+// categoryPayload собирает полное тело запроса: PUT перезаписывает узел целиком,
+// поэтому при точечной правке (например, порядка) остальные поля надо вернуть как есть.
+function categoryPayload(category, overrides = {}) {
+    return {
+        name: category.name,
+        gender: category.gender,
+        sort_order: category.sort_order,
+        is_active: category.is_active,
+        preview_url: category.preview_url,
+        parent_id: category.parent_id ?? 0,
+        section: category.section,
+        screen_key: category.screen_key ?? '',
+        media_kind: category.media_kind,
+        prompt_gender: category.prompt_gender ?? '',
+        ...overrides
+    };
+}
+
+function getSiblings(category) {
+    return categories
+        .filter(item => (item.parent_id ?? null) === (category.parent_id ?? null) && item.section === category.section)
+        .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+}
+
+// moveCategory меняет узел местами с соседом: пользователь видит порядок, а не
+// абстрактное число, поэтому кнопки понятнее поля «Порядок».
+async function moveCategory(id, direction) {
+    const category = getCategoryById(id);
+    if (!category) {
+        return;
     }
-    return a.name.localeCompare(b.name, 'ru');
+
+    const siblings = getSiblings(category);
+    const index = siblings.findIndex(item => item.id === id);
+    const neighbour = siblings[index + direction];
+    if (!neighbour) {
+        return;
+    }
+
+    // Соседи могли быть заведены с одинаковым sort_order — тогда обмен значений
+    // ничего не изменит, и порядок приходится назначить по позиции в списке.
+    let categoryOrder = neighbour.sort_order;
+    let neighbourOrder = category.sort_order;
+    if (categoryOrder === neighbourOrder) {
+        categoryOrder = index + direction;
+        neighbourOrder = index;
+    }
+
+    const responses = await Promise.all([
+        fetch(`{{.AdminBase}}/categories/${category.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(categoryPayload(category, { sort_order: categoryOrder }))
+        }),
+        fetch(`{{.AdminBase}}/categories/${neighbour.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(categoryPayload(neighbour, { sort_order: neighbourOrder }))
+        })
+    ]);
+
+    if (responses.some(resp => !resp.ok)) {
+        alert('Не удалось изменить порядок разделов.');
+        return;
+    }
+
+    location.reload();
 }
 
 function renderSidebar() {
@@ -1027,16 +1160,26 @@ function renderSidebar() {
         const meta = getGenderMeta(category.gender);
         const isActive = currentCatId === category.id ? ' is-active' : '';
         const count = categoryCounts.get(category.id) ?? 0;
+        // Отступ показывает вложенность: подраздел визуально принадлежит родителю.
+        const indent = category.depth ? ` style="margin-left:${category.depth * 20}px"` : '';
+        const sectionBadge = category.depth === 0
+            ? `<span class="library-chip library-chip--neutral">${escapeHtml(getSectionLabel(category.section))}</span>`
+            : '';
+        const videoBadge = category.media_kind === 'video'
+            ? '<span class="library-badge">Видео</span>'
+            : '';
         return `
-            <div class="category-card${isActive}">
+            <div class="category-card${isActive}"${indent}>
                 <button type="button" class="category-card__main" data-action="select-category" data-category-id="${category.id}">
                     <div class="category-card__icon">${escapeHtml(getInitials(category.name))}</div>
                     <div class="category-card__body">
                         <div class="category-card__top">
                             <span class="category-card__name">${escapeHtml(category.name)}</span>
                             ${category.is_active ? '' : '<span class="library-badge library-badge--inactive">Неактивна</span>'}
+                            ${videoBadge}
                         </div>
                         <div class="category-card__meta">
+                            ${sectionBadge}
                             <span class="library-chip ${meta.chipClass}">${meta.label}</span>
                             <span class="category-card__count">${formatTemplateCount(count)}</span>
                         </div>
@@ -1047,6 +1190,21 @@ function renderSidebar() {
                         <i class="bi bi-three-dots"></i>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <button class="dropdown-item" type="button" data-action="create-subcategory" data-category-id="${category.id}">
+                                <i class="bi bi-diagram-2 me-2"></i>Добавить подраздел
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item" type="button" data-action="move-category-up" data-category-id="${category.id}">
+                                <i class="bi bi-arrow-up me-2"></i>Выше
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item" type="button" data-action="move-category-down" data-category-id="${category.id}">
+                                <i class="bi bi-arrow-down me-2"></i>Ниже
+                            </button>
+                        </li>
                         <li>
                             <button class="dropdown-item" type="button" data-action="edit-category" data-category-id="${category.id}">
                                 <i class="bi bi-pencil-square me-2"></i>Редактировать
@@ -1215,6 +1373,24 @@ function handleCategoryListClick(event) {
         return;
     }
 
+    const createSubcategoryButton = event.target.closest('[data-action="create-subcategory"]');
+    if (createSubcategoryButton) {
+        openCategoryModal(null, Number(createSubcategoryButton.dataset.categoryId));
+        return;
+    }
+
+    const moveUpButton = event.target.closest('[data-action="move-category-up"]');
+    if (moveUpButton) {
+        moveCategory(Number(moveUpButton.dataset.categoryId), -1);
+        return;
+    }
+
+    const moveDownButton = event.target.closest('[data-action="move-category-down"]');
+    if (moveDownButton) {
+        moveCategory(Number(moveDownButton.dataset.categoryId), 1);
+        return;
+    }
+
     const editButton = event.target.closest('[data-action="edit-category"]');
     if (editButton) {
         const category = getCategoryById(Number(editButton.dataset.categoryId));
@@ -1283,19 +1459,80 @@ function handleCategoryFilterInput() {
     renderSidebar();
 }
 
-function openCategoryModal(category = null) {
+function openCategoryModal(category = null, parentID = 0) {
     const isEdit = Boolean(category);
+    const parentValue = isEdit ? (category.parent_id ?? 0) : parentID;
+
     document.getElementById('catId').value = isEdit ? category.id : '';
     document.getElementById('catName').value = isEdit ? category.name : '';
     document.getElementById('catGender').value = isEdit ? category.gender : 'any';
     document.getElementById('catSort').value = isEdit ? String(category.sort_order) : '0';
     document.getElementById('catIsActive').checked = isEdit ? category.is_active : true;
     document.getElementById('catActiveWrap').style.display = isEdit ? '' : 'none';
-    document.getElementById('catModalTitle').textContent = isEdit ? 'Редактировать категорию' : 'Новая категория';
+    document.getElementById('catScreenKey').value = isEdit ? (category.screen_key ?? '') : '';
+    document.getElementById('catPreviewURL').value = isEdit ? (category.preview_url ?? '') : '';
+    document.getElementById('catMediaKind').value = isEdit ? category.media_kind : 'photo';
+    document.getElementById('catPromptGender').value = isEdit ? (category.prompt_gender ?? '') : '';
+
+    renderParentOptions(isEdit ? category.id : 0, parentValue);
+    document.getElementById('catSection').value = isEdit ? category.section : 'self';
+    syncSectionAvailability();
+
+    document.getElementById('catModalTitle').textContent = isEdit ? 'Редактировать раздел' : 'Новый раздел';
     document.getElementById('catModalSubtitle').textContent = isEdit
-        ? 'Обновите название, тип и статус категории.'
-        : 'Создайте новый раздел для библиотеки промтов.';
+        ? 'Обновите название, вложенность и оформление раздела.'
+        : 'Раздел станет кнопкой в боте сразу после сохранения.';
     catModal.show();
+}
+
+// renderParentOptions прячет из списка родителей сам узел и его потомков:
+// иначе раздел можно увести под собственного ребёнка и получить цикл.
+function renderParentOptions(excludeID, selectedID) {
+    const banned = new Set();
+    if (excludeID) {
+        banned.add(excludeID);
+        let grew = true;
+        while (grew) {
+            grew = false;
+            categories.forEach(category => {
+                if (category.parent_id && banned.has(category.parent_id) && !banned.has(category.id)) {
+                    banned.add(category.id);
+                    grew = true;
+                }
+            });
+        }
+    }
+
+    const options = ['<option value="0">— корень раздела —</option>'];
+    categories.forEach(category => {
+        if (banned.has(category.id)) {
+            return;
+        }
+        const indent = '&nbsp;'.repeat(category.depth * 4);
+        const label = `${indent}${escapeHtml(category.name)} · ${escapeHtml(getSectionLabel(category.section))}`;
+        options.push(`<option value="${category.id}">${label}</option>`);
+    });
+
+    const select = document.getElementById('catParent');
+    select.innerHTML = options.join('');
+    select.value = String(selectedID ?? 0);
+}
+
+// Раздел задаётся только у корня: у вложенного узла он всегда наследуется от родителя.
+function syncSectionAvailability() {
+    const parentID = Number(document.getElementById('catParent').value);
+    const sectionSelect = document.getElementById('catSection');
+    const parent = parentID ? getCategoryById(parentID) : null;
+
+    if (parent) {
+        sectionSelect.value = parent.section;
+        sectionSelect.disabled = true;
+        document.getElementById('catSectionHint').textContent = `Наследуется от родителя: ${getSectionLabel(parent.section)}.`;
+        return;
+    }
+
+    sectionSelect.disabled = false;
+    document.getElementById('catSectionHint').textContent = 'Раздел решает, из какой кнопки главного меню открывается узел.';
 }
 
 function openPromptModal(prompt = null) {
@@ -1314,6 +1551,19 @@ function openPromptModal(prompt = null) {
     document.getElementById('promptSortWrap').style.display = isEdit ? '' : 'none';
     document.getElementById('promptGenderWrap').className = isEdit ? 'col-md-6' : 'col-md-12';
     document.getElementById('promptCategoryLabel').textContent = category ? category.name : 'Не выбрана';
+
+    // Перенос доступен только при правке: новый промт всегда создаётся в открытом разделе.
+    const moveWrap = document.getElementById('promptMoveWrap');
+    moveWrap.style.display = isEdit ? '' : 'none';
+    if (isEdit) {
+        const select = document.getElementById('promptCategory');
+        select.innerHTML = categories.map(item => {
+            const indent = '&nbsp;'.repeat(item.depth * 4);
+            return `<option value="${item.id}">${indent}${escapeHtml(item.name)} · ${escapeHtml(getSectionLabel(item.section))}</option>`;
+        }).join('');
+        select.value = String(prompt.category_id);
+    }
+
     document.getElementById('promptModalTitle').textContent = isEdit ? 'Редактировать промт' : 'Новый промт';
     document.getElementById('promptModalSubtitle').textContent = isEdit
         ? 'Обновите текст и параметры карточки.'
@@ -1334,16 +1584,21 @@ async function saveCategory() {
     }
 
     const isEdit = Boolean(id);
+    const previewURL = document.getElementById('catPreviewURL').value.trim();
     const body = {
         name,
         gender,
-        sort_order: sortOrder
+        sort_order: sortOrder,
+        parent_id: Number(document.getElementById('catParent').value) || 0,
+        section: document.getElementById('catSection').value,
+        screen_key: document.getElementById('catScreenKey').value.trim(),
+        media_kind: document.getElementById('catMediaKind').value,
+        prompt_gender: document.getElementById('catPromptGender').value,
+        preview_url: previewURL || null
     };
 
     if (isEdit) {
-        const currentCategory = getCategoryById(id);
         body.is_active = document.getElementById('catIsActive').checked;
-        body.preview_url = currentCategory ? currentCategory.preview_url : null;
     }
 
     togglePending(saveButton, true, isEdit ? 'Сохраняем...' : 'Создаём...');
@@ -1359,7 +1614,10 @@ async function saveCategory() {
             return;
         }
 
-        alert('Не удалось сохранить категорию.');
+        // Сервер отбивает попытку увести раздел под собственного потомка —
+        // показываем его формулировку, а не общее «не удалось».
+        const reason = (await resp.text()).trim();
+        alert(reason || 'Не удалось сохранить раздел.');
     } finally {
         togglePending(saveButton, false);
     }
@@ -1397,8 +1655,9 @@ async function savePrompt() {
     }
 
     const existingPrompt = getPromptByID(id);
+    const targetCategoryID = id ? Number(document.getElementById('promptCategory').value) || currentCatId : currentCatId;
     const body = {
-        category_id: currentCatId,
+        category_id: targetCategoryID,
         name,
         prompt: promptText,
         gender,
@@ -1416,6 +1675,13 @@ async function savePrompt() {
 
         if (!resp.ok) {
             alert('Не удалось сохранить промт.');
+            return;
+        }
+
+        // Промт уехал в другой раздел — локальный кеш карточек уже не отражает
+        // расклад, перечитываем страницу целиком.
+        if (targetCategoryID !== currentCatId) {
+            location.reload();
             return;
         }
 
@@ -1471,7 +1737,6 @@ function getFilteredCategories() {
     const query = currentCategorySearch.trim().toLowerCase();
     return categories
         .slice()
-        .sort(sortCategories)
         .filter(category => {
             if (currentCategoryGender !== 'all' && category.gender !== currentCategoryGender) {
                 return false;

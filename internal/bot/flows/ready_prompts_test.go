@@ -63,17 +63,43 @@ func (f *fakeStateMgr) Reset(_ context.Context, vkID int64) error {
 	return nil
 }
 
+// fakeCategoryRepo изображает дерево разделов: корни лежат по разделам, дети —
+// в children под id родителя. Раздел и prompt_gender проставляются так же, как их
+// проставила пользователям миграция 00029.
 type fakeCategoryRepo struct {
 	readyByGender  map[string][]*repository.Category
 	activeByGender map[string][]*repository.Category
 	couple         []*repository.Category
+	children       map[int][]*repository.Category
+}
+
+func (f *fakeCategoryRepo) selfRoots(gender string) []*repository.Category {
+	cats := f.readyByGender[gender]
+	if f.readyByGender == nil {
+		cats = f.activeByGender[gender]
+	}
+	return stampSection(cats, repository.SectionSelf, nil)
+}
+
+func (f *fakeCategoryRepo) coupleRoots() []*repository.Category {
+	couple := repository.GenderCouple
+	return stampSection(f.couple, repository.SectionCouple, &couple)
+}
+
+func stampSection(cats []*repository.Category, section string, promptGender *string) []*repository.Category {
+	for _, cat := range cats {
+		if cat.Section == "" {
+			cat.Section = section
+		}
+		if cat.PromptGender == nil {
+			cat.PromptGender = promptGender
+		}
+	}
+	return cats
 }
 
 func (f *fakeCategoryRepo) ListReadyPromptCategories(_ context.Context, gender string) ([]*repository.Category, error) {
-	if f.readyByGender != nil {
-		return f.readyByGender[gender], nil
-	}
-	return f.activeByGender[gender], nil
+	return f.selfRoots(gender), nil
 }
 
 func (f *fakeCategoryRepo) ListActive(_ context.Context, gender string) ([]*repository.Category, error) {
@@ -81,7 +107,54 @@ func (f *fakeCategoryRepo) ListActive(_ context.Context, gender string) ([]*repo
 }
 
 func (f *fakeCategoryRepo) ListActiveCouple(context.Context) ([]*repository.Category, error) {
-	return f.couple, nil
+	return f.coupleRoots(), nil
+}
+
+func (f *fakeCategoryRepo) ListRoots(_ context.Context, section string, filter repository.CategoryFilter) ([]*repository.Category, error) {
+	if section == repository.SectionCouple {
+		return f.coupleRoots(), nil
+	}
+	return f.selfRoots(filter.Gender), nil
+}
+
+func (f *fakeCategoryRepo) ListChildren(_ context.Context, parentID int, _ repository.CategoryFilter) ([]*repository.Category, error) {
+	return f.children[parentID], nil
+}
+
+func (f *fakeCategoryRepo) GetByID(_ context.Context, id int) (*repository.Category, error) {
+	for _, cat := range f.allCategories() {
+		if cat.ID == id {
+			return cat, nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *fakeCategoryRepo) Path(ctx context.Context, id int) ([]*repository.Category, error) {
+	var path []*repository.Category
+	for node, _ := f.GetByID(ctx, id); node != nil; {
+		path = append([]*repository.Category{node}, path...)
+		if node.ParentID == nil {
+			break
+		}
+		node, _ = f.GetByID(ctx, *node.ParentID)
+	}
+	return path, nil
+}
+
+func (f *fakeCategoryRepo) allCategories() []*repository.Category {
+	var all []*repository.Category
+	for gender := range f.readyByGender {
+		all = append(all, f.selfRoots(gender)...)
+	}
+	for gender := range f.activeByGender {
+		all = append(all, stampSection(f.activeByGender[gender], repository.SectionSelf, nil)...)
+	}
+	all = append(all, f.coupleRoots()...)
+	for _, children := range f.children {
+		all = append(all, children...)
+	}
+	return all
 }
 
 type fakePromptRepo struct {
@@ -155,6 +228,11 @@ func TestHandleSelectCategoryShowsFirstPromptPageAndStoresState(t *testing.T) {
 	deps := &Deps{
 		Sender: sender,
 		State:  stateMgr,
+		CatRepo: &fakeCategoryRepo{
+			readyByGender: map[string][]*repository.Category{
+				"male": {{ID: 7, Name: "Category 7"}},
+			},
+		},
 		PromptRepo: &fakePromptRepo{
 			byCategoryGender: map[string][]*repository.Prompt{
 				promptKey(7, "male"): makePrompts(7, 6),

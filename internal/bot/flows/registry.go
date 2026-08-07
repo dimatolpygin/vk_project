@@ -79,8 +79,10 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleReadyPromptsMenu(ctx, fc, r.d)
 	case "ready_prompts_page":
 		HandleReadyPromptsPage(ctx, fc, r.d)
-	case "select_category":
-		HandleSelectCategory(ctx, fc, r.d)
+	case "select_category", "open_category":
+		HandleOpenCategory(ctx, fc, r.d)
+	case "open_category_page":
+		HandleOpenCategoryPage(ctx, fc, r.d)
 	case "prompts_page":
 		HandlePromptsPage(ctx, fc, r.d)
 	case "select_prompt":

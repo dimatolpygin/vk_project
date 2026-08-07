@@ -92,6 +92,18 @@ var actionAdminMeta = map[string]ActionAdminMeta{
 		Description: "Открытие категории готовых стилей.",
 		Order:       130,
 	},
+	"open_category": {
+		SectionID:   "styles",
+		Title:       "Открыть раздел",
+		Description: "Вход в узел дерева разделов: подменю, если оно есть, иначе список промтов.",
+		Order:       131,
+	},
+	"open_category_page": {
+		SectionID:   "styles",
+		Title:       "Листалка подменю",
+		Description: "Переключение страниц подменю внутри раздела.",
+		Order:       132,
+	},
 	"select_prompt": {
 		SectionID:   "styles",
 		Title:       "Выбор стиля",
