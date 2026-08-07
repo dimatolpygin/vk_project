@@ -177,11 +177,18 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 		Order:       40,
 		Keywords:    []string{"пара", "семья", "совместное фото"},
 	},
+	"couple_submenu": {
+		SectionID:   "generation",
+		Title:       "Парные фото: тип съёмки",
+		Description: "Меню сразу после загрузки фото: парное фото, семейное фото, фото поколений. Пункты меняются в разделе «Категории и промты».",
+		Order:       41,
+		Keywords:    []string{"пара", "семья", "поколения", "подменю"},
+	},
 	"couple_categories": {
 		SectionID:   "generation",
 		Title:       "Парные фото: категории",
-		Description: "Экран выбора категории совместной фотосессии. Появляется после того, как пользователь загрузил фото.",
-		Order:       41,
+		Description: "Экран выбора категории внутри «Парного фото». Появляется после выбора типа съёмки.",
+		Order:       42,
 		Keywords:    []string{"пара", "семья", "категории", "совместное фото"},
 	},
 	"generating_wait": {
@@ -372,6 +379,13 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 		Description: "Пустое состояние выбранной категории без промтов.",
 		Order:       20,
 		Keywords:    []string{"пусто", "шаблоны", "промты"},
+	},
+	"section_soon": {
+		SectionID:   "system",
+		Title:       "Раздел скоро наполнится",
+		Description: "Экран узла, который уже виден в меню, но ещё без промтов. Один на все разделы: пропадает сам, как только в узел добавят промты.",
+		Order:       21,
+		Keywords:    []string{"скоро", "пусто", "заглушка", "раздел"},
 	},
 	"prompt_not_found": {
 		SectionID:   "system",

@@ -176,7 +176,25 @@ func showPromptPage(ctx context.Context, fc *Context, d *Deps, categoryID, categ
 
 	prompts, err := d.PromptRepo.ListByCategory(ctx, categoryID, gender)
 	if err != nil || len(prompts) == 0 {
-		return sendScreen(ctx, d, fc.VkID, "prompts_empty", ScreenOptions{})
+		if err != nil {
+			log.Error().Err(err).Int("category_id", categoryID).Msg("ошибка получения шаблонов категории")
+			return sendScreen(ctx, d, fc.VkID, "prompts_empty", ScreenOptions{})
+		}
+		// Узел заведён, но ещё не наполнен — показываем «Скоро», а не сухое
+		// «шаблонов нет». Состояние пишем как для обычного списка промтов,
+		// иначе «Назад» уводит в главное меню мимо уровня, с которого пришли.
+		emptyState := copyPrefs(&State{
+			Step:         spec.promptsStep,
+			PromptType:   spec.promptType,
+			Section:      spec.section,
+			SectionID:    parentNodeID(cat),
+			CategoryID:   categoryID,
+			CategoryPage: normalizePage(categoryPage),
+			PromptPage:   1,
+		}, fc.State)
+		fc.State = emptyState
+		_ = d.State.Set(ctx, fc.VkID, emptyState)
+		return sendScreen(ctx, d, fc.VkID, "section_soon", ScreenOptions{})
 	}
 
 	rows, currentPage, _ := buildPaginatedRows(

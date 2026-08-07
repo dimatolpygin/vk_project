@@ -29,6 +29,9 @@ var screenDefinitions = map[string]ScreenDefinition{
 	"couple_categories": screen("couple_categories", "✅ Фото загружены!\n\n👫 Теперь выбери категорию совместной фотосессии:",
 		callback("back", "back", "🏠 В меню", "secondary", 100, 0),
 	),
+	"couple_submenu": screen("couple_submenu", "✅ Фото загружены!\n\n👫 Выбери тип съёмки:",
+		callback("back", "back", "🏠 В меню", "secondary", 100, 0),
+	),
 	"custom_prompt_intro": screen("custom_prompt_intro", "✍️ Опиши желаемый стиль фотосессии своими словами.\n\nПример: «деловой костюм на фоне небоскрёбов, профессиональное освещение»\n\nМожно сразу одним сообщением отправить описание и от 1 до 6 фото.\n\nВведи описание:",
 		callback("back", "back", "◀️ Назад", "secondary", 0, 0),
 	),
@@ -114,6 +117,11 @@ var screenDefinitions = map[string]ScreenDefinition{
 		callback("back", "back", "◀️ Назад", "secondary", 0, 0),
 	),
 	"prompts_empty": screen("prompts_empty", "В этой категории пока нет шаблонов.",
+		callback("back", "back", "◀️ Назад", "secondary", 0, 0),
+	),
+	// Один экран на все разделы: узел уже виден в меню, но промтов в нём ещё нет.
+	// Раздел при этом остаётся кликабельным — заказчик наполняет его из админки.
+	"section_soon": screen("section_soon", "⏳ Скоро здесь появятся новые стили.\n\nЗаглядывай позже — раздел уже готовится.",
 		callback("back", "back", "◀️ Назад", "secondary", 0, 0),
 	),
 	// На списках с пагинацией внизу уже стоит «⬅️ Назад» листалки, поэтому

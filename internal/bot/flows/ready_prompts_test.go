@@ -417,8 +417,8 @@ func TestHandleCoupleAwaitingPhotoShowsPaginatedCategories(t *testing.T) {
 	}
 
 	last := sender.screens[len(sender.screens)-1]
-	if last.Key != "couple_categories" {
-		t.Fatalf("expected couple_categories screen, got %q", last.Key)
+	if last.Key != "couple_submenu" {
+		t.Fatalf("expected couple_submenu screen, got %q", last.Key)
 	}
 	keyboard := decodeKeyboard(t, last.Keyboard)
 	var payload map[string]any

@@ -48,7 +48,7 @@ var sectionSpecs = map[string]sectionSpec{
 	repository.SectionCouple: {
 		section:        repository.SectionCouple,
 		promptType:     "couple",
-		rootScreen:     "couple_categories",
+		rootScreen:     "couple_submenu",
 		rootPager:      "couple_page",
 		nodesStep:      StepCoupleCategories,
 		promptsStep:    StepCouplePrompts,

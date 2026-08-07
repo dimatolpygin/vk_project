@@ -157,8 +157,8 @@ func TestBackFromSubmenuReturnsToSectionRoot(t *testing.T) {
 	if state.SectionID != 0 {
 		t.Fatalf("expected to land on the section root, got node %d", state.SectionID)
 	}
-	if got := sender.screens[len(sender.screens)-1].Key; got != "couple_categories" {
-		t.Fatalf("expected couple_categories screen, got %q", got)
+	if got := sender.screens[len(sender.screens)-1].Key; got != "couple_submenu" {
+		t.Fatalf("expected couple_submenu screen, got %q", got)
 	}
 }
 
@@ -199,7 +199,7 @@ func TestSubmenuPagerCarriesParentID(t *testing.T) {
 func TestNodeScreenKeyFallsBackToSectionScreen(t *testing.T) {
 	spec := specForSection(repository.SectionCouple)
 
-	if got := nodeScreenKey(&repository.Category{ID: 1}, spec); got != "couple_categories" {
+	if got := nodeScreenKey(&repository.Category{ID: 1}, spec); got != "couple_submenu" {
 		t.Fatalf("expected the section screen as a fallback, got %q", got)
 	}
 	own := &repository.Category{ID: 2, ScreenKey: strptr("kids_intro")}
@@ -223,5 +223,70 @@ func TestResolveNodeGenderInheritsFromAncestor(t *testing.T) {
 	standalone := &repository.Category{ID: 20, Section: repository.SectionSelf}
 	if got := resolveNodeGender(ctx, deps, standalone, fc); got != "male" {
 		t.Fatalf("expected the user gender, got %q", got)
+	}
+}
+
+// emptyNodeRepo — раздел «Парное фото» из этапа 6: наполненный узел и два пустых,
+// какими «Семейное фото» и «Фото поколений» приезжают из миграции 00030.
+func emptyNodeRepo() *fakeCategoryRepo {
+	repo := treeRepo()
+	repo.couple = append(repo.couple,
+		&repository.Category{ID: 20, Name: "Семейное фото", Section: repository.SectionCouple, PromptGender: strptr(repository.GenderCouple)},
+		&repository.Category{ID: 21, Name: "Фото поколений", Section: repository.SectionCouple, PromptGender: strptr(repository.GenderCouple)},
+	)
+	return repo
+}
+
+func TestEmptyNodeShowsSoonScreenInsteadOfEmptyKeyboard(t *testing.T) {
+	sender := &fakeSender{}
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{Sender: sender, State: stateMgr, CatRepo: emptyNodeRepo(), PromptRepo: &fakePromptRepo{}}
+	fc := &Context{
+		VkID:     206,
+		User:     &User{Gender: "male", FreeGens: 1},
+		State:    &State{Step: StepCoupleCategories, PromptType: "couple", Section: repository.SectionCouple},
+		Callback: &CallbackData{CategoryID: 20},
+	}
+
+	HandleOpenCategory(context.Background(), fc, deps)
+
+	if got := sender.screens[len(sender.screens)-1].Key; got != "section_soon" {
+		t.Fatalf("expected the section_soon screen, got %q", got)
+	}
+	state := stateMgr.states[206]
+	if state == nil {
+		t.Fatal("expected state to be saved")
+	}
+	// Без записанного состояния «Назад» на этом экране уводит в главное меню
+	// мимо уровня, с которого пользователь пришёл.
+	if state.CategoryID != 20 {
+		t.Fatalf("expected the empty node to be remembered, got %d", state.CategoryID)
+	}
+	if state.Step != StepCouplePrompts {
+		t.Fatalf("expected %q step, got %q", StepCouplePrompts, state.Step)
+	}
+}
+
+func TestBackFromEmptyNodeReturnsToSubmenu(t *testing.T) {
+	sender := &fakeSender{}
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{Sender: sender, State: stateMgr, CatRepo: emptyNodeRepo(), PromptRepo: &fakePromptRepo{}}
+	fc := &Context{
+		VkID:     207,
+		User:     &User{Gender: "male", FreeGens: 1},
+		State:    &State{Step: StepCoupleCategories, PromptType: "couple", Section: repository.SectionCouple},
+		Callback: &CallbackData{CategoryID: 20},
+	}
+
+	HandleOpenCategory(context.Background(), fc, deps)
+	fc.Callback = &CallbackData{Type: "back"}
+	HandleBack(context.Background(), fc, deps)
+
+	if got := sender.screens[len(sender.screens)-1].Key; got != "couple_submenu" {
+		t.Fatalf("expected to return to the couple submenu, got %q", got)
+	}
+	keyboard := decodeKeyboard(t, sender.screens[len(sender.screens)-1].Keyboard)
+	if got := keyboard.Buttons[0][0].Action.Label; got != "Парное фото" {
+		t.Fatalf("expected the submenu buttons, got %q", got)
 	}
 }
