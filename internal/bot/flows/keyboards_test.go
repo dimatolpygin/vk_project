@@ -2,6 +2,7 @@ package flows
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -142,7 +143,7 @@ func TestKbBottomMenuUsesContentDefinition(t *testing.T) {
 	}
 }
 
-func TestBuildPaginatedRowsUsesTwoByTwoGrid(t *testing.T) {
+func TestBuildPaginatedRowsUsesSingleColumn(t *testing.T) {
 	buttons := []KbBtn{
 		{Action: KbAction{Label: "1"}},
 		{Action: KbAction{Label: "2"}},
@@ -157,41 +158,50 @@ func TestBuildPaginatedRowsUsesTwoByTwoGrid(t *testing.T) {
 	if page != 1 || total != 2 {
 		t.Fatalf("expected page=1 total=2, got page=%d total=%d", page, total)
 	}
-	if len(rows) != 3 {
-		t.Fatalf("expected 3 rows including pager, got %d", len(rows))
+	// Первая страница: «Вперёд» сверху + четыре кнопки по одной в ряд.
+	// Кнопки «Назад» здесь нет — листать назад с первой страницы некуда.
+	if len(rows) != 5 {
+		t.Fatalf("expected forward pager plus 4 content rows, got %d", len(rows))
 	}
-	if len(rows[0]) != 2 || len(rows[1]) != 2 {
-		t.Fatalf("expected 2x2 content grid, got row sizes %d and %d", len(rows[0]), len(rows[1]))
+	if got := rows[0][0].Action.Label; got != "Вперёд ➡️" {
+		t.Fatalf("expected forward pager on the first row, got %q", got)
 	}
-	if got := rows[2][0].Action.Label; got != "Вперёд ➡️" {
-		t.Fatalf("expected forward pager on first page, got %q", got)
+	for i, row := range rows[1:] {
+		if len(row) != 1 {
+			t.Fatalf("expected one button per content row, row %d has %d", i, len(row))
+		}
+	}
+	if got := rows[1][0].Action.Label; got != "1" {
+		t.Fatalf("expected first content button right under the pager, got %q", got)
 	}
 }
 
-func TestBuildPaginatedRowsBuildsMiddleAndLastPagerRows(t *testing.T) {
-	buttons := []KbBtn{
-		{Action: KbAction{Label: "1"}},
-		{Action: KbAction{Label: "2"}},
-		{Action: KbAction{Label: "3"}},
-		{Action: KbAction{Label: "4"}},
-		{Action: KbAction{Label: "5"}},
-		{Action: KbAction{Label: "6"}},
-		{Action: KbAction{Label: "7"}},
-		{Action: KbAction{Label: "8"}},
-		{Action: KbAction{Label: "9"}},
+func TestBuildPaginatedRowsPutsForwardOnTopAndBackOnBottom(t *testing.T) {
+	buttons := make([]KbBtn, 0, 12)
+	for i := 1; i <= 12; i++ {
+		buttons = append(buttons, KbBtn{Action: KbAction{Label: strconv.Itoa(i)}})
 	}
 
 	middleRows, middlePage, middleTotal := buildPaginatedRows(buttons, 2, "ready_prompts_page", nil)
 	if middlePage != 2 || middleTotal != 3 {
 		t.Fatalf("expected middle page=2 total=3, got page=%d total=%d", middlePage, middleTotal)
 	}
-	if len(middleRows) != 3 || len(middleRows[2]) != 2 {
-		t.Fatalf("expected pager row with two buttons on middle page, got %#v", middleRows[2])
+	if len(middleRows) != 6 {
+		t.Fatalf("expected 6 rows on a middle page, got %d", len(middleRows))
+	}
+	if got := middleRows[0][0].Action.Label; got != "Вперёд ➡️" {
+		t.Fatalf("expected forward pager above the list, got %q", got)
+	}
+	if got := middleRows[5][0].Action.Label; got != "⬅️ Назад" {
+		t.Fatalf("expected backward pager under the list, got %q", got)
 	}
 
 	lastRows, lastPage, lastTotal := buildPaginatedRows(buttons, 3, "ready_prompts_page", nil)
 	if lastPage != 3 || lastTotal != 3 {
 		t.Fatalf("expected last page=3 total=3, got page=%d total=%d", lastPage, lastTotal)
+	}
+	if got := lastRows[0][0].Action.Label; got == "Вперёд ➡️" {
+		t.Fatalf("last page must not offer a forward pager, got %q", got)
 	}
 	if got := lastRows[len(lastRows)-1][0].Action.Label; got != "⬅️ Назад" {
 		t.Fatalf("expected backward pager on last page, got %q", got)
@@ -208,12 +218,12 @@ func TestBuildPaginatedRowsCarriesPromptPagerCategoryID(t *testing.T) {
 	}
 
 	rows, _, _ := buildPaginatedRows(buttons, 1, "prompts_page", map[string]any{"category_id": 77})
-	if len(rows) != 3 {
-		t.Fatalf("expected pager row to be appended, got %d rows", len(rows))
+	if len(rows) != 5 {
+		t.Fatalf("expected forward pager plus 4 content rows, got %d rows", len(rows))
 	}
 
 	var payload map[string]any
-	if err := json.Unmarshal([]byte(rows[2][0].Action.Payload), &payload); err != nil {
+	if err := json.Unmarshal([]byte(rows[0][0].Action.Payload), &payload); err != nil {
 		t.Fatalf("unmarshal pager payload: %v", err)
 	}
 	if got := payload["type"]; got != "prompts_page" {

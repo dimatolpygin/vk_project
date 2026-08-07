@@ -275,5 +275,9 @@ var legacyDefaultMessageTexts = map[string][]string{
 	"settings_overview": {
 		"⚙️ Настройки\n\n🎯 Баланс генераций: {{.TotalGens}}\n🤖 Модель: {{.ModelName}}\n🔧 Качество: {{.Resolution}}\n📐 Формат: {{.AspectRatio}}",
 		"⚙️ Настройки\n\n🎯 Баланс генераций: {{.TotalGens}}\n🤖 Модель: {{.ModelName}}\n🔧 Качество: {{.Resolution}}\n📐 Формат: {{.AspectRatio}}\n\n🎁 Приглашено рефералов: {{.ReferralCount}}{{if .ReferralLink}}\n🔗 Твоя ссылка:\n{{.ReferralLink}}{{end}}",
+		// Экран переименован в «Мой профиль» на этапе 4.
+		"⚙️ Настройки\n\n🆔 ID: {{.VKID}}\n🎯 Баланс генераций: {{.TotalGens}}\n🤖 Модель: {{.ModelName}}\n🔧 Качество: {{.Resolution}}\n📐 Формат: {{.AspectRatio}}\n\n🎁 Приглашено рефералов: {{.ReferralCount}}{{if .ReferralLink}}\n🔗 Твоя ссылка:\n{{.ReferralLink}}{{end}}",
 	},
+	// Экран уходил в ВК с пустым текстом и отбивался ошибкой 100.
+	"bottom_menu": {""},
 }

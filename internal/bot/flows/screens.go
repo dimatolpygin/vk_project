@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 	"vk_neuro_bot/internal/content"
@@ -49,6 +50,25 @@ func sendScreen(ctx context.Context, d *Deps, vkID int64, key string, opts Scree
 		log.Warn().Err(err).Str("key", key).Msg("не удалось отрендерить шаблон текста")
 	}
 
+	// ВК отбивает messages.send с пустым текстом и без вложения ошибкой 100,
+	// и пользователю это выглядит как «кнопка не работает». Подставляем
+	// канонический текст экрана и громко пишем в лог: пустой текст в БД —
+	// это всегда ошибка контента, а не нормальный режим.
+	if strings.TrimSpace(text) == "" && msg.ImageURL == nil && len(opts.AttachmentsOverride) == 0 && opts.ImageOverride == nil {
+		fallback := ""
+		if def, ok := content.Definition(key); ok {
+			fallback, _ = content.RenderText(def.DefaultText, opts.Data)
+		}
+		if strings.TrimSpace(fallback) == "" {
+			log.Error().Str("screen_key", key).Int64("vk_id", vkID).
+				Msg("экран пуст: нет ни текста, ни картинки — отправка отменена")
+			return fmt.Errorf("экран %q не имеет ни текста, ни картинки", key)
+		}
+		log.Error().Str("screen_key", key).Int64("vk_id", vkID).
+			Msg("пустой текст экрана в БД, подставлен текст по умолчанию")
+		text = fallback
+	}
+
 	imageURL := msg.ImageURL
 	cacheKey := key
 	var attachments []string
@@ -91,7 +111,9 @@ func tariffRows(tariffs []*repository.Tariff) [][]KbBtn {
 	rows := make([][]KbBtn, 0, len(tariffs))
 	for _, tariff := range tariffs {
 		payload, _ := jsonMarshal(map[string]any{"type": "buy_tariff", "tariff_id": tariff.ID})
-		label := fmt.Sprintf("💳 %s — %.0f₽ (%d ген.)", tariff.Name, tariff.Price, tariff.GensCount)
+		// Количество генераций уже стоит в названии тарифа («5 фотогенераций»),
+		// дублирующий хвост «(5 ген.)» только засоряет кнопку.
+		label := fmt.Sprintf("💳 %s — %.0f₽", tariff.Name, tariff.Price)
 		rows = append(rows, []KbBtn{{
 			Action: KbAction{Type: "callback", Label: label, Payload: payload},
 			Color:  "primary",
@@ -124,9 +146,12 @@ func promptButtons(prompts []*repository.Prompt) []KbBtn {
 	return buttons
 }
 
+// Списки идут в одну колонку: длинные названия промтов в две колонки обрезаются
+// и читаются плохо. Четыре кнопки на странице + две строки листалки укладываются
+// ровно в лимит ВК (vkInlineMaxRows = 6) вместе с кнопкой «Назад» самого экрана.
 const (
-	paginatedColumns     = 2
-	paginatedRowsPerPage = 2
+	paginatedColumns     = 1
+	paginatedRowsPerPage = 4
 )
 
 func buildPaginatedRows(buttons []KbBtn, page int, pagerType string, pagerExtra map[string]any) ([][]KbBtn, int, int) {
@@ -153,7 +178,14 @@ func buildPaginatedRows(buttons []KbBtn, page int, pagerType string, pagerExtra 
 		end = len(buttons)
 	}
 
-	rows := make([][]KbBtn, 0, paginatedRowsPerPage+1)
+	rows := make([][]KbBtn, 0, paginatedRowsPerPage+2)
+
+	// «Вперёд» стоит над списком, «Назад» — под ним: пользователь листает
+	// вперёд, не уводя глаз от начала страницы.
+	if forward := pagerForward(page, totalPages, pagerType, pagerExtra); forward != nil {
+		rows = append(rows, []KbBtn{*forward})
+	}
+
 	for i := start; i < end; i += paginatedColumns {
 		rowEnd := i + paginatedColumns
 		if rowEnd > end {
@@ -164,26 +196,27 @@ func buildPaginatedRows(buttons []KbBtn, page int, pagerType string, pagerExtra 
 		rows = append(rows, row)
 	}
 
-	if pagerRow := buildPagerRow(page, totalPages, pagerType, pagerExtra); len(pagerRow) > 0 {
-		rows = append(rows, pagerRow)
+	if back := pagerBack(page, pagerType, pagerExtra); back != nil {
+		rows = append(rows, []KbBtn{*back})
 	}
 
 	return rows, page, totalPages
 }
 
-func buildPagerRow(page, totalPages int, pagerType string, pagerExtra map[string]any) []KbBtn {
-	if totalPages <= 1 || pagerType == "" {
+func pagerForward(page, totalPages int, pagerType string, pagerExtra map[string]any) *KbBtn {
+	if totalPages <= 1 || pagerType == "" || page >= totalPages {
 		return nil
 	}
+	btn := pagerButton("Вперёд ➡️", pagerType, page+1, pagerExtra)
+	return &btn
+}
 
-	row := make([]KbBtn, 0, 2)
-	if page > 1 {
-		row = append(row, pagerButton("⬅️ Назад", pagerType, page-1, pagerExtra))
+func pagerBack(page int, pagerType string, pagerExtra map[string]any) *KbBtn {
+	if pagerType == "" || page <= 1 {
+		return nil
 	}
-	if page < totalPages {
-		row = append(row, pagerButton("Вперёд ➡️", pagerType, page+1, pagerExtra))
-	}
-	return row
+	btn := pagerButton("⬅️ Назад", pagerType, page-1, pagerExtra)
+	return &btn
 }
 
 func pagerButton(label, pagerType string, page int, pagerExtra map[string]any) KbBtn {

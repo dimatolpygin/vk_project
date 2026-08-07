@@ -108,7 +108,7 @@ func KbTariffs(tariffs []*repository.Tariff) string {
 	kb := &Keyboard{Inline: true}
 	for _, t := range tariffs {
 		payload, _ := json.Marshal(map[string]any{"type": "buy_tariff", "tariff_id": t.ID})
-		label := fmt.Sprintf("💳 %s — %.0f₽ (%d ген.)", t.Name, t.Price, t.GensCount)
+		label := fmt.Sprintf("💳 %s — %.0f₽", t.Name, t.Price)
 		kb.Buttons = append(kb.Buttons, []KbBtn{{
 			Action: KbAction{Type: "callback", Label: label, Payload: string(payload)},
 			Color:  "primary",
@@ -264,6 +264,11 @@ func renderContentKeyboardWithRows(cfg content.Keyboard, prefixRows [][]KbBtn, o
 
 // fitInlineRows укладывает клавиатуру в лимит строк ВК, склеивая соседние строки.
 // Порядок кнопок сохраняется, поэтому «Назад» остаётся последней.
+//
+// Склейка идёт снизу вверх: внизу экрана лежит навигация («Назад», «В меню»),
+// и две служебные кнопки в одном ряду читаются нормально. Вверху лежит контент —
+// длинные названия промтов, которые в паре обрезаются, поэтому их трогаем в
+// последнюю очередь.
 func fitInlineRows(rows [][]KbBtn) [][]KbBtn {
 	if len(rows) <= vkInlineMaxRows {
 		return rows
@@ -274,7 +279,7 @@ func fitInlineRows(rows [][]KbBtn) [][]KbBtn {
 
 	for len(merged) > vkInlineMaxRows {
 		joined := -1
-		for i := 0; i+1 < len(merged); i++ {
+		for i := len(merged) - 2; i >= 0; i-- {
 			if len(merged[i])+len(merged[i+1]) <= vkMaxButtonsPerRow {
 				joined = i
 				break

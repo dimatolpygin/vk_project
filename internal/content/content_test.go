@@ -268,3 +268,57 @@ func TestActionMetaFallbackUsesHumanizedTitle(t *testing.T) {
 		t.Fatalf("expected humanized fallback title, got %q", meta.Title)
 	}
 }
+
+// Профиль переехал в нижнее постоянное меню: из главного меню обе кнопки убраны,
+// «Запомнить фото» лежит внутри профиля. Тест сторожит раскладку, потому что
+// пользователь после релиза не найдёт кнопку, если она уедет не туда.
+func TestProfileLivesInBottomMenuNotMainMenu(t *testing.T) {
+	mainMenu, ok := Definition("main_menu")
+	if !ok {
+		t.Fatal("main_menu definition is missing")
+	}
+	for _, item := range mainMenu.Keyboard.Items {
+		if item.ActionKey == "settings" || item.ActionKey == "saved_photo" {
+			t.Fatalf("main_menu must not contain %q anymore", item.ActionKey)
+		}
+	}
+
+	bottomMenu, ok := Definition("bottom_menu")
+	if !ok {
+		t.Fatal("bottom_menu definition is missing")
+	}
+	profileFound := false
+	for _, item := range bottomMenu.Keyboard.Items {
+		if item.ActionKey == "settings" {
+			profileFound = true
+			if item.Label != "👤 Мой профиль" {
+				t.Fatalf("expected the profile label in the bottom menu, got %q", item.Label)
+			}
+		}
+	}
+	if !profileFound {
+		t.Fatal("bottom_menu must keep the profile button")
+	}
+
+	profile, ok := Definition("settings_overview")
+	if !ok {
+		t.Fatal("settings_overview definition is missing")
+	}
+	savedPhotoFound := false
+	for _, item := range profile.Keyboard.Items {
+		if item.ActionKey == "saved_photo" {
+			savedPhotoFound = true
+		}
+	}
+	if !savedPhotoFound {
+		t.Fatal("settings_overview must contain the saved photo button")
+	}
+	// Inline-клавиатура ВК не принимает больше шести строк.
+	rows := map[int]struct{}{}
+	for _, item := range profile.Keyboard.Items {
+		rows[item.Row] = struct{}{}
+	}
+	if len(rows) > 6 {
+		t.Fatalf("settings_overview exceeds the VK row limit: %d rows", len(rows))
+	}
+}
