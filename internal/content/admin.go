@@ -198,6 +198,20 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 		Order:       43,
 		Keywords:    []string{"дети", "ребёнок", "мальчик", "девочка"},
 	},
+	"greetings_intro": {
+		SectionID:   "generation",
+		Title:       "Поздравления: вход в раздел",
+		Description: "Экран выбора адресата поздравления. Сами адресаты и праздники редактируются в «Категории и промты».",
+		Order:       44,
+		Keywords:    []string{"поздравления", "открытка", "адресат", "праздник"},
+	},
+	"greetings_holidays": {
+		SectionID:   "generation",
+		Title:       "Поздравления: список праздников",
+		Description: "Экран со списком праздников выбранного адресата.",
+		Order:       45,
+		Keywords:    []string{"поздравления", "праздник", "новый год", "день рождения"},
+	},
 	"generating_wait": {
 		SectionID:   "generation",
 		Title:       "Ожидание генерации",

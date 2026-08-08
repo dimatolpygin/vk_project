@@ -34,6 +34,8 @@ const (
 	StepCouplePrompts          = "couple_prompts"
 	StepKidsCategories         = "kids_categories"
 	StepKidsPrompts            = "kids_prompts"
+	StepGreetingsCategories    = "greetings_categories"
+	StepGreetingsPrompts       = "greetings_prompts"
 )
 
 type User struct {

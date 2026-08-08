@@ -54,6 +54,16 @@ var sectionSpecs = map[string]sectionSpec{
 		promptsStep:    StepCouplePrompts,
 		genderOverride: repository.GenderCouple,
 	},
+	repository.SectionGreetings: {
+		section:     repository.SectionGreetings,
+		promptType:  "greetings",
+		rootScreen:  "greetings_intro",
+		rootPager:   "greetings_page",
+		nodesStep:   StepGreetingsCategories,
+		promptsStep: StepGreetingsPrompts,
+		// Пол задаёт адресат («Мужчине»/«Женщине») и наследует вниз празднику,
+		// поэтому пол пользователя здесь не участвует.
+	},
 	repository.SectionKids: {
 		section:     repository.SectionKids,
 		promptType:  "kids",
@@ -323,6 +333,26 @@ func HandleKidsPage(ctx context.Context, fc *Context, d *Deps) {
 	page := normalizePage(fc.Callback.Page)
 	if err := showSectionRoots(ctx, fc, d, specForSection(repository.SectionKids), page); err != nil {
 		log.Error().Err(err).Int64("vk_id", fc.VkID).Int("page", page).Msg("ошибка листалки детского раздела")
+	}
+}
+
+// ─── Поздравления ────────────────────────────────────────────────────────────
+
+// HandleGreetingsMenu — вход в раздел: адресат, дальше праздник, дальше промты.
+func HandleGreetingsMenu(ctx context.Context, fc *Context, d *Deps) {
+	if !fc.User.HasGens() {
+		_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
+		return
+	}
+	if err := showSectionRoots(ctx, fc, d, specForSection(repository.SectionGreetings), 1); err != nil {
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("ошибка показа раздела поздравлений")
+	}
+}
+
+func HandleGreetingsPage(ctx context.Context, fc *Context, d *Deps) {
+	page := normalizePage(fc.Callback.Page)
+	if err := showSectionRoots(ctx, fc, d, specForSection(repository.SectionGreetings), page); err != nil {
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Int("page", page).Msg("ошибка листалки раздела поздравлений")
 	}
 }
 

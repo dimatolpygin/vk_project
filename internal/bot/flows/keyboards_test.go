@@ -236,3 +236,32 @@ func TestBuildPaginatedRowsCarriesPromptPagerCategoryID(t *testing.T) {
 		t.Fatalf("expected category_id=77, got %d", got)
 	}
 }
+
+func TestMainMenuKeepsEverySectionOnItsOwnRow(t *testing.T) {
+	// В главном меню шесть кнопок при лимите ВК в шесть строк — следующий раздел
+	// уже не влезет отдельной строкой, и fitInlineRows начнёт склеивать кнопки
+	// по две в ряд. Тест ловит этот момент до того, как его увидит пользователь.
+	def, ok := content.Definition("main_menu")
+	if !ok {
+		t.Fatal("main_menu definition not found")
+	}
+
+	raw := RenderContentKeyboard(def.Keyboard, KeyboardRenderOptions{})
+
+	var keyboard Keyboard
+	if err := json.Unmarshal([]byte(raw), &keyboard); err != nil {
+		t.Fatalf("unmarshal rendered keyboard: %v", err)
+	}
+	if len(keyboard.Buttons) > vkInlineMaxRows {
+		t.Fatalf("main menu renders %d rows, VK allows %d", len(keyboard.Buttons), vkInlineMaxRows)
+	}
+	for i, row := range keyboard.Buttons {
+		if len(row) != 1 {
+			t.Fatalf("row %d holds %d buttons: разделы должны стоять по одному в ряд", i, len(row))
+		}
+	}
+	lastRow := keyboard.Buttons[len(keyboard.Buttons)-1]
+	if got := lastRow[0].Action.Payload; got != cbPayload("greetings") {
+		t.Fatalf("expected «Поздравления» last, got %q", got)
+	}
+}

@@ -158,6 +158,18 @@ var actionAdminMeta = map[string]ActionAdminMeta{
 		Description: "Переключение страниц верхнего уровня детского раздела.",
 		Order:       183,
 	},
+	"greetings": {
+		SectionID:   "generation",
+		Title:       "Поздравления",
+		Description: "Вход в раздел поздравлений: адресат, дальше праздник, дальше промты.",
+		Order:       184,
+	},
+	"greetings_page": {
+		SectionID:   "generation",
+		Title:       "Листалка адресатов поздравлений",
+		Description: "Переключение страниц верхнего уровня раздела поздравлений.",
+		Order:       185,
+	},
 	"couple_page": {
 		SectionID:   "generation",
 		Title:       "Листалка парных категорий",

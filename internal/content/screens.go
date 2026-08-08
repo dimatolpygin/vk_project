@@ -77,6 +77,12 @@ var screenDefinitions = map[string]ScreenDefinition{
 	"kids_intro": screen("kids_intro", "👶 Детские фото\n\nСказочные и праздничные образы для ребёнка.\n\nВыбери, для кого делаем фотосессию:",
 		callback("back", "back", "🏠 В меню", "secondary", 100, 0),
 	),
+	"greetings_intro": screen("greetings_intro", "🎉 Поздравления\n\nПерсональная открытка с лицом того, кого поздравляешь.\n\nКого поздравляем?",
+		callback("back", "back", "🏠 В меню", "secondary", 100, 0),
+	),
+	"greetings_holidays": screen("greetings_holidays", "🎊 С каким праздником поздравляем?",
+		callback("back", "back", "◀️ Назад", "secondary", 100, 0),
+	),
 	"main_menu": screen("main_menu", "🎨 Главное меню\n\nВыбери что хочешь сделать:",
 		callback("ready_prompts", "ready_prompts", "🖼 Готовые промты", "primary", 0, 0),
 		callback("custom_prompt", "custom_prompt", "✍️ Свой промт", "primary", 1, 0),
@@ -85,6 +91,7 @@ var screenDefinitions = map[string]ScreenDefinition{
 		// Строка 50 — отдельный ряд даже на экранах, где в БД уже лежат строки
 		// старых кнопок; positive выделяет новый раздел среди primary.
 		callback("kids", "kids", "👶 Детские фото", "positive", 50, 0),
+		callback("greetings", "greetings", "🎉 Поздравления", "positive", 51, 0),
 	),
 	"no_gens_left": screen("no_gens_left", "😔 У тебя закончились генерации.\n\nПополни баланс для продолжения!",
 		callback("tariffs", "tariffs", "💳 Выбрать тариф", "primary", 0, 0),
