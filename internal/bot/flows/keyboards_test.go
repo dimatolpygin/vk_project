@@ -241,10 +241,12 @@ func TestMainMenuFollowsSpecLayout(t *testing.T) {
 	// Раскладка задана схемой из п. 1 ТЗ построчно, и проверяем её тоже
 	// построчно: fitInlineRows умеет склеивать ряды сам, и без этого теста
 	// перестановка кнопок в определении экрана прошла бы незамеченной.
+	// Первые четыре кнопки — по одной в ряд, новые разделы — по две.
 	want := [][]string{
 		{"ready_prompts"},
 		{"custom_prompt"},
-		{"edit_photo", "couple"},
+		{"edit_photo"},
+		{"couple"},
 		{"kids", "trends"},
 		{"greetings", "saved_photo"},
 	}

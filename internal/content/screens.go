@@ -87,24 +87,27 @@ var screenDefinitions = map[string]ScreenDefinition{
 	// TestMainMenuFollowsSpecLayout:
 	//   1. Фото для себя
 	//   2. Фото по своему промту
-	//   3. Изменить фото | Парное/семейное фото
-	//   4. Детские фото | Тренды
-	//   5. Поздравления | Мое фото
-	// Пять строк при лимите ВК в шесть — запас на одну кнопку ещё есть.
+	//   3. Изменить фото
+	//   4. Парное/семейное фото
+	//   5. Детские фото | Тренды
+	//   6. Поздравления | Мое фото
+	// Первые четыре кнопки — по одной в ряд, новые разделы — по две.
+	// Шесть строк ровно в лимит ВК: седьмой строки уже не будет, следующую
+	// кнопку придётся ставить второй в существующий ряд.
 	// Новые разделы выделены цветом positive, как требует та же схема.
 	"main_menu": screen("main_menu", "🎨 Главное меню\n\nВыбери что хочешь сделать:",
 		callback("ready_prompts", "ready_prompts", "🖼 Фото для себя", "primary", 0, 0),
 		callback("custom_prompt", "custom_prompt", "✍️ Фото по своему промту", "primary", 1, 0),
 		callback("edit_photo", "edit_photo", "✏️ Изменить фото", "primary", 2, 0),
-		callback("couple", "couple", "👫 Парное фото", "primary", 2, 1),
-		callback("kids", "kids", "👶 Детские фото", "positive", 3, 0),
-		callback("trends", "trends", "🔥 Тренды", "positive", 3, 1),
-		callback("greetings", "greetings", "🎉 Поздравления", "positive", 4, 0),
+		callback("couple", "couple", "👫 Парное фото", "primary", 3, 0),
+		callback("kids", "kids", "👶 Детские фото", "positive", 4, 0),
+		callback("trends", "trends", "🔥 Тренды", "positive", 4, 1),
+		callback("greetings", "greetings", "🎉 Поздравления", "positive", 5, 0),
 		// «Мое фото» возвращается в меню по схеме ТЗ. В этапе 4 его отсюда
 		// убирали, и точкой входа стал «Мой профиль» — тот вход остаётся,
 		// кнопка ведёт в тот же раздел. Если решение этапа 4 в силе, кнопку
 		// достаточно скрыть в редакторе клавиатуры, релиз для этого не нужен.
-		callback("saved_photo", "saved_photo", "💾 Мое фото", "secondary", 4, 1),
+		callback("saved_photo", "saved_photo", "💾 Мое фото", "secondary", 5, 1),
 	),
 	"no_gens_left": screen("no_gens_left", "😔 У тебя закончились генерации.\n\nПополни баланс для продолжения!",
 		callback("tariffs", "tariffs", "💳 Выбрать тариф", "primary", 0, 0),
