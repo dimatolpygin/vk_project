@@ -153,3 +153,24 @@ func TestBuildVKUploadFilenameUsesDetectedExtension(t *testing.T) {
 		t.Fatalf("expected result.png after content-type normalization, got %q", got)
 	}
 }
+
+// Загрузчик документов ВК отбивает POST по HTTP/2 ответом 405, поэтому клиент
+// для видео обязан оставаться на HTTP/1.1. Регресс здесь тихий: видео просто
+// начнёт приходить ссылкой вместо вложения.
+func TestVideoHTTPClientKeepsHTTP1(t *testing.T) {
+	client := newVideoHTTPClient()
+
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("ожидался *http.Transport, получен %T", client.Transport)
+	}
+	if transport.TLSNextProto == nil {
+		t.Fatal("TLSNextProto равен nil: Go договорится на HTTP/2 и загрузка видео сломается")
+	}
+	if len(transport.TLSNextProto) != 0 {
+		t.Fatalf("в TLSNextProto %d протоколов, ожидался пустой список", len(transport.TLSNextProto))
+	}
+	if client.Timeout != videoTransferTimeout {
+		t.Fatalf("таймаут клиента %s, ожидался %s", client.Timeout, videoTransferTimeout)
+	}
+}

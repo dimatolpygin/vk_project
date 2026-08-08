@@ -3,6 +3,7 @@ package bot
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -56,7 +57,23 @@ func NewSender(vk *vkgroup.Client, msgRepo *repository.MessageRepo, userRepo *re
 		broadcastRepo: broadcastRepo,
 		stateMgr:      stateMgr,
 		http:          &http.Client{Timeout: 30 * time.Second},
-		videoHTTP:     &http.Client{Timeout: videoTransferTimeout},
+		videoHTTP:     newVideoHTTPClient(),
+	}
+}
+
+// newVideoHTTPClient — клиент для загрузки видео в ВК.
+//
+// HTTP/2 здесь выключен намеренно: загрузчик документов ВК отбивает POST по
+// HTTP/2 ответом «405 Not Allowed», а по HTTP/1.1 тот же запрос проходит.
+// Проверено на боевом сервере на одном и том же файле. Go по умолчанию
+// договаривается на HTTP/2 через ALPN, поэтому запрещаем это явно: пустая
+// (но не nil) карта TLSNextProto отключает апгрейд.
+func newVideoHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: videoTransferTimeout,
+		Transport: &http.Transport{
+			TLSNextProto: map[string]func(string, *tls.Conn) http.RoundTripper{},
+		},
 	}
 }
 
