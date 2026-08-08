@@ -269,18 +269,28 @@ func TestActionMetaFallbackUsesHumanizedTitle(t *testing.T) {
 	}
 }
 
-// Профиль переехал в нижнее постоянное меню: из главного меню обе кнопки убраны,
-// «Запомнить фото» лежит внутри профиля. Тест сторожит раскладку, потому что
-// пользователь после релиза не найдёт кнопку, если она уедет не туда.
+// Профиль живёт в нижнем постоянном меню, и в главном меню его быть не должно.
+//
+// «Запомнить фото» в этапе 4 убиралось отсюда вместе с «Настройками», но схема
+// из п. 1 ТЗ держит эту кнопку в меню пятой строкой, и заказчик подтвердил
+// схему — она вернулась под названием «Мое фото». Вход через профиль при этом
+// никуда не делся: обе кнопки ведут в один раздел.
 func TestProfileLivesInBottomMenuNotMainMenu(t *testing.T) {
 	mainMenu, ok := Definition("main_menu")
 	if !ok {
 		t.Fatal("main_menu definition is missing")
 	}
+	mainMenuSavedPhoto := false
 	for _, item := range mainMenu.Keyboard.Items {
-		if item.ActionKey == "settings" || item.ActionKey == "saved_photo" {
-			t.Fatalf("main_menu must not contain %q anymore", item.ActionKey)
+		if item.ActionKey == "settings" {
+			t.Fatal("«Настройки» не должны возвращаться в главное меню: профиль живёт в нижнем")
 		}
+		if item.ActionKey == "saved_photo" {
+			mainMenuSavedPhoto = true
+		}
+	}
+	if !mainMenuSavedPhoto {
+		t.Fatal("в главном меню нет кнопки «Мое фото», хотя схема ТЗ ставит её пятой строкой")
 	}
 
 	bottomMenu, ok := Definition("bottom_menu")

@@ -83,19 +83,28 @@ var screenDefinitions = map[string]ScreenDefinition{
 	"greetings_holidays": screen("greetings_holidays", "🎊 С каким праздником поздравляем?",
 		callback("back", "back", "◀️ Назад", "secondary", 100, 0),
 	),
+	// Раскладка задана схемой из п. 1 ТЗ и держится тестом
+	// TestMainMenuFollowsSpecLayout:
+	//   1. Фото для себя
+	//   2. Фото по своему промту
+	//   3. Изменить фото | Парное/семейное фото
+	//   4. Детские фото | Тренды
+	//   5. Поздравления | Мое фото
+	// Пять строк при лимите ВК в шесть — запас на одну кнопку ещё есть.
+	// Новые разделы выделены цветом positive, как требует та же схема.
 	"main_menu": screen("main_menu", "🎨 Главное меню\n\nВыбери что хочешь сделать:",
-		callback("ready_prompts", "ready_prompts", "🖼 Готовые промты", "primary", 0, 0),
-		// Семь кнопок при лимите ВК в шесть строк. Две работы «со своим фото»
-		// сведены в общий ряд: названия короткие и не обрежутся, а разделы-
-		// фотосессии остаются по одной кнопке в ряд.
-		callback("custom_prompt", "custom_prompt", "✍️ Свой промт", "primary", 1, 0),
-		callback("edit_photo", "edit_photo", "✏️ Изменить фото", "primary", 1, 1),
-		callback("couple", "couple", "👫 Парное фото", "primary", 3, 0),
-		// Строка 50 — отдельный ряд даже на экранах, где в БД уже лежат строки
-		// старых кнопок; positive выделяет новый раздел среди primary.
-		callback("kids", "kids", "👶 Детские фото", "positive", 50, 0),
-		callback("greetings", "greetings", "🎉 Поздравления", "positive", 51, 0),
-		callback("trends", "trends", "🔥 Тренды", "positive", 52, 0),
+		callback("ready_prompts", "ready_prompts", "🖼 Фото для себя", "primary", 0, 0),
+		callback("custom_prompt", "custom_prompt", "✍️ Фото по своему промту", "primary", 1, 0),
+		callback("edit_photo", "edit_photo", "✏️ Изменить фото", "primary", 2, 0),
+		callback("couple", "couple", "👫 Парное фото", "primary", 2, 1),
+		callback("kids", "kids", "👶 Детские фото", "positive", 3, 0),
+		callback("trends", "trends", "🔥 Тренды", "positive", 3, 1),
+		callback("greetings", "greetings", "🎉 Поздравления", "positive", 4, 0),
+		// «Мое фото» возвращается в меню по схеме ТЗ. В этапе 4 его отсюда
+		// убирали, и точкой входа стал «Мой профиль» — тот вход остаётся,
+		// кнопка ведёт в тот же раздел. Если решение этапа 4 в силе, кнопку
+		// достаточно скрыть в редакторе клавиатуры, релиз для этого не нужен.
+		callback("saved_photo", "saved_photo", "💾 Мое фото", "secondary", 4, 1),
 	),
 	"no_gens_left": screen("no_gens_left", "😔 У тебя закончились генерации.\n\nПополни баланс для продолжения!",
 		callback("tariffs", "tariffs", "💳 Выбрать тариф", "primary", 0, 0),

@@ -237,11 +237,18 @@ func TestBuildPaginatedRowsCarriesPromptPagerCategoryID(t *testing.T) {
 	}
 }
 
-func TestMainMenuKeepsEverySectionOnItsOwnRow(t *testing.T) {
-	// Семь кнопок при лимите ВК в шесть строк. Склейку делаем сами и осознанно:
-	// в общий ряд сведены «Свой промт» и «Изменить фото» — короткие названия,
-	// которые не обрежутся. Разделы-фотосессии обязаны стоять по одному в ряд,
-	// иначе fitInlineRows начнёт склеивать их сам и как попало.
+func TestMainMenuFollowsSpecLayout(t *testing.T) {
+	// Раскладка задана схемой из п. 1 ТЗ построчно, и проверяем её тоже
+	// построчно: fitInlineRows умеет склеивать ряды сам, и без этого теста
+	// перестановка кнопок в определении экрана прошла бы незамеченной.
+	want := [][]string{
+		{"ready_prompts"},
+		{"custom_prompt"},
+		{"edit_photo", "couple"},
+		{"kids", "trends"},
+		{"greetings", "saved_photo"},
+	}
+
 	def, ok := content.Definition("main_menu")
 	if !ok {
 		t.Fatal("main_menu definition not found")
@@ -254,36 +261,33 @@ func TestMainMenuKeepsEverySectionOnItsOwnRow(t *testing.T) {
 		t.Fatalf("unmarshal rendered keyboard: %v", err)
 	}
 	if len(keyboard.Buttons) > vkInlineMaxRows {
-		t.Fatalf("main menu renders %d rows, VK allows %d", len(keyboard.Buttons), vkInlineMaxRows)
+		t.Fatalf("в меню %d строк, ВК разрешает %d", len(keyboard.Buttons), vkInlineMaxRows)
+	}
+	if len(keyboard.Buttons) != len(want) {
+		t.Fatalf("в меню %d строк, схема ТЗ требует %d", len(keyboard.Buttons), len(want))
 	}
 
-	sections := map[string]bool{
-		cbPayload("ready_prompts"): true,
-		cbPayload("couple"):        true,
-		cbPayload("kids"):          true,
-		cbPayload("greetings"):     true,
-		cbPayload("trends"):        true,
-	}
-	total := 0
-	for i, row := range keyboard.Buttons {
-		total += len(row)
-		if len(row) > 2 {
-			t.Fatalf("row %d holds %d buttons: больше двух в ряд не помещается по ширине", i, len(row))
+	for row, wantRow := range want {
+		gotRow := keyboard.Buttons[row]
+		if len(gotRow) != len(wantRow) {
+			t.Fatalf("в строке %d %d кнопок, ожидалось %d", row+1, len(gotRow), len(wantRow))
 		}
-		if len(row) == 1 {
-			continue
-		}
-		for _, btn := range row {
-			if sections[btn.Action.Payload] {
-				t.Fatalf("row %d shares a row with section button %q: разделы стоят по одному в ряд", i, btn.Action.Label)
+		for pos, action := range wantRow {
+			if got := gotRow[pos].Action.Payload; got != cbPayload(action) {
+				t.Fatalf("строка %d, позиция %d: %q вместо %q", row+1, pos+1, got, cbPayload(action))
 			}
 		}
 	}
-	if total != 7 {
-		t.Fatalf("expected all 7 main menu buttons to survive, got %d", total)
+
+	// Три новых раздела ТЗ требует выделить цветом среди остальных кнопок.
+	highlighted := map[string]bool{
+		cbPayload("kids"): true, cbPayload("trends"): true, cbPayload("greetings"): true,
 	}
-	lastRow := keyboard.Buttons[len(keyboard.Buttons)-1]
-	if got := lastRow[0].Action.Payload; got != cbPayload("trends") {
-		t.Fatalf("expected «Тренды» last, got %q", got)
+	for _, row := range keyboard.Buttons {
+		for _, btn := range row {
+			if highlighted[btn.Action.Payload] && btn.Color != "positive" {
+				t.Fatalf("кнопка %q цвета %q: новые разделы выделяются positive", btn.Action.Label, btn.Color)
+			}
+		}
 	}
 }
