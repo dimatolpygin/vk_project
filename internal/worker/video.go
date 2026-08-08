@@ -13,11 +13,11 @@ import (
 )
 
 // VideoMessageSender — то, что видео-обработчику нужно от отправителя.
-// SendVideoResult отдаёт mp4 в диалог; ошибку он возвращает только если
-// не сработал и запасной вариант со ссылкой.
+// SendVideoResult показывает кадр-превью и даёт ссылку на видео кнопкой;
+// сам кадр — это первое звено цепочки, поэтому он приезжает отдельным аргументом.
 type VideoMessageSender interface {
 	SendScreenText(ctx context.Context, vkID int64, key string, data map[string]any) error
-	SendVideoResult(ctx context.Context, vkID int64, videoURL string) error
+	SendVideoResult(ctx context.Context, vkID int64, videoURL, sceneURL string) error
 }
 
 // Опрос двух звеньев цепочки. Фото собирается за минуту-полторы, видео на
@@ -135,7 +135,7 @@ func (h *GenerateVideoHandler) ProcessTask(ctx context.Context, task *asynq.Task
 		Str("video_url", deliveryURL).
 		Msg("видео готово, отправляем пользователю")
 
-	if err := h.sender.SendVideoResult(ctx, payload.UserVKID, deliveryURL); err != nil {
+	if err := h.sender.SendVideoResult(ctx, payload.UserVKID, deliveryURL, sceneURL); err != nil {
 		log.Error().Err(err).Int64("generation_id", payload.GenerationID).Msg("не удалось доставить видео в ВК, возвращаем генерации")
 		if h.genRepo != nil {
 			if refundErr := h.genRepo.RefundGenerationCharge(ctx, payload.GenerationID); refundErr != nil {

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"vk_neuro_bot/internal/bot/flows"
+	"vk_neuro_bot/internal/content"
 	"vk_neuro_bot/internal/vkgroup"
 )
 
@@ -154,23 +156,86 @@ func TestBuildVKUploadFilenameUsesDetectedExtension(t *testing.T) {
 	}
 }
 
-// Загрузчик документов ВК отбивает POST по HTTP/2 ответом 405, поэтому клиент
-// для видео обязан оставаться на HTTP/1.1. Регресс здесь тихий: видео просто
-// начнёт приходить ссылкой вместо вложения.
-func TestVideoHTTPClientKeepsHTTP1(t *testing.T) {
-	client := newVideoHTTPClient()
+// Видео уходит кадром-превью и кнопкой: настоящее видео-вложение групповому
+// токену недоступно, а mp4-документ ВК показывает без обложки. Проверяем, что
+// вложением идёт фото, файла в сообщении нет, а ссылка на ролик — в кнопке.
+func TestSendVideoResultAttachesSceneFrameAndDownloadButton(t *testing.T) {
+	const videoURL = "https://storage.example.com/video/6683.mp4"
+	pngBytes := []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0}
 
-	transport, ok := client.Transport.(*http.Transport)
+	var (
+		serverURL      string
+		sentAttachment string
+		sentKeyboard   string
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/scene.png":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
+		case "/method/photos.getMessagesUploadServer":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"response": map[string]any{"upload_url": serverURL + "/upload"},
+			})
+		case "/upload":
+			_, _ = w.Write([]byte(`{"server":1,"photo":"photo-token","hash":"h"}`))
+		case "/method/photos.saveMessagesPhoto":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"response": []map[string]any{{"id": 77, "owner_id": -238989543}},
+			})
+		case "/method/messages.send":
+			_ = r.ParseForm()
+			sentAttachment = r.FormValue("attachment")
+			sentKeyboard = r.FormValue("keyboard")
+			_ = json.NewEncoder(w).Encode(map[string]any{"response": 1})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	serverURL = server.URL
+
+	vk := vkgroup.New("token", 1)
+	vk.SetAPIBase(server.URL + "/method")
+	vk.SetHTTPClient(server.Client())
+
+	sender := NewSender(vk, nil, nil, nil, nil)
+	sender.http = server.Client()
+
+	def, ok := content.Definition("after_gen_video")
 	if !ok {
-		t.Fatalf("ожидался *http.Transport, получен %T", client.Transport)
+		t.Fatal("экран after_gen_video не найден в определениях")
 	}
-	if transport.TLSNextProto == nil {
-		t.Fatal("TLSNextProto равен nil: Go договорится на HTTP/2 и загрузка видео сломается")
+	// Ровно три кнопки: скачать видео, ещё тренды, главное меню.
+	if len(def.Keyboard.Items) != 3 {
+		t.Fatalf("на экране %d кнопок, ожидалось 3", len(def.Keyboard.Items))
 	}
-	if len(transport.TLSNextProto) != 0 {
-		t.Fatalf("в TLSNextProto %d протоколов, ожидался пустой список", len(transport.TLSNextProto))
+
+	attachment, err := sender.uploadPhotoFromURL(context.Background(), 42, server.URL+"/scene.png")
+	if err != nil {
+		t.Fatalf("кадр не загрузился: %v", err)
 	}
-	if client.Timeout != videoTransferTimeout {
-		t.Fatalf("таймаут клиента %s, ожидался %s", client.Timeout, videoTransferTimeout)
+
+	err = sender.SendScreen(context.Background(), 42, &flows.ScreenMessage{
+		Key:         "after_gen_video",
+		Text:        "🎬 Готово!",
+		Attachments: []string{attachment},
+		Keyboard: flows.RenderContentKeyboard(def.Keyboard, flows.KeyboardRenderOptions{
+			Links: map[string]string{"download_video": videoURL},
+		}),
+	})
+	if err != nil {
+		t.Fatalf("сообщение не отправилось: %v", err)
+	}
+
+	if !strings.HasPrefix(sentAttachment, "photo") {
+		t.Fatalf("вложением ушло не фото: %q", sentAttachment)
+	}
+	if strings.Contains(sentAttachment, "doc") {
+		t.Fatalf("в сообщение попал файл, хотя его быть не должно: %q", sentAttachment)
+	}
+	if !strings.Contains(sentKeyboard, videoURL) {
+		t.Fatalf("в клавиатуре нет ссылки на видео: %s", sentKeyboard)
 	}
 }

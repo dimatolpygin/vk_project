@@ -3,7 +3,6 @@ package bot
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -31,16 +30,12 @@ type Sender struct {
 	broadcastRepo *repository.BroadcastRepo
 	stateMgr      flows.StateMgr
 	http          *http.Client
-	videoHTTP     *http.Client
 }
 
 const (
 	vkPhotoDownloadAttempts = 3
 	vkPhotoUploadAttempts   = 4
 	videoResultScreenKey    = "after_gen_video"
-	// Видео на 10 секунд весит десятки мегабайт, и качается оно с чужого CDN —
-	// общего 30-секундного клиента на это не хватает.
-	videoTransferTimeout = 5 * time.Minute
 )
 
 type vkUploadPhotoPayload struct {
@@ -57,23 +52,6 @@ func NewSender(vk *vkgroup.Client, msgRepo *repository.MessageRepo, userRepo *re
 		broadcastRepo: broadcastRepo,
 		stateMgr:      stateMgr,
 		http:          &http.Client{Timeout: 30 * time.Second},
-		videoHTTP:     newVideoHTTPClient(),
-	}
-}
-
-// newVideoHTTPClient — клиент для загрузки видео в ВК.
-//
-// HTTP/2 здесь выключен намеренно: загрузчик документов ВК отбивает POST по
-// HTTP/2 ответом «405 Not Allowed», а по HTTP/1.1 тот же запрос проходит.
-// Проверено на боевом сервере на одном и том же файле. Go по умолчанию
-// договаривается на HTTP/2 через ALPN, поэтому запрещаем это явно: пустая
-// (но не nil) карта TLSNextProto отключает апгрейд.
-func newVideoHTTPClient() *http.Client {
-	return &http.Client{
-		Timeout: videoTransferTimeout,
-		Transport: &http.Transport{
-			TLSNextProto: map[string]func(string, *tls.Conn) http.RoundTripper{},
-		},
 	}
 }
 
@@ -267,39 +245,45 @@ func (s *Sender) sendPhotoResult(ctx context.Context, vkID int64, photoURL, sour
 	return nil
 }
 
-// SendVideoResult отдаёт готовое видео пользователю.
+// SendVideoResult отдаёт готовое видео пользователю: кадром-превью и кнопкой.
 //
-// Видео уходит документом: групповому токену метод video.save недоступен
-// («invalid token type»), а mp4-документ ВК показывает со встроенным плеером.
-// Если загрузка не удалась, экран всё равно отправляется — со ссылкой на файл
-// в кнопке: терять оплаченное видео из-за отказа загрузчика нельзя.
-func (s *Sender) SendVideoResult(ctx context.Context, vkID int64, videoURL string) error {
-	data := map[string]any{"Duration": wavespeed.VideoDuration}
-	kbOpts := flows.KeyboardRenderOptions{Links: map[string]string{"download_video": videoURL}}
-
-	attachment, err := s.uploadVideoFromURL(ctx, vkID, videoURL)
-	if err != nil {
-		log.Error().Err(err).Int64("peer_id", vkID).Str("video_url", videoURL).
-			Msg("не удалось загрузить видео в ВК, отдаём ссылкой")
-	}
-
+// Самого файла в сообщении нет. Настоящее видео-вложение с плеером даёт только
+// video.save, а он групповому токену недоступен («invalid token type»);
+// mp4-документ же ВК отдаёт без обложки — в переписке это выглядит безымянным
+// файлом. Поэтому в сообщение идёт кадр, с которого начиналась анимация, а
+// само видео открывается кнопкой «Скачать видео».
+//
+// Если кадр не загрузился, сообщение всё равно уходит — без картинки, но
+// с кнопкой: терять оплаченное видео из-за отказа загрузчика нельзя.
+func (s *Sender) SendVideoResult(ctx context.Context, vkID int64, videoURL, sceneURL string) error {
 	msg, err := s.msgRepo.Get(ctx, videoResultScreenKey)
 	if err != nil {
 		return err
 	}
-	text, err := content.RenderText(msg.Text, data)
+
+	text, err := content.RenderText(msg.Text, map[string]any{"Duration": wavespeed.VideoDuration})
 	if err != nil {
 		log.Warn().Err(err).Str("key", videoResultScreenKey).Msg("failed to render video result text")
 	}
 
 	screen := &flows.ScreenMessage{
-		Key:      videoResultScreenKey,
-		Text:     text,
-		Keyboard: flows.RenderContentKeyboard(msg.Keyboard, kbOpts),
+		Key:  videoResultScreenKey,
+		Text: text,
+		Keyboard: flows.RenderContentKeyboard(msg.Keyboard, flows.KeyboardRenderOptions{
+			Links: map[string]string{"download_video": videoURL},
+		}),
 	}
-	if attachment != "" {
-		screen.Attachments = []string{attachment}
+
+	if sceneURL != "" {
+		attachment, err := s.uploadPhotoFromURL(ctx, vkID, sceneURL)
+		if err != nil {
+			log.Error().Err(err).Int64("peer_id", vkID).Str("scene_url", sceneURL).
+				Msg("не удалось приложить кадр к видео, отправляем без картинки")
+		} else {
+			screen.Attachments = []string{attachment}
+		}
 	}
+
 	if err := s.SendScreen(ctx, vkID, screen); err != nil {
 		return err
 	}
@@ -311,79 +295,6 @@ func (s *Sender) SendVideoResult(ctx context.Context, vkID int64, videoURL strin
 	st.Step = flows.StepMainMenu
 	_ = s.stateMgr.Set(ctx, vkID, st)
 	return nil
-}
-
-func (s *Sender) uploadVideoFromURL(ctx context.Context, peerID int64, videoURL string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, videoURL, nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := s.videoHTTP.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("download video: %w", err)
-	}
-	defer resp.Body.Close()
-
-	videoData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read video body: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("video source returned HTTP %d: %s", resp.StatusCode, abbreviateBody(videoData))
-	}
-	if len(videoData) == 0 {
-		return "", fmt.Errorf("downloaded video is empty: %s", videoURL)
-	}
-
-	uploadURL, err := s.vk.GetDocUploadServer(ctx, peerID)
-	if err != nil {
-		return "", fmt.Errorf("docs.getMessagesUploadServer: %w", err)
-	}
-
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", `form-data; name="file"; filename="video.mp4"`)
-	h.Set("Content-Type", "video/mp4")
-	fw, err := w.CreatePart(h)
-	if err != nil {
-		return "", err
-	}
-	if _, err := fw.Write(videoData); err != nil {
-		return "", err
-	}
-	if err := w.Close(); err != nil {
-		return "", err
-	}
-
-	uploadReq, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, &buf)
-	if err != nil {
-		return "", err
-	}
-	uploadReq.Header.Set("Content-Type", w.FormDataContentType())
-
-	uploadResp, err := s.videoHTTP.Do(uploadReq)
-	if err != nil {
-		return "", fmt.Errorf("upload video to vk: %w", err)
-	}
-	defer uploadResp.Body.Close()
-	uploadBody, _ := io.ReadAll(uploadResp.Body)
-
-	if uploadResp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("vk doc upload server returned HTTP %d: %s", uploadResp.StatusCode, abbreviateBody(uploadBody))
-	}
-
-	var uploadResult struct {
-		File string `json:"file"`
-	}
-	if err := json.Unmarshal(uploadBody, &uploadResult); err != nil {
-		return "", fmt.Errorf("parse doc upload response: %w (body: %s)", err, abbreviateBody(uploadBody))
-	}
-	if uploadResult.File == "" {
-		return "", fmt.Errorf("vk doc upload server returned empty file: %s", abbreviateBody(uploadBody))
-	}
-
-	return s.vk.SaveDoc(ctx, uploadResult.File, "Нейровидео")
 }
 
 func (s *Sender) sendContentScreen(ctx context.Context, vkID int64, key string, data map[string]any, kbOpts flows.KeyboardRenderOptions, imageOverride *string) error {

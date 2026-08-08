@@ -239,7 +239,9 @@ var screenDefinitions = map[string]ScreenDefinition{
 	// ─── Видео ───────────────────────────────────────────────────────────────
 	"video_generating_wait": screen("video_generating_wait", "🎬 Делаю видео «{{.PromptName}}»\n\nЭто дольше фото: сначала собираю кадр, потом оживляю его. Обычно занимает 3–5 минут — я пришлю результат сам, ждать в чате не нужно.\n\nСписано генераций: {{.CostGens}}"),
 	"video_scene_ready":     screen("video_scene_ready", "📸 Кадр собран, запускаю анимацию.\n\nОсталось пара минут."),
-	"after_gen_video": screen("after_gen_video", "🎬 Готово! Твоё видео на {{.Duration}} секунд:",
+	// На картинке — кадр, с которого начиналась анимация: ВК не умеет показывать
+	// видео от имени сообщества, поэтому сам ролик открывается кнопкой.
+	"after_gen_video": screen("after_gen_video", "🎬 Готово! Видео на {{.Duration}} секунд.\n\nНа картинке — кадр из него, сам ролик открывается по кнопке:",
 		openLink("download_video", "download_video", "⬇️ Скачать видео", 0, 0),
 		callback("trends", "trends", "🔥 Ещё тренды", "primary", 1, 0),
 		callback("main_menu", "main_menu", "🏠 Главное меню", "secondary", 2, 0),
