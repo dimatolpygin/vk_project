@@ -112,7 +112,9 @@ func HandleSelectPrompt(ctx context.Context, fc *Context, d *Deps) {
 		PromptPage:   fc.State.PromptPage,
 	}, fc.State))
 
-	if fc.User.UseSavedPhoto && len(fc.User.SavedPhotoURLs) > 0 {
+	// «Запомнить фото» хранит фото самого пользователя, а детскому разделу нужно
+	// фото ребёнка — там всегда просим новое.
+	if fc.User.UseSavedPhoto && len(fc.User.SavedPhotoURLs) > 0 && fc.State.Section != repository.SectionKids {
 		if !fc.User.HasGens() {
 			_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
 			return

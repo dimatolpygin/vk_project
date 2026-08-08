@@ -191,6 +191,13 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 		Order:       42,
 		Keywords:    []string{"пара", "семья", "категории", "совместное фото"},
 	},
+	"kids_intro": {
+		SectionID:   "generation",
+		Title:       "Детские фото: вход в раздел",
+		Description: "Экран раздела «Детские фото»: картинка, текст и кнопки подразделов. Сами подразделы редактируются в «Категории и промты».",
+		Order:       43,
+		Keywords:    []string{"дети", "ребёнок", "мальчик", "девочка"},
+	},
 	"generating_wait": {
 		SectionID:   "generation",
 		Title:       "Ожидание генерации",

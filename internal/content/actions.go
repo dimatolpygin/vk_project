@@ -146,6 +146,18 @@ var actionAdminMeta = map[string]ActionAdminMeta{
 		Description: "Запуск сценария для парных или семейных фото.",
 		Order:       180,
 	},
+	"kids": {
+		SectionID:   "generation",
+		Title:       "Детские фото",
+		Description: "Вход в детский раздел: выбор «Мальчик» или «Девочка», дальше промты узла.",
+		Order:       182,
+	},
+	"kids_page": {
+		SectionID:   "generation",
+		Title:       "Листалка детских подразделов",
+		Description: "Переключение страниц верхнего уровня детского раздела.",
+		Order:       183,
+	},
 	"couple_page": {
 		SectionID:   "generation",
 		Title:       "Листалка парных категорий",

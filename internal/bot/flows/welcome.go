@@ -20,7 +20,7 @@ func HandleBack(ctx context.Context, fc *Context, d *Deps) {
 		return
 	}
 
-	if fc.State.Step == StepReadyPromptsCategories || fc.State.Step == StepCoupleCategories {
+	if IsSectionStep(fc.State.Step) {
 		if fc.User.Status == "paid" || fc.User.HasGens() {
 			HandleMainMenu(ctx, fc, d)
 		} else {

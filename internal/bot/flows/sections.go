@@ -54,6 +54,38 @@ var sectionSpecs = map[string]sectionSpec{
 		promptsStep:    StepCouplePrompts,
 		genderOverride: repository.GenderCouple,
 	},
+	repository.SectionKids: {
+		section:     repository.SectionKids,
+		promptType:  "kids",
+		rootScreen:  "kids_intro",
+		rootPager:   "kids_page",
+		nodesStep:   StepKidsCategories,
+		promptsStep: StepKidsPrompts,
+		// Пол берётся с узла («Мальчик»/«Девочка»), а не с пользователя, и
+		// requireContent = false: раздел включается пустым и показывает «Скоро».
+	},
+}
+
+// specByStep — обратный индекс: по шагу состояния находим раздел. Без него
+// каждый новый раздел означал бы правку switch'ей в «Назад» и в реестре.
+var specByStep = func() map[string]sectionSpec {
+	byStep := make(map[string]sectionSpec, len(sectionSpecs)*2)
+	for _, spec := range sectionSpecs {
+		byStep[spec.nodesStep] = spec
+		byStep[spec.promptsStep] = spec
+	}
+	return byStep
+}()
+
+// IsSectionStep отвечает, находится ли пользователь внутри дерева разделов.
+func IsSectionStep(step string) bool {
+	_, ok := specByStep[step]
+	return ok
+}
+
+func isPromptsStep(step string) bool {
+	spec, ok := specByStep[step]
+	return ok && spec.promptsStep == step
 }
 
 func specForSection(section string) sectionSpec {
@@ -170,22 +202,22 @@ func showSectionRoots(ctx context.Context, fc *Context, d *Deps, spec sectionSpe
 // Правило одно: с промтов — к родителю категории, с подменю — на уровень выше,
 // с корня раздела — наружу, в главное меню.
 func sectionBack(ctx context.Context, fc *Context, d *Deps) bool {
-	switch fc.State.Step {
-	case StepReadyPromptsPrompts, StepCouplePrompts:
+	if fc.State == nil || !IsSectionStep(fc.State.Step) {
+		return false
+	}
+	if isPromptsStep(fc.State.Step) {
 		if err := showParentOfCategory(ctx, fc, d, fc.State.CategoryID); err != nil {
 			log.Error().Err(err).Int64("vk_id", fc.VkID).Int("category_id", fc.State.CategoryID).Msg("ошибка возврата на уровень выше")
 		}
 		return true
-	case StepReadyPromptsCategories, StepCoupleCategories:
-		if fc.State.SectionID == 0 {
-			return false // корень раздела — выходим в главное меню
-		}
-		if err := showParentOfCategory(ctx, fc, d, fc.State.SectionID); err != nil {
-			log.Error().Err(err).Int64("vk_id", fc.VkID).Int("category_id", fc.State.SectionID).Msg("ошибка возврата из подменю")
-		}
-		return true
 	}
-	return false
+	if fc.State.SectionID == 0 {
+		return false // корень раздела — выходим в главное меню
+	}
+	if err := showParentOfCategory(ctx, fc, d, fc.State.SectionID); err != nil {
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Int("category_id", fc.State.SectionID).Msg("ошибка возврата из подменю")
+	}
+	return true
 }
 
 // showParentOfCategory открывает уровень, с которого пользователь пришёл в узел.
@@ -216,7 +248,10 @@ func specForState(fc *Context) sectionSpec {
 	if fc.State.Section != "" {
 		return specForSection(fc.State.Section)
 	}
-	if fc.State.PromptType == "couple" || fc.State.Step == StepCoupleCategories || fc.State.Step == StepCouplePrompts {
+	if spec, ok := specByStep[fc.State.Step]; ok {
+		return spec
+	}
+	if fc.State.PromptType == "couple" {
 		return specForSection(repository.SectionCouple)
 	}
 	return specForSection(repository.SectionSelf)
@@ -267,4 +302,47 @@ func userGender(fc *Context) string {
 		return repository.GenderAny
 	}
 	return fc.User.Gender
+}
+
+// ─── Детские фото ────────────────────────────────────────────────────────────
+
+// HandleKidsMenu — вход в раздел из главного меню. Пол здесь задают кнопки
+// «Мальчик»/«Девочка», поэтому пол пользователя, в отличие от «Фото для себя»,
+// не спрашиваем.
+func HandleKidsMenu(ctx context.Context, fc *Context, d *Deps) {
+	if !fc.User.HasGens() {
+		_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
+		return
+	}
+	if err := showSectionRoots(ctx, fc, d, specForSection(repository.SectionKids), 1); err != nil {
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("ошибка показа детского раздела")
+	}
+}
+
+func HandleKidsPage(ctx context.Context, fc *Context, d *Deps) {
+	page := normalizePage(fc.Callback.Page)
+	if err := showSectionRoots(ctx, fc, d, specForSection(repository.SectionKids), page); err != nil {
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Int("page", page).Msg("ошибка листалки детского раздела")
+	}
+}
+
+// HandleSectionBrowse — повторная отправка текущего уровня, когда пользователь
+// пишет текстом вместо нажатия кнопки. Общая для всех разделов дерева.
+func HandleSectionBrowse(ctx context.Context, fc *Context, d *Deps) {
+	spec := specForState(fc)
+	if isPromptsStep(fc.State.Step) && fc.State.CategoryID != 0 {
+		if err := showPromptPage(ctx, fc, d, fc.State.CategoryID, normalizePage(fc.State.CategoryPage), normalizePage(fc.State.PromptPage)); err != nil {
+			log.Error().Err(err).Int64("vk_id", fc.VkID).Int("category_id", fc.State.CategoryID).Msg("ошибка повторной отправки шаблонов раздела")
+		}
+		return
+	}
+	if fc.State.SectionID != 0 {
+		if err := openCategoryNode(ctx, fc, d, fc.State.SectionID, normalizePage(fc.State.CategoryPage)); err != nil {
+			log.Error().Err(err).Int64("vk_id", fc.VkID).Int("category_id", fc.State.SectionID).Msg("ошибка повторной отправки подменю раздела")
+		}
+		return
+	}
+	if err := showSectionRoots(ctx, fc, d, spec, normalizePage(fc.State.CategoryPage)); err != nil {
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("ошибка повторной отправки корня раздела")
+	}
 }

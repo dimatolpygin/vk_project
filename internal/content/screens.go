@@ -74,11 +74,17 @@ var screenDefinitions = map[string]ScreenDefinition{
 		callback("gender_female", "gender_female", "👩 Женский", "primary", 0, 1),
 	),
 	"generating_wait": screen("generating_wait", "⏳ Генерирую твоё фото...\n\nОбычно это занимает 1–2 минуты. Пожалуйста, подожди!"),
+	"kids_intro": screen("kids_intro", "👶 Детские фото\n\nСказочные и праздничные образы для ребёнка.\n\nВыбери, для кого делаем фотосессию:",
+		callback("back", "back", "🏠 В меню", "secondary", 100, 0),
+	),
 	"main_menu": screen("main_menu", "🎨 Главное меню\n\nВыбери что хочешь сделать:",
 		callback("ready_prompts", "ready_prompts", "🖼 Готовые промты", "primary", 0, 0),
 		callback("custom_prompt", "custom_prompt", "✍️ Свой промт", "primary", 1, 0),
 		callback("edit_photo", "edit_photo", "✏️ Изменить фото", "primary", 2, 0),
 		callback("couple", "couple", "👫 Парное фото", "primary", 3, 0),
+		// Строка 50 — отдельный ряд даже на экранах, где в БД уже лежат строки
+		// старых кнопок; positive выделяет новый раздел среди primary.
+		callback("kids", "kids", "👶 Детские фото", "positive", 50, 0),
 	),
 	"no_gens_left": screen("no_gens_left", "😔 У тебя закончились генерации.\n\nПополни баланс для продолжения!",
 		callback("tariffs", "tariffs", "💳 Выбрать тариф", "primary", 0, 0),

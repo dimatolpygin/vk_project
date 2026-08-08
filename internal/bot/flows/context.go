@@ -32,6 +32,8 @@ const (
 	StepCoupleAwaitingPhoto    = "couple_awaiting_photo"
 	StepCoupleCategories       = "couple_categories"
 	StepCouplePrompts          = "couple_prompts"
+	StepKidsCategories         = "kids_categories"
+	StepKidsPrompts            = "kids_prompts"
 )
 
 type User struct {

@@ -70,6 +70,7 @@ type fakeCategoryRepo struct {
 	readyByGender  map[string][]*repository.Category
 	activeByGender map[string][]*repository.Category
 	couple         []*repository.Category
+	kids           []*repository.Category
 	children       map[int][]*repository.Category
 }
 
@@ -111,8 +112,11 @@ func (f *fakeCategoryRepo) ListActiveCouple(context.Context) ([]*repository.Cate
 }
 
 func (f *fakeCategoryRepo) ListRoots(_ context.Context, section string, filter repository.CategoryFilter) ([]*repository.Category, error) {
-	if section == repository.SectionCouple {
+	switch section {
+	case repository.SectionCouple:
 		return f.coupleRoots(), nil
+	case repository.SectionKids:
+		return stampSection(f.kids, repository.SectionKids, nil), nil
 	}
 	return f.selfRoots(filter.Gender), nil
 }
@@ -151,6 +155,7 @@ func (f *fakeCategoryRepo) allCategories() []*repository.Category {
 		all = append(all, stampSection(f.activeByGender[gender], repository.SectionSelf, nil)...)
 	}
 	all = append(all, f.coupleRoots()...)
+	all = append(all, stampSection(f.kids, repository.SectionKids, nil)...)
 	for _, children := range f.children {
 		all = append(all, children...)
 	}

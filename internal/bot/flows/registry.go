@@ -26,6 +26,8 @@ func (r *Registry) HandleMessage(ctx context.Context, fc *Context) {
 		HandleCoupleAwaitingPhoto(ctx, fc, r.d)
 	case StepCoupleCategories, StepCouplePrompts:
 		HandleCoupleBrowse(ctx, fc, r.d)
+	case StepKidsCategories, StepKidsPrompts:
+		HandleSectionBrowse(ctx, fc, r.d)
 	case StepAwaitingPhoto:
 		HandleAwaitingPhoto(ctx, fc, r.d)
 	case StepAwaitingSavedPhoto:
@@ -95,6 +97,10 @@ func (r *Registry) HandleCallback(ctx context.Context, fc *Context) {
 		HandleEditResultStart(ctx, fc, r.d)
 	case "couple":
 		HandleCoupleStart(ctx, fc, r.d)
+	case "kids":
+		HandleKidsMenu(ctx, fc, r.d)
+	case "kids_page":
+		HandleKidsPage(ctx, fc, r.d)
 	case "couple_page":
 		HandleCouplePage(ctx, fc, r.d)
 	case "saved_photo":
