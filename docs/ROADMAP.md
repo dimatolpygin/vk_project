@@ -391,7 +391,9 @@
   `timeout` обрабатываются наравне.
 - Миграция `migrations/00034_video_generation.sql`:
   - `prompts.media_kind`, `prompts.video_prompt`, `prompts.price_gens INT`
-    (индивидуальная цена, п. 8.3 ТЗ)
+    (индивидуальная цена, п. 8.3 ТЗ) — `price_gens` позже удалена миграцией
+    `00038`: цена видео переехала в тариф с галочкой `is_video_pack`, чтобы
+    число жило в одном месте, а не в карточке промта и в тарифе разом
   - `generations.type` расширяется значением `video`, добавляются
     `output_video_url`, `cost_gens`, `charged_paid_gens`, `charged_free_gens`
   - видеотариф (п. 8.2 ТЗ) и включение трёх видео-узлов дерева из этапа 9

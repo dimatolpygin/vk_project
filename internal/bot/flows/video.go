@@ -19,6 +19,23 @@ const videoQueueName = "video"
 // пяти минут плюс видео до пятнадцати.
 const videoTaskTimeout = 25 * time.Minute
 
+// videoCostGens — цена одного видео в генерациях. Единственный источник —
+// тариф, помеченный в админке как видеопакет. Ошибку базы не превращаем в
+// отказ пользователю: берём запасное значение и пишем в лог.
+func videoCostGens(ctx context.Context, d *Deps) int {
+	if d.TariffRepo == nil {
+		return repository.DefaultVideoCostGens
+	}
+	cost, err := d.TariffRepo.VideoCostGens(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("не удалось прочитать цену видео из тарифов")
+	}
+	if cost < 1 {
+		return repository.DefaultVideoCostGens
+	}
+	return cost
+}
+
 // hasGensFor — хватает ли пользователю баланса на промт такой цены.
 // Балансы складываются: списание умеет разложиться по обоим.
 func hasGensFor(u *User, cost int) bool {
@@ -46,7 +63,7 @@ func notEnoughGensData(u *User, cost int) map[string]any {
 // handleVideoPromptSelected — выбран видео-тренд. Отличий от фото два: цена
 // проверяется до запроса фото, и генерация уходит в свою задачу.
 func handleVideoPromptSelected(ctx context.Context, fc *Context, d *Deps, prompt *repository.Prompt, promptType string) {
-	cost := prompt.Cost()
+	cost := videoCostGens(ctx, d)
 	if !hasGensFor(fc.User, cost) {
 		_ = sendScreen(ctx, d, fc.VkID, "no_gens_for_video", ScreenOptions{Data: notEnoughGensData(fc.User, cost)})
 		return
@@ -74,7 +91,7 @@ func handleVideoPromptSelected(ctx context.Context, fc *Context, d *Deps, prompt
 
 // startVideoGeneration списывает цену промта и ставит задачу в очередь.
 func startVideoGeneration(ctx context.Context, fc *Context, d *Deps, photoURLs []string, prompt *repository.Prompt) {
-	cost := prompt.Cost()
+	cost := videoCostGens(ctx, d)
 	model := currentModel(fc, d)
 
 	inputPhotoURL := firstGenerationInputPhotoURL(photoURLs)

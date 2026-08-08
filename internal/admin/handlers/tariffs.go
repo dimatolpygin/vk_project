@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog/log"
@@ -19,6 +20,11 @@ type tariffsPageData struct {
 	Summary      tariffSummaryView
 	Tariffs      []tariffItemView
 	VisibleCount int
+	// VideoCost — сколько генераций списывается за одно видео. Это объём
+	// тарифа-видеопакета: страница тарифов и есть источник этой цены.
+	VideoCost     int
+	HasVideoPack  bool
+	VideoCostHint string
 }
 
 type tariffSummaryView struct {
@@ -39,9 +45,34 @@ type tariffItemView struct {
 	GensCount      int
 	SortOrder      int
 	IsActive       bool
+	IsVideoPack    bool
 	StatusLabel    string
 	StatusClass    string
 	StatusHint     string
+}
+
+// tariffRequest — тело запроса на создание и правку тарифа. is_video_pack
+// помечает пакет ровно на одно видео: его gens_count и есть цена видео-генерации.
+type tariffRequest struct {
+	Name        string  `json:"name"`
+	Desc        string  `json:"description"`
+	Price       float64 `json:"price"`
+	GensCount   int     `json:"gens_count"`
+	SortOrder   int     `json:"sort_order"`
+	IsActive    bool    `json:"is_active"`
+	IsVideoPack bool    `json:"is_video_pack"`
+}
+
+func (req tariffRequest) toInput() repository.TariffInput {
+	return repository.TariffInput{
+		Name:        strings.TrimSpace(req.Name),
+		Description: strings.TrimSpace(req.Desc),
+		Price:       req.Price,
+		GensCount:   req.GensCount,
+		SortOrder:   req.SortOrder,
+		IsActive:    req.IsActive,
+		IsVideoPack: req.IsVideoPack,
+	}
 }
 
 type TariffsHandler struct {
@@ -70,19 +101,13 @@ func (h *TariffsHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TariffsHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name      string  `json:"name"`
-		Desc      string  `json:"description"`
-		Price     float64 `json:"price"`
-		GensCount int     `json:"gens_count"`
-		SortOrder int     `json:"sort_order"`
-	}
+	var req tariffRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
-	t, err := h.tariffs.Create(r.Context(), req.Name, req.Desc, req.Price, req.GensCount, req.SortOrder)
+	t, err := h.tariffs.Create(r.Context(), req.toInput())
 	if err != nil {
 		log.Error().Err(err).Msg("ошибка создания тарифа")
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -100,20 +125,13 @@ func (h *TariffsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Name      string  `json:"name"`
-		Desc      string  `json:"description"`
-		Price     float64 `json:"price"`
-		GensCount int     `json:"gens_count"`
-		SortOrder int     `json:"sort_order"`
-		IsActive  bool    `json:"is_active"`
-	}
+	var req tariffRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.tariffs.Update(r.Context(), id, req.Name, req.Desc, req.Price, req.GensCount, req.SortOrder, req.IsActive); err != nil {
+	if err := h.tariffs.Update(r.Context(), id, req.toInput()); err != nil {
 		log.Error().Err(err).Msg("ошибка обновления тарифа")
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -145,14 +163,33 @@ func buildTariffsPageData(tariffs []*repository.Tariff, base string) tariffsPage
 		tariffs = []*repository.Tariff{}
 	}
 
+	cost, hasPack, hint := buildVideoCostView(tariffs)
+
 	return tariffsPageData{
-		Title:        "Тарифы",
-		Active:       "tariffs",
-		AdminBase:    base,
-		Summary:      buildTariffSummaryView(tariffs),
-		Tariffs:      buildTariffItemViews(tariffs),
-		VisibleCount: len(tariffs),
+		Title:         "Тарифы",
+		Active:        "tariffs",
+		AdminBase:     base,
+		Summary:       buildTariffSummaryView(tariffs),
+		Tariffs:       buildTariffItemViews(tariffs),
+		VisibleCount:  len(tariffs),
+		VideoCost:     cost,
+		HasVideoPack:  hasPack,
+		VideoCostHint: hint,
 	}
+}
+
+// buildVideoCostView — сколько списывается за видео и откуда взято это число.
+// Пакета нет — честно говорим, что работает запасное значение из кода, иначе
+// админ увидит цифру и решит, что она где-то настроена.
+func buildVideoCostView(tariffs []*repository.Tariff) (cost int, hasPack bool, hint string) {
+	for _, tariff := range tariffs {
+		if tariff != nil && tariff.IsVideoPack {
+			return tariff.GensCount, true, "Списывается за одно видео. Меняется объёмом пакета «" + tariff.Name + "»."
+		}
+	}
+	return repository.DefaultVideoCostGens, false,
+		"Ни один тариф не отмечен как пакет на 1 видео — работает запасное значение из кода. " +
+			"Отметьте видеопакет, чтобы управлять ценой отсюда."
 }
 
 func buildTariffSummaryView(tariffs []*repository.Tariff) tariffSummaryView {
@@ -213,6 +250,7 @@ func buildTariffItemViews(tariffs []*repository.Tariff) []tariffItemView {
 			GensCount:      tariff.GensCount,
 			SortOrder:      tariff.SortOrder,
 			IsActive:       tariff.IsActive,
+			IsVideoPack:    tariff.IsVideoPack,
 			StatusLabel:    statusLabel,
 			StatusClass:    statusClass,
 			StatusHint:     statusHint,

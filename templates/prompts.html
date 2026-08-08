@@ -904,9 +904,11 @@
                     <div class="text-muted small mt-1">Что происходит в кадре: движение модели, движение камеры, настроение.</div>
                 </div>
                 <div class="mb-3" id="promptPriceWrap">
-                    <label class="form-label" for="promptPrice">Стоимость в генерациях</label>
-                    <input type="number" class="form-control" id="promptPrice" min="1" value="1">
-                    <div class="text-muted small mt-1">Сколько генераций списывается с баланса за этот промт. У фото обычно 1, у видео — десятки.</div>
+                    <div class="text-muted small">
+                        Списание за видео задаётся один раз в разделе
+                        <a href="{{.AdminBase}}/tariffs">Тарифы</a> — объёмом пакета на 1 видео.
+                        Здесь цены нет специально: два места для одного числа расходятся.
+                    </div>
                 </div>
                 <div class="row g-3">
                     <div class="col-md-6" id="promptGenderWrap">
@@ -1026,8 +1028,7 @@ function normalizePrompt(prompt) {
         sort_order: Number(prompt.sort_order ?? 0),
         is_active: prompt.is_active !== false,
         media_kind: prompt.media_kind === 'video' ? 'video' : 'photo',
-        video_prompt: prompt.video_prompt ?? '',
-        price_gens: Number(prompt.price_gens ?? 1) || 1
+        video_prompt: prompt.video_prompt ?? ''
     };
 }
 
@@ -1353,7 +1354,7 @@ function renderPromptCard(prompt) {
                 <div class="prompt-card__meta">
                     <span class="library-chip ${meta.chipClass}">${escapeHtml(meta.label)}</span>
                     ${prompt.media_kind === 'video'
-                        ? `<span class="library-chip">🎬 Видео · ${prompt.price_gens} ген.</span>`
+                        ? `<span class="library-chip">🎬 Видео</span>`
                         : ''}
                 </div>
                 <h3 class="prompt-card__title">${escapeHtml(prompt.name)}</h3>
@@ -1576,7 +1577,6 @@ function openPromptModal(prompt = null) {
     document.getElementById('promptText').value = isEdit ? prompt.prompt : '';
     document.getElementById('promptMediaKind').value = isEdit ? prompt.media_kind : 'photo';
     document.getElementById('promptVideoText').value = isEdit ? prompt.video_prompt : '';
-    document.getElementById('promptPrice').value = isEdit ? String(prompt.price_gens) : '1';
     syncPromptMediaKind();
     document.getElementById('promptGender').value = isEdit ? prompt.gender : 'any';
     document.getElementById('promptSort').value = isEdit ? String(prompt.sort_order) : '0';
@@ -1670,7 +1670,7 @@ async function deleteCategory(id) {
 }
 
 // syncPromptMediaKind прячет видео-поля у фото-промтов: у фото нет ни второго
-// промта, ни цены больше одной генерации.
+// промта, ни разговора о цене — оно всегда стоит одну генерацию.
 function syncPromptMediaKind() {
     const isVideo = document.getElementById('promptMediaKind').value === 'video';
     document.getElementById('promptVideoWrap').style.display = isVideo ? '' : 'none';
@@ -1691,9 +1691,6 @@ async function savePrompt() {
     const sortOrder = parseInt(document.getElementById('promptSort').value, 10) || 0;
     const mediaKind = document.getElementById('promptMediaKind').value;
     const videoPrompt = document.getElementById('promptVideoText').value.trim();
-    const priceGens = mediaKind === 'video'
-        ? Math.max(1, parseInt(document.getElementById('promptPrice').value, 10) || 1)
-        : 1;
 
     if (!name || !promptText) {
         alert('Заполните название и текст промта.');
@@ -1715,8 +1712,7 @@ async function savePrompt() {
         sort_order: sortOrder,
         is_active: existingPrompt ? existingPrompt.is_active : true,
         media_kind: mediaKind,
-        video_prompt: videoPrompt,
-        price_gens: priceGens
+        video_prompt: videoPrompt
     };
 
     togglePending(saveButton, true, id ? 'Сохраняем...' : 'Создаём...');

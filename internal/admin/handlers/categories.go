@@ -63,8 +63,8 @@ func (req categoryRequest) toInput() repository.CategoryInput {
 }
 
 // promptRequest — тело запроса на создание и правку карточки промта.
-// media_kind = video включает вторую модель в цепочке, video_prompt уходит ей,
-// price_gens — цена промта в генерациях (п. 8.3 ТЗ).
+// media_kind = video включает вторую модель в цепочке, video_prompt уходит ей.
+// Цены здесь нет: за видео списывается объём тарифа-видеопакета.
 type promptRequest struct {
 	CategoryID  int    `json:"category_id"`
 	Name        string `json:"name"`
@@ -74,7 +74,6 @@ type promptRequest struct {
 	IsActive    bool   `json:"is_active"`
 	MediaKind   string `json:"media_kind"`
 	VideoPrompt string `json:"video_prompt"`
-	PriceGens   int    `json:"price_gens"`
 }
 
 func (req promptRequest) toInput() repository.PromptInput {
@@ -87,7 +86,6 @@ func (req promptRequest) toInput() repository.PromptInput {
 		IsActive:    req.IsActive,
 		MediaKind:   req.MediaKind,
 		VideoPrompt: strings.TrimSpace(req.VideoPrompt),
-		PriceGens:   req.PriceGens,
 	}
 }
 

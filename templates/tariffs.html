@@ -517,6 +517,11 @@
             <div class="tariffs-summary-card__value">{{.Summary.StartingPrice}}</div>
             <div class="tariffs-summary-card__hint">{{.Summary.StartingPriceHint}}</div>
         </article>
+        <article class="tariffs-summary-card">
+            <div class="tariffs-summary-card__label">Цена одного видео</div>
+            <div class="tariffs-summary-card__value">{{.VideoCost}} ген.{{if not .HasVideoPack}} ⚠️{{end}}</div>
+            <div class="tariffs-summary-card__hint">{{.VideoCostHint}}</div>
+        </article>
     </section>
 
     <section class="tariffs-panel">
@@ -555,6 +560,7 @@
                             <span class="tariff-badge">ID #{{.ID}}</span>
                             <span class="tariff-badge">Порядок {{.SortOrder}}</span>
                             <span class="tariff-badge tariff-badge--{{.StatusClass}}">{{.StatusLabel}}</span>
+                            {{if .IsVideoPack}}<span class="tariff-badge">🎬 Пакет на 1 видео · списание {{.GensCount}} ген.</span>{{end}}
                         </div>
                     </div>
                 </div>
@@ -589,7 +595,8 @@
                         data-price="{{.PriceInput}}"
                         data-gens="{{.GensCount}}"
                         data-sort="{{.SortOrder}}"
-                        data-active="{{if .IsActive}}true{{else}}false{{end}}">
+                        data-active="{{if .IsActive}}true{{else}}false{{end}}"
+                        data-video-pack="{{if .IsVideoPack}}true{{else}}false{{end}}">
                         <i class="bi bi-pencil-square me-2"></i>Редактировать
                     </button>
                     <button type="button" class="btn btn-outline-danger btn-sm" data-action="delete" data-id="{{.ID}}">
@@ -664,6 +671,16 @@
                         Неактивные тарифы остаются в админке, но не должны показываться пользователям в оплате.
                     </div>
                 </div>
+                <div class="tariff-modal__switch mt-3">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="tariffVideoPack">
+                        <label class="form-check-label fw-semibold" for="tariffVideoPack">Пакет ровно на 1 видео</label>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        Сколько генераций в этом пакете, столько и списывается за одно видео.
+                        Отметка может стоять только у одного тарифа — при переносе снимется с прежнего.
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
@@ -729,6 +746,7 @@ function openEditTariffModal(button) {
     document.getElementById('tariffGens').value = button.dataset.gens ?? '';
     document.getElementById('tariffSort').value = button.dataset.sort ?? '0';
     document.getElementById('tariffActive').checked = parseBoolean(button.dataset.active);
+    document.getElementById('tariffVideoPack').checked = parseBoolean(button.dataset.videoPack);
 
     tariffModal.show();
 }
@@ -741,6 +759,7 @@ function resetTariffForm() {
     document.getElementById('tariffGens').value = '';
     document.getElementById('tariffSort').value = '0';
     document.getElementById('tariffActive').checked = true;
+    document.getElementById('tariffVideoPack').checked = false;
 }
 
 function parseBoolean(value) {
@@ -759,6 +778,7 @@ async function saveTariff() {
         gens_count: parseInt(document.getElementById('tariffGens').value, 10),
         sort_order: parseInt(document.getElementById('tariffSort').value, 10),
         is_active: document.getElementById('tariffActive').checked,
+        is_video_pack: document.getElementById('tariffVideoPack').checked,
     };
 
     const url = id ? `{{.AdminBase}}/tariffs/${id}` : '{{.AdminBase}}/tariffs';

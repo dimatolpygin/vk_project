@@ -50,15 +50,9 @@ func TestSplitChargeSpendsPaidBalanceFirst(t *testing.T) {
 	}
 }
 
-func TestPromptCostDefaultsToOneGeneration(t *testing.T) {
-	// Промты, заведённые до этапа 10, приезжают без цены — такие стоят одну
-	// генерацию, а не ноль и не бесплатно.
-	if got := (&Prompt{}).Cost(); got != 1 {
-		t.Fatalf("промт без цены стоит %d генераций, ожидалась 1", got)
-	}
-	if got := (&Prompt{PriceGens: 40}).Cost(); got != 40 {
-		t.Fatalf("цена промта потерялась: %d вместо 40", got)
-	}
+func TestVideoPromptIsRecognisedByMediaKind(t *testing.T) {
+	// Цены у промта нет: её источник — тариф-видеопакет. От карточки требуется
+	// только честно сказать, видео это или фото.
 	if (&Prompt{MediaKind: MediaKindPhoto}).IsVideo() {
 		t.Fatal("фото-промт опознан как видео")
 	}

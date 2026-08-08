@@ -190,6 +190,8 @@ type PromptReader interface {
 type TariffReader interface {
 	ListActive(ctx context.Context) ([]*repository.Tariff, error)
 	GetByID(ctx context.Context, id int) (*repository.Tariff, error)
+	// VideoCostGens — цена видео в генерациях, она же объём видеопакета.
+	VideoCostGens(ctx context.Context) (int, error)
 }
 
 type UserStore interface {

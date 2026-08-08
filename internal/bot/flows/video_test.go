@@ -2,13 +2,14 @@ package flows
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"vk_neuro_bot/internal/repository"
 )
 
-// videoPrompt — тренд из «Видео трендов» после этапа 10: два промта в одной
-// карточке и цена в генерациях.
+// videoPrompt — тренд из «Видео трендов»: два промта в одной карточке.
+// Цены здесь нет — она приходит из тарифа-видеопакета.
 func videoPrompt() *repository.Prompt {
 	return &repository.Prompt{
 		ID:          501,
@@ -17,16 +18,31 @@ func videoPrompt() *repository.Prompt {
 		Prompt:      "cinematic portrait by the window, golden hour",
 		VideoPrompt: "slow camera push in, model turns to the camera",
 		MediaKind:   repository.MediaKindVideo,
-		PriceGens:   40,
 	}
+}
+
+// fakeTariffRepo отдаёт цену видео так же, как боевой репозиторий, — объёмом
+// пакета, помеченного в админке.
+type fakeTariffRepo struct {
+	videoCost int
+	err       error
+}
+
+func (f *fakeTariffRepo) ListActive(context.Context) ([]*repository.Tariff, error) { return nil, nil }
+
+func (f *fakeTariffRepo) GetByID(context.Context, int) (*repository.Tariff, error) { return nil, nil }
+
+func (f *fakeTariffRepo) VideoCostGens(context.Context) (int, error) {
+	return f.videoCost, f.err
 }
 
 func videoDeps(sender *fakeSender, stateMgr *fakeStateMgr) *Deps {
 	prompt := videoPrompt()
 	return &Deps{
-		Sender:  sender,
-		State:   stateMgr,
-		CatRepo: trendsRepo(),
+		Sender:     sender,
+		State:      stateMgr,
+		CatRepo:    trendsRepo(),
+		TariffRepo: &fakeTariffRepo{videoCost: 40},
 		PromptRepo: &fakePromptRepo{
 			byID: map[int]*repository.Prompt{prompt.ID: prompt},
 			byCategoryGender: map[string][]*repository.Prompt{
@@ -108,6 +124,49 @@ func TestVideoPromptAsksForPhotoWhenBalanceIsEnough(t *testing.T) {
 	// Раздел не теряется, иначе «Назад» уводит из трендов в главное меню.
 	if st.Section != repository.SectionTrends || st.CategoryID != 81 {
 		t.Fatalf("раздел потерян: section=%q category=%d", st.Section, st.CategoryID)
+	}
+}
+
+func TestVideoCostComesFromTariffNotPrompt(t *testing.T) {
+	// Смысл всей развязки: цену меняют в тарифах, и бот сразу считает по ней.
+	// Карточка промта на списание влиять не должна вовсе.
+	sender := &fakeSender{}
+	stateMgr := newFakeStateMgr()
+	deps := videoDeps(sender, stateMgr)
+	deps.TariffRepo = &fakeTariffRepo{videoCost: 25}
+	fc := &Context{
+		VkID:     504,
+		User:     &User{Gender: "female", PaidGens: 20},
+		State:    &State{Step: StepTrendsPrompts, Section: repository.SectionTrends, PromptType: "trends", CategoryID: 81},
+		Callback: &CallbackData{PromptID: 501},
+	}
+
+	HandleSelectPrompt(context.Background(), fc, deps)
+
+	last := sender.screens[len(sender.screens)-1]
+	if last.Key != "no_gens_for_video" {
+		t.Fatalf("ожидался отказ по балансу, получен экран %q", last.Key)
+	}
+	// Текст экрана рендерится из тех же цифр, что уйдут в списание.
+	if !strings.Contains(last.Text, "стоит 25 генераций") {
+		t.Fatalf("цена взята не из тарифа: %q", last.Text)
+	}
+	if !strings.Contains(last.Text, "Не хватает: 5") {
+		t.Fatalf("нехватка посчитана не по тарифной цене: %q", last.Text)
+	}
+}
+
+func TestVideoCostFallsBackWhenTariffUnavailable(t *testing.T) {
+	// База недоступна или пакет удалили — видео не должно стать бесплатным.
+	ctx := context.Background()
+	if got := videoCostGens(ctx, &Deps{}); got != repository.DefaultVideoCostGens {
+		t.Fatalf("без репозитория тарифов цена %d, ожидалась запасная %d", got, repository.DefaultVideoCostGens)
+	}
+	if got := videoCostGens(ctx, &Deps{TariffRepo: &fakeTariffRepo{videoCost: 0}}); got != repository.DefaultVideoCostGens {
+		t.Fatalf("нулевая цена из тарифа принята как есть: %d", got)
+	}
+	if got := videoCostGens(ctx, &Deps{TariffRepo: &fakeTariffRepo{videoCost: 30}}); got != 30 {
+		t.Fatalf("цена из тарифа потеряна: %d вместо 30", got)
 	}
 }
 

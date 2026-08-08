@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"encoding/json"
 	"html/template"
+	"strings"
 	"testing"
 
 	"vk_neuro_bot/internal/repository"
@@ -71,7 +73,6 @@ func TestPromptRequestNormalisesVideoFields(t *testing.T) {
 		Gender:      "female",
 		MediaKind:   repository.MediaKindVideo,
 		VideoPrompt: "  slow camera push in  ",
-		PriceGens:   40,
 		IsActive:    true,
 	}.toInput()
 
@@ -81,20 +82,63 @@ func TestPromptRequestNormalisesVideoFields(t *testing.T) {
 	if in.VideoPrompt != "slow camera push in" {
 		t.Fatalf("видео-промт не обрезан: %q", in.VideoPrompt)
 	}
-	if in.MediaKind != repository.MediaKindVideo || in.PriceGens != 40 {
-		t.Fatalf("поля видео потеряны: kind=%q price=%d", in.MediaKind, in.PriceGens)
+	if in.MediaKind != repository.MediaKindVideo {
+		t.Fatalf("тип медиа потерян: kind=%q", in.MediaKind)
 	}
 }
 
-func TestPromptRequestKeepsPhotoPromptsAtOneGeneration(t *testing.T) {
-	// Карточка фото-промта цену не показывает вовсе, поэтому в запросе её нет —
-	// нулевая цена не должна означать бесплатную генерацию.
-	in := promptRequest{CategoryID: 80, Name: "Обычный тренд", Prompt: "portrait"}.toInput()
-
-	if in.MediaKind != "" && in.MediaKind != repository.MediaKindPhoto {
-		t.Fatalf("неожиданный тип медиа: %q", in.MediaKind)
+func TestPromptRequestCarriesNoPrice(t *testing.T) {
+	// Цена видео живёт в тарифе-видеопакете. Если она снова появится в карточке
+	// промта, число опять начнёт расходиться между двумя экранами админки.
+	body, err := json.Marshal(promptRequest{CategoryID: 81, Name: "Тренд", MediaKind: repository.MediaKindVideo})
+	if err != nil {
+		t.Fatalf("marshal promptRequest: %v", err)
 	}
-	if in.PriceGens != 0 {
-		t.Fatalf("хендлер не должен додумывать цену, это делает репозиторий: %d", in.PriceGens)
+	if strings.Contains(string(body), "price") {
+		t.Fatalf("в запросе промта снова есть цена: %s", body)
+	}
+}
+
+func TestTariffRequestCarriesVideoPackFlag(t *testing.T) {
+	// Галочка видеопакета — единственный способ задать списание за видео,
+	// поэтому она обязана доезжать до репозитория.
+	in := tariffRequest{
+		Name:        "  1 видео  ",
+		Desc:        "  Хватает на одно видео  ",
+		Price:       690,
+		GensCount:   40,
+		IsActive:    true,
+		IsVideoPack: true,
+	}.toInput()
+
+	if in.Name != "1 видео" || in.Description != "Хватает на одно видео" {
+		t.Fatalf("поля не обрезаны: name=%q desc=%q", in.Name, in.Description)
+	}
+	if !in.IsVideoPack || in.GensCount != 40 {
+		t.Fatalf("видеопакет потерян: flag=%v gens=%d", in.IsVideoPack, in.GensCount)
+	}
+}
+
+func TestVideoCostViewFallsBackWhenNoPackMarked(t *testing.T) {
+	packed := []*repository.Tariff{
+		{Name: "30 фотографий", GensCount: 30},
+		{Name: "1 видео", GensCount: 40, IsVideoPack: true},
+	}
+	cost, has, hint := buildVideoCostView(packed)
+	if cost != 40 || !has {
+		t.Fatalf("цена видео из пакета: %d, флаг %v", cost, has)
+	}
+	if !strings.Contains(hint, "1 видео") {
+		t.Fatalf("подсказка не называет пакет: %q", hint)
+	}
+
+	// Пакет сняли — админка обязана сказать, что цифра взята из кода, иначе
+	// админ будет думать, что она настроена, и не найдёт где.
+	cost, has, hint = buildVideoCostView([]*repository.Tariff{{Name: "30 фотографий", GensCount: 30}})
+	if cost != repository.DefaultVideoCostGens || has {
+		t.Fatalf("запасная цена: %d, флаг %v", cost, has)
+	}
+	if !strings.Contains(hint, "запасное значение") {
+		t.Fatalf("подсказка не предупреждает о запасном значении: %q", hint)
 	}
 }

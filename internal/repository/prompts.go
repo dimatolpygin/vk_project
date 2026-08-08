@@ -21,8 +21,6 @@ type Prompt struct {
 	// VideoPrompt уходит в видео-модель вторым звеном цепочки. Первым звеном
 	// работает Prompt: по нему фото-модель собирает сцену из фото пользователя.
 	VideoPrompt string `json:"video_prompt"`
-	// PriceGens — сколько генераций списывается за этот промт (п. 8.3 ТЗ).
-	PriceGens int `json:"price_gens"`
 }
 
 // IsVideo — видео-промт: генерация пойдёт по цепочке из двух моделей.
@@ -30,17 +28,11 @@ func (p *Prompt) IsVideo() bool {
 	return p != nil && p.MediaKind == MediaKindVideo
 }
 
-// Cost — стоимость промта в генерациях. Ноль в базе означает старую запись,
-// заведённую до этапа 10, — такая стоит одну генерацию.
-func (p *Prompt) Cost() int {
-	if p == nil || p.PriceGens < 1 {
-		return 1
-	}
-	return p.PriceGens
-}
+// Цены у промта нет: видео стоит столько генераций, сколько в тарифе-видеопакете
+// (TariffRepo.VideoCostGens), фото — одну.
 
 const promptColumns = `id, category_id, name, prompt, preview_url, gender, sort_order, is_active,
-	       COALESCE(media_kind, 'photo'), COALESCE(video_prompt, ''), COALESCE(price_gens, 1)`
+	       COALESCE(media_kind, 'photo'), COALESCE(video_prompt, '')`
 
 // PromptInput — поля карточки промта, которые правит админка.
 type PromptInput struct {
@@ -52,7 +44,6 @@ type PromptInput struct {
 	IsActive    bool
 	MediaKind   string
 	VideoPrompt string
-	PriceGens   int
 }
 
 func (in PromptInput) normalized() PromptInput {
@@ -61,9 +52,6 @@ func (in PromptInput) normalized() PromptInput {
 	}
 	if in.MediaKind != MediaKindVideo {
 		in.MediaKind = MediaKindPhoto
-	}
-	if in.PriceGens < 1 {
-		in.PriceGens = 1
 	}
 	return in
 }
@@ -128,10 +116,10 @@ func (r *PromptRepo) Create(ctx context.Context, in PromptInput) (*Prompt, error
 	in = in.normalized()
 	p := &Prompt{}
 	err := scanPrompt(r.db.QueryRow(ctx, `
-		INSERT INTO prompts (category_id, name, prompt, gender, sort_order, media_kind, video_prompt, price_gens)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO prompts (category_id, name, prompt, gender, sort_order, media_kind, video_prompt)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING `+promptColumns,
-		in.CategoryID, in.Name, in.Prompt, in.Gender, in.SortOrder, in.MediaKind, in.VideoPrompt, in.PriceGens), p)
+		in.CategoryID, in.Name, in.Prompt, in.Gender, in.SortOrder, in.MediaKind, in.VideoPrompt), p)
 	return p, err
 }
 
@@ -140,10 +128,10 @@ func (r *PromptRepo) Update(ctx context.Context, id int, in PromptInput) error {
 	_, err := r.db.Exec(ctx, `
 		UPDATE prompts
 		SET category_id=$2, name=$3, prompt=$4, gender=$5, sort_order=$6, is_active=$7,
-		    media_kind=$8, video_prompt=$9, price_gens=$10
+		    media_kind=$8, video_prompt=$9
 		WHERE id=$1`,
 		id, in.CategoryID, in.Name, in.Prompt, in.Gender, in.SortOrder, in.IsActive,
-		in.MediaKind, in.VideoPrompt, in.PriceGens)
+		in.MediaKind, in.VideoPrompt)
 	return err
 }
 
@@ -152,13 +140,13 @@ func (r *PromptRepo) Delete(ctx context.Context, id int) error {
 	return err
 }
 
-type promptRowScanner interface {
+type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanPrompt(row promptRowScanner, p *Prompt) error {
+func scanPrompt(row rowScanner, p *Prompt) error {
 	return row.Scan(&p.ID, &p.CategoryID, &p.Name, &p.Prompt, &p.PreviewURL, &p.Gender,
-		&p.SortOrder, &p.IsActive, &p.MediaKind, &p.VideoPrompt, &p.PriceGens)
+		&p.SortOrder, &p.IsActive, &p.MediaKind, &p.VideoPrompt)
 }
 
 func scanPrompts(rows pgx.Rows) ([]*Prompt, error) {
