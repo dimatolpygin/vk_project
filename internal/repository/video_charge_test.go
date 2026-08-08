@@ -36,8 +36,12 @@ func TestSplitChargeSpendsPaidBalanceFirst(t *testing.T) {
 				t.Fatalf("splitCharge(%d, %d, %d) = (%d, %d), want (%d, %d)",
 					tt.cost, tt.paid, tt.free, paid, free, tt.wantPaid, tt.wantFree)
 			}
-			if paid+free != max(tt.cost, 1) {
-				t.Fatalf("списано %d генераций вместо %d", paid+free, tt.cost)
+			want := tt.cost
+			if want < 1 {
+				want = 1
+			}
+			if paid+free != want {
+				t.Fatalf("списано %d генераций вместо %d", paid+free, want)
 			}
 			if paid > tt.paid || free > tt.free {
 				t.Fatalf("списано больше, чем было на балансе: paid %d/%d, free %d/%d", paid, tt.paid, free, tt.free)
@@ -61,11 +65,4 @@ func TestPromptCostDefaultsToOneGeneration(t *testing.T) {
 	if !(&Prompt{MediaKind: MediaKindVideo}).IsVideo() {
 		t.Fatal("видео-промт не опознан")
 	}
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

@@ -62,3 +62,39 @@ func TestPromptsTemplateParses(t *testing.T) {
 		t.Fatalf("parse prompts template: %v", err)
 	}
 }
+
+func TestPromptRequestNormalisesVideoFields(t *testing.T) {
+	in := promptRequest{
+		CategoryID:  81,
+		Name:        "  Танец у окна  ",
+		Prompt:      "cinematic portrait",
+		Gender:      "female",
+		MediaKind:   repository.MediaKindVideo,
+		VideoPrompt: "  slow camera push in  ",
+		PriceGens:   40,
+		IsActive:    true,
+	}.toInput()
+
+	if in.Name != "Танец у окна" {
+		t.Fatalf("название не обрезано: %q", in.Name)
+	}
+	if in.VideoPrompt != "slow camera push in" {
+		t.Fatalf("видео-промт не обрезан: %q", in.VideoPrompt)
+	}
+	if in.MediaKind != repository.MediaKindVideo || in.PriceGens != 40 {
+		t.Fatalf("поля видео потеряны: kind=%q price=%d", in.MediaKind, in.PriceGens)
+	}
+}
+
+func TestPromptRequestKeepsPhotoPromptsAtOneGeneration(t *testing.T) {
+	// Карточка фото-промта цену не показывает вовсе, поэтому в запросе её нет —
+	// нулевая цена не должна означать бесплатную генерацию.
+	in := promptRequest{CategoryID: 80, Name: "Обычный тренд", Prompt: "portrait"}.toInput()
+
+	if in.MediaKind != "" && in.MediaKind != repository.MediaKindPhoto {
+		t.Fatalf("неожиданный тип медиа: %q", in.MediaKind)
+	}
+	if in.PriceGens != 0 {
+		t.Fatalf("хендлер не должен додумывать цену, это делает репозиторий: %d", in.PriceGens)
+	}
+}
