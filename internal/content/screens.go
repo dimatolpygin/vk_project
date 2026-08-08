@@ -236,6 +236,28 @@ var screenDefinitions = map[string]ScreenDefinition{
 		// у которых в БД уже сохранены строки старых кнопок.
 		callback("examples", "examples", "🖼 Примеры работ", "positive", 50, 0),
 	),
+	// ─── Видео ───────────────────────────────────────────────────────────────
+	"video_generating_wait": screen("video_generating_wait", "🎬 Делаю видео «{{.PromptName}}»\n\nЭто дольше фото: сначала собираю кадр, потом оживляю его. Обычно занимает 3–5 минут — я пришлю результат сам, ждать в чате не нужно.\n\nСписано генераций: {{.CostGens}}"),
+	"video_scene_ready":     screen("video_scene_ready", "📸 Кадр собран, запускаю анимацию.\n\nОсталось пара минут."),
+	"after_gen_video": screen("after_gen_video", "🎬 Готово! Твоё видео на {{.Duration}} секунд:",
+		openLink("download_video", "download_video", "⬇️ Скачать видео", 0, 0),
+		callback("trends", "trends", "🔥 Ещё тренды", "primary", 1, 0),
+		callback("main_menu", "main_menu", "🏠 Главное меню", "secondary", 2, 0),
+	),
+	// Сцена не собралась — до видео-модели дело не дошло, поэтому и текст
+	// отличается: пользователю важно знать, что дело в его фото, а не в сервисе.
+	"video_scene_failed": screen("video_scene_failed", "❌ Не получилось собрать кадр для видео. Генерации возвращены на баланс.\n\nЧаще всего помогает фото покрупнее и без посторонних лиц — попробуй ещё раз.",
+		callback("trends", "trends", "🔥 К трендам", "primary", 0, 0),
+		callback("main_menu", "main_menu", "🏠 Главное меню", "secondary", 1, 0),
+	),
+	"video_generation_failed": screen("video_generation_failed", "❌ Видео не сгенерировалось. Генерации возвращены на баланс — попробуй ещё раз или выбери другой тренд.",
+		callback("trends", "trends", "🔥 К трендам", "primary", 0, 0),
+		callback("main_menu", "main_menu", "🏠 Главное меню", "secondary", 1, 0),
+	),
+	"no_gens_for_video": screen("no_gens_for_video", "🎬 Это видео стоит {{.CostGens}} генераций, а у тебя на балансе {{.UserGens}}.\n\nНе хватает: {{.MissingGens}}. Пополни баланс — и запустим.",
+		callback("tariffs", "tariffs", "💳 Выбрать тариф", "primary", 0, 0),
+		callback("back", "back", "◀️ Назад", "secondary", 1, 0),
+	),
 	"worker_generation_failed": screen("worker_generation_failed", "❌ Генерация завершилась с ошибкой. Попробуй позже."),
 	"worker_no_output":         screen("worker_no_output", "❌ Не удалось получить результат."),
 	"worker_submit_error":      screen("worker_submit_error", "❌ Ошибка при запуске генерации. Попробуй ещё раз."),

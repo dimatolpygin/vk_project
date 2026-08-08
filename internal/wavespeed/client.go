@@ -16,7 +16,18 @@ var modelEndpoints = map[string]string{
 	"google/nano-banana-pro": "https://api.wavespeed.ai/api/v3/google/nano-banana-pro/edit",
 	"google/nano-banana-2":   "https://api.wavespeed.ai/api/v3/google/nano-banana-2/edit",
 	"openai/gpt-image-2":     "https://api.wavespeed.ai/api/v3/openai/gpt-image-2/edit",
+	VideoModelSeedance:       "https://api.wavespeed.ai/api/v3/bytedance/seedance-2.0/image-to-video",
 }
+
+// VideoModelSeedance — image-to-video модель этапа 10.
+const VideoModelSeedance = "bytedance/seedance-2.0/image-to-video"
+
+// Параметры видео заданы заказчиком и пользователю не предлагаются.
+const (
+	VideoAspectRatio = "9:16"
+	VideoResolution  = "720p"
+	VideoDuration    = 10
+)
 
 const pollBaseURL = "https://api.wavespeed.ai/api/v3"
 
@@ -68,6 +79,48 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) 
 		req.OutputFormat = "jpeg"
 	}
 
+	return c.submit(ctx, endpoint, req)
+}
+
+// SubmitVideoRequest — тело задачи image-to-video. От фото-запроса отличается
+// всем: одно изображение вместо списка, длительность, звук.
+type SubmitVideoRequest struct {
+	Image         string `json:"image"`
+	Prompt        string `json:"prompt"`
+	AspectRatio   string `json:"aspect_ratio,omitempty"`
+	Resolution    string `json:"resolution,omitempty"`
+	Duration      int    `json:"duration,omitempty"`
+	GenerateAudio bool   `json:"generate_audio"`
+}
+
+// SubmitVideo ставит задачу видео-модели. Изображение — уже готовая сцена,
+// собранная фото-моделью первым звеном цепочки.
+func (c *Client) SubmitVideo(ctx context.Context, req SubmitVideoRequest) (string, error) {
+	endpoint, ok := modelEndpoints[VideoModelSeedance]
+	if !ok {
+		return "", fmt.Errorf("неизвестная видео-модель WaveSpeed: %q", VideoModelSeedance)
+	}
+	if strings.TrimSpace(req.Image) == "" {
+		return "", fmt.Errorf("WaveSpeed submit video: image is empty")
+	}
+	if strings.TrimSpace(req.Prompt) == "" {
+		return "", fmt.Errorf("WaveSpeed submit video: prompt is empty")
+	}
+
+	if req.AspectRatio == "" {
+		req.AspectRatio = VideoAspectRatio
+	}
+	if req.Resolution == "" {
+		req.Resolution = VideoResolution
+	}
+	if req.Duration <= 0 {
+		req.Duration = VideoDuration
+	}
+
+	return c.submit(ctx, endpoint, req)
+}
+
+func (c *Client) submit(ctx context.Context, endpoint string, req any) (string, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return "", err
@@ -87,7 +140,7 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (string, error) 
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
 
-	fmt.Printf("[wavespeed submit] status=%d body=%s\n", resp.StatusCode, string(respBody))
+	fmt.Printf("[wavespeed submit] endpoint=%s status=%d body=%s\n", endpoint, resp.StatusCode, string(respBody))
 
 	var result struct {
 		Data struct {
@@ -161,8 +214,10 @@ func (c *Client) PollUntilDone(ctx context.Context, taskID string, interval time
 		switch status.Status {
 		case "completed", "succeeded":
 			return status, nil
-		case "failed":
-			return status, fmt.Errorf("генерация завершилась ошибкой: %s", status.Error)
+		// Терминальных статусов у модели четыре, а не один: задача на минуты
+		// вполне доживает до cancelled и timeout, и ждать после них нечего.
+		case "failed", "cancelled", "timeout":
+			return status, fmt.Errorf("генерация завершилась со статусом %s: %s", status.Status, status.Error)
 		}
 		select {
 		case <-ctx.Done():

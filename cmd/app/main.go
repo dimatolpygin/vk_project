@@ -174,8 +174,10 @@ func main() {
 		workerStorage = s3Client
 	}
 	generateHandler := worker.NewGenerateHandler(genRepo, sender, wsClient, workerStorage, rdb)
+	generateVideoHandler := worker.NewGenerateVideoHandler(genRepo, sender, wsClient, workerStorage, rdb)
 	broadcastHandler := worker.NewBroadcastHandler(broadcastRepo, sender, asynqClient)
 	mux.HandleFunc(worker.TaskGenerate, generateHandler.ProcessTask)
+	mux.HandleFunc(worker.TaskGenerateVideo, generateVideoHandler.ProcessTask)
 	mux.HandleFunc(worker.TaskBroadcastProcess, broadcastHandler.ProcessTask)
 
 	go func() {

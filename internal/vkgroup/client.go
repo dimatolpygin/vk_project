@@ -172,6 +172,55 @@ func (c *Client) GetPhotoUploadServer(ctx context.Context, peerID int64) (string
 	return result.UploadURL, nil
 }
 
+// GetDocUploadServer возвращает URL для загрузки документа в сообщениях.
+//
+// Видео в диалог уходит документом, а не видео-вложением: video.save групповому
+// токену недоступен вовсе («invalid token type»), а mp4-документ ВК показывает
+// со встроенным плеером. Проверено на боевом токене перед этапом 10.
+func (c *Client) GetDocUploadServer(ctx context.Context, peerID int64) (string, error) {
+	params := url.Values{
+		"type":    {"doc"},
+		"peer_id": {strconv.FormatInt(peerID, 10)},
+	}
+	raw, err := c.call(ctx, "docs.getMessagesUploadServer", params)
+	if err != nil {
+		return "", err
+	}
+	var result struct {
+		UploadURL string `json:"upload_url"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return "", err
+	}
+	return result.UploadURL, nil
+}
+
+// SaveDoc сохраняет загруженный документ и возвращает attachment-строку.
+func (c *Client) SaveDoc(ctx context.Context, file, title string) (string, error) {
+	params := url.Values{
+		"file":  {file},
+		"title": {title},
+	}
+	raw, err := c.call(ctx, "docs.save", params)
+	if err != nil {
+		return "", err
+	}
+	var result struct {
+		Type string `json:"type"`
+		Doc  struct {
+			ID      int64 `json:"id"`
+			OwnerID int64 `json:"owner_id"`
+		} `json:"doc"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return "", err
+	}
+	if result.Doc.ID == 0 {
+		return "", fmt.Errorf("VK не вернул документ: %s", string(raw))
+	}
+	return fmt.Sprintf("doc%d_%d", result.Doc.OwnerID, result.Doc.ID), nil
+}
+
 // SaveMessagesPhoto сохраняет загруженное фото и возвращает attachment-строку.
 func (c *Client) SaveMessagesPhoto(ctx context.Context, server int, photo, hash string) (string, error) {
 	params := url.Values{

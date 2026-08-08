@@ -62,6 +62,35 @@ func (req categoryRequest) toInput() repository.CategoryInput {
 	return in
 }
 
+// promptRequest — тело запроса на создание и правку карточки промта.
+// media_kind = video включает вторую модель в цепочке, video_prompt уходит ей,
+// price_gens — цена промта в генерациях (п. 8.3 ТЗ).
+type promptRequest struct {
+	CategoryID  int    `json:"category_id"`
+	Name        string `json:"name"`
+	Prompt      string `json:"prompt"`
+	Gender      string `json:"gender"`
+	SortOrder   int    `json:"sort_order"`
+	IsActive    bool   `json:"is_active"`
+	MediaKind   string `json:"media_kind"`
+	VideoPrompt string `json:"video_prompt"`
+	PriceGens   int    `json:"price_gens"`
+}
+
+func (req promptRequest) toInput() repository.PromptInput {
+	return repository.PromptInput{
+		CategoryID:  req.CategoryID,
+		Name:        strings.TrimSpace(req.Name),
+		Prompt:      req.Prompt,
+		Gender:      req.Gender,
+		SortOrder:   req.SortOrder,
+		IsActive:    req.IsActive,
+		MediaKind:   req.MediaKind,
+		VideoPrompt: strings.TrimSpace(req.VideoPrompt),
+		PriceGens:   req.PriceGens,
+	}
+}
+
 func (h *CategoriesHandler) ListCategories(w http.ResponseWriter, r *http.Request) {
 	cats, err := h.cats.List(r.Context())
 	if err != nil {
@@ -239,21 +268,17 @@ func (h *CategoriesHandler) CreatePrompt(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var req struct {
-		Name      string `json:"name"`
-		Prompt    string `json:"prompt"`
-		Gender    string `json:"gender"`
-		SortOrder int    `json:"sort_order"`
-	}
+	var req promptRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if req.Gender == "" {
-		req.Gender = "any"
-	}
 
-	p, err := h.prompts.Create(r.Context(), catID, req.Name, req.Prompt, req.Gender, req.SortOrder)
+	in := req.toInput()
+	in.CategoryID = catID
+	in.IsActive = true
+
+	p, err := h.prompts.Create(r.Context(), in)
 	if err != nil {
 		log.Error().Err(err).Msg("ошибка создания промта")
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -271,20 +296,13 @@ func (h *CategoriesHandler) UpdatePrompt(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var req struct {
-		CategoryID int    `json:"category_id"`
-		Name       string `json:"name"`
-		Prompt     string `json:"prompt"`
-		Gender     string `json:"gender"`
-		SortOrder  int    `json:"sort_order"`
-		IsActive   bool   `json:"is_active"`
-	}
+	var req promptRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.prompts.Update(r.Context(), id, req.CategoryID, req.Name, req.Prompt, req.Gender, req.SortOrder, req.IsActive); err != nil {
+	if err := h.prompts.Update(r.Context(), id, req.toInput()); err != nil {
 		log.Error().Err(err).Msg("ошибка обновления промта")
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return

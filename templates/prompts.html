@@ -884,8 +884,29 @@
                     <input type="text" class="form-control" id="promptName" placeholder="Например, На поляне">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label" for="promptText">Промт для AI</label>
+                    <label class="form-label" for="promptMediaKind">Что получает пользователь</label>
+                    <select class="form-select" id="promptMediaKind">
+                        <option value="photo">Фото</option>
+                        <option value="video">Видео</option>
+                    </select>
+                    <div class="text-muted small mt-1">
+                        Видео делается в два шага: сначала фото-модель собирает кадр по промту ниже,
+                        потом кадр оживляет видео-модель по видео-промту. Длительность 10 секунд, формат 9:16.
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="promptText">Промт для AI<span id="promptTextVideoHint" class="text-muted"> — сцена, которую соберёт фото-модель</span></label>
                     <textarea class="form-control" id="promptText" rows="6" placeholder="Опишите сцену, свет, стиль и детали..."></textarea>
+                </div>
+                <div class="mb-3" id="promptVideoWrap">
+                    <label class="form-label" for="promptVideoText">Промт для видео-модели</label>
+                    <textarea class="form-control" id="promptVideoText" rows="4" placeholder="Опишите движение, камеру, настроение..."></textarea>
+                    <div class="text-muted small mt-1">Что происходит в кадре: движение модели, движение камеры, настроение.</div>
+                </div>
+                <div class="mb-3" id="promptPriceWrap">
+                    <label class="form-label" for="promptPrice">Стоимость в генерациях</label>
+                    <input type="number" class="form-control" id="promptPrice" min="1" value="1">
+                    <div class="text-muted small mt-1">Сколько генераций списывается с баланса за этот промт. У фото обычно 1, у видео — десятки.</div>
                 </div>
                 <div class="row g-3">
                     <div class="col-md-6" id="promptGenderWrap">
@@ -948,6 +969,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
     document.getElementById('catParent').addEventListener('change', syncSectionAvailability);
     document.getElementById('savePromptBtn').addEventListener('click', savePrompt);
+    document.getElementById('promptMediaKind').addEventListener('change', syncPromptMediaKind);
     document.getElementById('categoryList').addEventListener('click', handleCategoryListClick);
     document.getElementById('categoryList').addEventListener('show.bs.dropdown', handleCategoryDropdownShow);
     document.getElementById('categoryList').addEventListener('hide.bs.dropdown', handleCategoryDropdownHide);
@@ -1002,7 +1024,10 @@ function normalizePrompt(prompt) {
         preview_url: prompt.preview_url ?? null,
         gender: prompt.gender ?? 'any',
         sort_order: Number(prompt.sort_order ?? 0),
-        is_active: prompt.is_active !== false
+        is_active: prompt.is_active !== false,
+        media_kind: prompt.media_kind === 'video' ? 'video' : 'photo',
+        video_prompt: prompt.video_prompt ?? '',
+        price_gens: Number(prompt.price_gens ?? 1) || 1
     };
 }
 
@@ -1327,6 +1352,9 @@ function renderPromptCard(prompt) {
             <div class="prompt-card__body">
                 <div class="prompt-card__meta">
                     <span class="library-chip ${meta.chipClass}">${escapeHtml(meta.label)}</span>
+                    ${prompt.media_kind === 'video'
+                        ? `<span class="library-chip">🎬 Видео · ${prompt.price_gens} ген.</span>`
+                        : ''}
                 </div>
                 <h3 class="prompt-card__title">${escapeHtml(prompt.name)}</h3>
                 <p class="prompt-card__excerpt">${escapeHtml(prompt.prompt)}</p>
@@ -1546,6 +1574,10 @@ function openPromptModal(prompt = null) {
     document.getElementById('promptId').value = isEdit ? prompt.id : '';
     document.getElementById('promptName').value = isEdit ? prompt.name : '';
     document.getElementById('promptText').value = isEdit ? prompt.prompt : '';
+    document.getElementById('promptMediaKind').value = isEdit ? prompt.media_kind : 'photo';
+    document.getElementById('promptVideoText').value = isEdit ? prompt.video_prompt : '';
+    document.getElementById('promptPrice').value = isEdit ? String(prompt.price_gens) : '1';
+    syncPromptMediaKind();
     document.getElementById('promptGender').value = isEdit ? prompt.gender : 'any';
     document.getElementById('promptSort').value = isEdit ? String(prompt.sort_order) : '0';
     document.getElementById('promptSortWrap').style.display = isEdit ? '' : 'none';
@@ -1637,6 +1669,15 @@ async function deleteCategory(id) {
     alert('Не удалось удалить категорию.');
 }
 
+// syncPromptMediaKind прячет видео-поля у фото-промтов: у фото нет ни второго
+// промта, ни цены больше одной генерации.
+function syncPromptMediaKind() {
+    const isVideo = document.getElementById('promptMediaKind').value === 'video';
+    document.getElementById('promptVideoWrap').style.display = isVideo ? '' : 'none';
+    document.getElementById('promptPriceWrap').style.display = isVideo ? '' : 'none';
+    document.getElementById('promptTextVideoHint').style.display = isVideo ? '' : 'none';
+}
+
 async function savePrompt() {
     if (!currentCatId) {
         return;
@@ -1648,9 +1689,19 @@ async function savePrompt() {
     const promptText = document.getElementById('promptText').value.trim();
     const gender = document.getElementById('promptGender').value;
     const sortOrder = parseInt(document.getElementById('promptSort').value, 10) || 0;
+    const mediaKind = document.getElementById('promptMediaKind').value;
+    const videoPrompt = document.getElementById('promptVideoText').value.trim();
+    const priceGens = mediaKind === 'video'
+        ? Math.max(1, parseInt(document.getElementById('promptPrice').value, 10) || 1)
+        : 1;
 
     if (!name || !promptText) {
         alert('Заполните название и текст промта.');
+        return;
+    }
+
+    if (mediaKind === 'video' && !videoPrompt) {
+        alert('У видео-промта нужно заполнить промт для видео-модели.');
         return;
     }
 
@@ -1662,7 +1713,10 @@ async function savePrompt() {
         prompt: promptText,
         gender,
         sort_order: sortOrder,
-        is_active: existingPrompt ? existingPrompt.is_active : true
+        is_active: existingPrompt ? existingPrompt.is_active : true,
+        media_kind: mediaKind,
+        video_prompt: videoPrompt,
+        price_gens: priceGens
     };
 
     togglePending(saveButton, true, id ? 'Сохраняем...' : 'Создаём...');

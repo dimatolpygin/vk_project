@@ -78,6 +78,7 @@ func main() {
 	}
 
 	generateHandler := worker.NewGenerateHandler(genRepo, sender, wsClient, workerStorage, rdb)
+	generateVideoHandler := worker.NewGenerateVideoHandler(genRepo, sender, wsClient, workerStorage, rdb)
 	asynqClient := worker.NewAsynqClient(cfg.RedisAddr, cfg.RedisPassword)
 	defer func() { _ = asynqClient.Close() }()
 	broadcastHandler := worker.NewBroadcastHandler(broadcastRepo, sender, asynqClient)
@@ -86,6 +87,7 @@ func main() {
 	srv := worker.NewAsynqServer(cfg.RedisAddr, cfg.RedisPassword)
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(worker.TaskGenerate, generateHandler.ProcessTask)
+	mux.HandleFunc(worker.TaskGenerateVideo, generateVideoHandler.ProcessTask)
 	mux.HandleFunc(worker.TaskBroadcastProcess, broadcastHandler.ProcessTask)
 	mux.HandleFunc(worker.TaskPaymentReminder, reminderHandler.ProcessTask)
 

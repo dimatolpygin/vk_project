@@ -18,6 +18,9 @@ func NewAsynqServer(redisAddr, redisPassword string) *asynq.Server {
 			Queues: map[string]int{
 				"default":  10,
 				"critical": 20,
+				// Видео занимает воркер минутами. Своя очередь с низким весом
+				// оставляет фото-задачам дорогу, даже когда видео стоит очередь.
+				"video": 5,
 			},
 			ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
 				log.Error().Str("task", task.Type()).Err(err).Msg("ошибка обработки задачи asynq")

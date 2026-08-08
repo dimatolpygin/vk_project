@@ -205,6 +205,12 @@ func HandleAwaitingPhoto(ctx context.Context, fc *Context, d *Deps) {
 	}
 	if fc.State.TemplateID > 0 {
 		if templatePrompt, err := d.PromptRepo.GetByID(ctx, fc.State.TemplateID); err == nil && templatePrompt != nil {
+			// Видео-шаблон хранит два промта: этот, по которому фото-модель
+			// соберёт кадр, и второй — для видео-модели. Уводим в свою цепочку.
+			if templatePrompt.IsVideo() {
+				startVideoGeneration(ctx, fc, d, uploadedURLs, templatePrompt)
+				return
+			}
 			prompt = templatePrompt.Prompt
 		}
 	}
@@ -226,7 +232,7 @@ func createAndEnqueueGeneration(ctx context.Context, fc *Context, d *Deps, gener
 	}
 
 	inputPhotoURL := firstGenerationInputPhotoURL(photoURLs)
-	gen, err := d.GenRepo.CreateChargedGeneration(ctx, fc.VkID, generationType, prompt, model, inputPhotoURL)
+	gen, err := d.GenRepo.CreateChargedGeneration(ctx, fc.VkID, generationType, prompt, model, inputPhotoURL, 1)
 	switch {
 	case errors.Is(err, repository.ErrNoGenerationsAvailable):
 		_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})

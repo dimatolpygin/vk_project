@@ -70,6 +70,13 @@ func HandleSelectPrompt(ctx context.Context, fc *Context, d *Deps) {
 		promptType = "ready_prompt"
 	}
 
+	// Видео-тренд стоит десятки генераций, поэтому у него своя ветка: цена
+	// проверяется до того, как у пользователя попросят фото.
+	if prompt.IsVideo() {
+		handleVideoPromptSelected(ctx, fc, d, prompt, promptType)
+		return
+	}
+
 	// Парный режим: фото уже загружены до выбора категории — запускаем генерацию сразу.
 	if promptType == "couple" {
 		couplePhotos := normalizeGenerationInputPhotos(fc.State.CouplePhotoURLs)
