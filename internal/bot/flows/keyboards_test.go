@@ -238,9 +238,10 @@ func TestBuildPaginatedRowsCarriesPromptPagerCategoryID(t *testing.T) {
 }
 
 func TestMainMenuKeepsEverySectionOnItsOwnRow(t *testing.T) {
-	// В главном меню шесть кнопок при лимите ВК в шесть строк — следующий раздел
-	// уже не влезет отдельной строкой, и fitInlineRows начнёт склеивать кнопки
-	// по две в ряд. Тест ловит этот момент до того, как его увидит пользователь.
+	// Семь кнопок при лимите ВК в шесть строк. Склейку делаем сами и осознанно:
+	// в общий ряд сведены «Свой промт» и «Изменить фото» — короткие названия,
+	// которые не обрежутся. Разделы-фотосессии обязаны стоять по одному в ряд,
+	// иначе fitInlineRows начнёт склеивать их сам и как попало.
 	def, ok := content.Definition("main_menu")
 	if !ok {
 		t.Fatal("main_menu definition not found")
@@ -255,13 +256,34 @@ func TestMainMenuKeepsEverySectionOnItsOwnRow(t *testing.T) {
 	if len(keyboard.Buttons) > vkInlineMaxRows {
 		t.Fatalf("main menu renders %d rows, VK allows %d", len(keyboard.Buttons), vkInlineMaxRows)
 	}
+
+	sections := map[string]bool{
+		cbPayload("ready_prompts"): true,
+		cbPayload("couple"):        true,
+		cbPayload("kids"):          true,
+		cbPayload("greetings"):     true,
+		cbPayload("trends"):        true,
+	}
+	total := 0
 	for i, row := range keyboard.Buttons {
-		if len(row) != 1 {
-			t.Fatalf("row %d holds %d buttons: разделы должны стоять по одному в ряд", i, len(row))
+		total += len(row)
+		if len(row) > 2 {
+			t.Fatalf("row %d holds %d buttons: больше двух в ряд не помещается по ширине", i, len(row))
+		}
+		if len(row) == 1 {
+			continue
+		}
+		for _, btn := range row {
+			if sections[btn.Action.Payload] {
+				t.Fatalf("row %d shares a row with section button %q: разделы стоят по одному в ряд", i, btn.Action.Label)
+			}
 		}
 	}
+	if total != 7 {
+		t.Fatalf("expected all 7 main menu buttons to survive, got %d", total)
+	}
 	lastRow := keyboard.Buttons[len(keyboard.Buttons)-1]
-	if got := lastRow[0].Action.Payload; got != cbPayload("greetings") {
-		t.Fatalf("expected «Поздравления» last, got %q", got)
+	if got := lastRow[0].Action.Payload; got != cbPayload("trends") {
+		t.Fatalf("expected «Тренды» last, got %q", got)
 	}
 }

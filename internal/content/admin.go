@@ -212,6 +212,13 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 		Order:       45,
 		Keywords:    []string{"поздравления", "праздник", "новый год", "день рождения"},
 	},
+	"trends_intro": {
+		SectionID:   "generation",
+		Title:       "Тренды: вход в раздел",
+		Description: "Экран раздела «Тренды». Видео-подразделы заведены в «Категориях и промтах», но выключены — включатся вместе с видео-генерацией.",
+		Order:       46,
+		Keywords:    []string{"тренды", "популярное", "фото тренды"},
+	},
 	"generating_wait": {
 		SectionID:   "generation",
 		Title:       "Ожидание генерации",

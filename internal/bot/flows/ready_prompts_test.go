@@ -72,6 +72,7 @@ type fakeCategoryRepo struct {
 	couple         []*repository.Category
 	kids           []*repository.Category
 	greetings      []*repository.Category
+	trends         []*repository.Category
 	children       map[int][]*repository.Category
 }
 
@@ -120,6 +121,8 @@ func (f *fakeCategoryRepo) ListRoots(_ context.Context, section string, filter r
 		return stampSection(f.kids, repository.SectionKids, nil), nil
 	case repository.SectionGreetings:
 		return stampSection(f.greetings, repository.SectionGreetings, nil), nil
+	case repository.SectionTrends:
+		return stampSection(f.trends, repository.SectionTrends, nil), nil
 	}
 	return f.selfRoots(filter.Gender), nil
 }
@@ -160,6 +163,7 @@ func (f *fakeCategoryRepo) allCategories() []*repository.Category {
 	all = append(all, f.coupleRoots()...)
 	all = append(all, stampSection(f.kids, repository.SectionKids, nil)...)
 	all = append(all, stampSection(f.greetings, repository.SectionGreetings, nil)...)
+	all = append(all, stampSection(f.trends, repository.SectionTrends, nil)...)
 	for _, children := range f.children {
 		all = append(all, children...)
 	}

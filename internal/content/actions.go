@@ -170,6 +170,18 @@ var actionAdminMeta = map[string]ActionAdminMeta{
 		Description: "Переключение страниц верхнего уровня раздела поздравлений.",
 		Order:       185,
 	},
+	"trends": {
+		SectionID:   "generation",
+		Title:       "Тренды",
+		Description: "Вход в раздел трендов: фото-тренды, дальше промты узла.",
+		Order:       186,
+	},
+	"trends_page": {
+		SectionID:   "generation",
+		Title:       "Листалка подразделов трендов",
+		Description: "Переключение страниц верхнего уровня раздела трендов.",
+		Order:       187,
+	},
 	"couple_page": {
 		SectionID:   "generation",
 		Title:       "Листалка парных категорий",

@@ -64,6 +64,16 @@ var sectionSpecs = map[string]sectionSpec{
 		// Пол задаёт адресат («Мужчине»/«Женщине») и наследует вниз празднику,
 		// поэтому пол пользователя здесь не участвует.
 	},
+	repository.SectionTrends: {
+		section:     repository.SectionTrends,
+		promptType:  "trends",
+		rootScreen:  "trends_intro",
+		rootPager:   "trends_page",
+		nodesStep:   StepTrendsCategories,
+		promptsStep: StepTrendsPrompts,
+		// Пол берётся с пользователя: тренд «как у всех» одинаково доступен обоим,
+		// а если тренд мужской или женский — это задаётся полом самого промта.
+	},
 	repository.SectionKids: {
 		section:     repository.SectionKids,
 		promptType:  "kids",
@@ -353,6 +363,27 @@ func HandleGreetingsPage(ctx context.Context, fc *Context, d *Deps) {
 	page := normalizePage(fc.Callback.Page)
 	if err := showSectionRoots(ctx, fc, d, specForSection(repository.SectionGreetings), page); err != nil {
 		log.Error().Err(err).Int64("vk_id", fc.VkID).Int("page", page).Msg("ошибка листалки раздела поздравлений")
+	}
+}
+
+// ─── Тренды ──────────────────────────────────────────────────────────────────
+
+// HandleTrendsMenu — вход в раздел. Видео-подразделы заведены в дереве, но лежат
+// с is_active = false до этапа 10, поэтому пользователь видит только фото-тренды.
+func HandleTrendsMenu(ctx context.Context, fc *Context, d *Deps) {
+	if !fc.User.HasGens() {
+		_ = sendScreen(ctx, d, fc.VkID, "no_gens_left", ScreenOptions{})
+		return
+	}
+	if err := showSectionRoots(ctx, fc, d, specForSection(repository.SectionTrends), 1); err != nil {
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("ошибка показа раздела трендов")
+	}
+}
+
+func HandleTrendsPage(ctx context.Context, fc *Context, d *Deps) {
+	page := normalizePage(fc.Callback.Page)
+	if err := showSectionRoots(ctx, fc, d, specForSection(repository.SectionTrends), page); err != nil {
+		log.Error().Err(err).Int64("vk_id", fc.VkID).Int("page", page).Msg("ошибка листалки раздела трендов")
 	}
 }
 

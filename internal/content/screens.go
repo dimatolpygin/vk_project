@@ -85,13 +85,17 @@ var screenDefinitions = map[string]ScreenDefinition{
 	),
 	"main_menu": screen("main_menu", "🎨 Главное меню\n\nВыбери что хочешь сделать:",
 		callback("ready_prompts", "ready_prompts", "🖼 Готовые промты", "primary", 0, 0),
+		// Семь кнопок при лимите ВК в шесть строк. Две работы «со своим фото»
+		// сведены в общий ряд: названия короткие и не обрежутся, а разделы-
+		// фотосессии остаются по одной кнопке в ряд.
 		callback("custom_prompt", "custom_prompt", "✍️ Свой промт", "primary", 1, 0),
-		callback("edit_photo", "edit_photo", "✏️ Изменить фото", "primary", 2, 0),
+		callback("edit_photo", "edit_photo", "✏️ Изменить фото", "primary", 1, 1),
 		callback("couple", "couple", "👫 Парное фото", "primary", 3, 0),
 		// Строка 50 — отдельный ряд даже на экранах, где в БД уже лежат строки
 		// старых кнопок; positive выделяет новый раздел среди primary.
 		callback("kids", "kids", "👶 Детские фото", "positive", 50, 0),
 		callback("greetings", "greetings", "🎉 Поздравления", "positive", 51, 0),
+		callback("trends", "trends", "🔥 Тренды", "positive", 52, 0),
 	),
 	"no_gens_left": screen("no_gens_left", "😔 У тебя закончились генерации.\n\nПополни баланс для продолжения!",
 		callback("tariffs", "tariffs", "💳 Выбрать тариф", "primary", 0, 0),
@@ -143,6 +147,9 @@ var screenDefinitions = map[string]ScreenDefinition{
 		callback("back", "back", "🏠 В меню", "secondary", 100, 0),
 	),
 	"ready_prompts_intro": screen("ready_prompts_intro", "🖼 Готовые стили\n\nВыбери категорию:",
+		callback("back", "back", "🏠 В меню", "secondary", 100, 0),
+	),
+	"trends_intro": screen("trends_intro", "🔥 Тренды\n\nСамые популярные образы этого сезона — то, что сейчас у всех в ленте.\n\nВыбери, что делаем:",
 		callback("back", "back", "🏠 В меню", "secondary", 100, 0),
 	),
 	"referral_bonus_awarded": screen("referral_bonus_awarded", "🎁 Твой реферал оплатил генерации! +2 бесплатные генерации.",
