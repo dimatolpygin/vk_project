@@ -1571,9 +1571,10 @@ async function createNodeScreen(step, button) {
         const result = await resp.json();
         document.getElementById(nodeScreenFields[step]).value = result.key;
         hint.className = 'small mt-2 text-success';
+        const link = `<a href="{{.AdminBase}}/messages?screen=${encodeURIComponent(result.key)}" target="_blank">открыть текст и картинку</a>`;
         hint.innerHTML = result.created
-            ? `Экран <code>${escapeHtml(result.key)}</code> создан копией текущего. Сохраните раздел, затем правьте текст и картинку в <a href="{{.AdminBase}}/messages" target="_blank">Сообщениях</a>.`
-            : `Экран <code>${escapeHtml(result.key)}</code> уже был заведён — правки в нём сохранены. Он в <a href="{{.AdminBase}}/messages" target="_blank">Сообщениях</a>.`;
+            ? `Экран создан копией текущего. Сохраните раздел, затем ${link}.`
+            : `Экран уже был заведён, правки в нём сохранены — ${link}.`;
     } finally {
         togglePending(button, false);
     }

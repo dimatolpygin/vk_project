@@ -631,19 +631,30 @@ func NodeScreenStepKnown(step string) bool {
 	return ok
 }
 
+// ParseNodeScreenKey разбирает ключ экрана узла: номер раздела и человеческое
+// название шага. Админке нужен номер, чтобы подставить в название путь узла
+// в дереве — по одному ключу семь одинаковых копий не различить.
+func ParseNodeScreenKey(key string) (int, string, bool) {
+	parts := strings.SplitN(key, "_", 3)
+	if len(parts) != 3 || parts[0] != "node" {
+		return 0, "", false
+	}
+	categoryID, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, "", false
+	}
+	stepTitle, ok := nodeScreenSteps[parts[2]]
+	if !ok {
+		return 0, "", false
+	}
+	return categoryID, stepTitle, true
+}
+
 // nodeScreenMeta разбирает ключ node_<id>_<шаг>: без этого экраны узлов падали бы
 // в «Прочее» с названием вроде «Node 42 Photo», и админ не понимал бы, чей это
 // экран.
 func nodeScreenMeta(key string) (ScreenAdminMeta, bool) {
-	parts := strings.SplitN(key, "_", 3)
-	if len(parts) != 3 || parts[0] != "node" {
-		return ScreenAdminMeta{}, false
-	}
-	categoryID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return ScreenAdminMeta{}, false
-	}
-	stepTitle, ok := nodeScreenSteps[parts[2]]
+	categoryID, stepTitle, ok := ParseNodeScreenKey(key)
 	if !ok {
 		return ScreenAdminMeta{}, false
 	}

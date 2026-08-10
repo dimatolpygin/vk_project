@@ -49,7 +49,7 @@ func NewServer(
 
 	uh := handlers.NewUsersHandler(users, orders, rdb)
 	th := handlers.NewTariffsHandler(tariffs)
-	mh := handlers.NewMessagesHandler(msgs)
+	mh := handlers.NewMessagesHandler(msgs, cats)
 	bh := handlers.NewBroadcastsHandler(broadcasts, asynqClient)
 	ch := handlers.NewCategoriesHandler(cats, prompts, msgs)
 	sh := handlers.NewStatsHandler(stats)

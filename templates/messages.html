@@ -623,7 +623,7 @@
                 <div class="message-grid" id="message-grid">
                     {{range .Screens}}
                     <article class="message-card"
-                             data-screen-card
+                             data-screen-card="{{.Key}}"
                              data-section-id="{{.SectionID}}"
                              data-search="{{.SearchText}}">
                         <div class="message-card__shell">
@@ -1003,7 +1003,31 @@ if (messageSearchInput) {
     messageSearchInput.addEventListener('input', applyMessageFilters);
 }
 
+// Ссылка вида /admin/messages?screen=node_57_photo открывает нужный экран сразу
+// развёрнутым: из карточки раздела приходят именно так, и искать ключ руками
+// среди одинаковых копий — то, ради чего эта ссылка и появилась.
+function openScreenFromQuery() {
+    const key = new URLSearchParams(window.location.search).get('screen');
+    if (!key) return;
+
+    const card = messageCards.find((item) => item.dataset.screenCard === key);
+    if (!card) return;
+
+    setActiveSection(card.dataset.sectionId);
+    if (messageSearchInput) {
+        messageSearchInput.value = key;
+        applyMessageFilters();
+    }
+
+    const toggle = card.querySelector('[data-editor-toggle]');
+    if (toggle) {
+        toggle.click();
+    }
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 updateSectionHeader();
 applyMessageFilters();
+openScreenFromQuery();
 </script>
 {{end}}

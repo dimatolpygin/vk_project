@@ -15,6 +15,7 @@ import (
 
 type MessagesHandler struct {
 	msgs *repository.MessageRepo
+	cats *repository.CategoryRepo
 	tmpl *template.Template
 }
 
@@ -57,9 +58,45 @@ type messagesPageData struct {
 	DefaultSectionSummary string
 }
 
-func NewMessagesHandler(msgs *repository.MessageRepo) *MessagesHandler {
+func NewMessagesHandler(msgs *repository.MessageRepo, cats *repository.CategoryRepo) *MessagesHandler {
 	tmpl := parseTemplates("templates/layout.html", "templates/messages.html")
-	return &MessagesHandler{msgs: msgs, tmpl: tmpl}
+	return &MessagesHandler{msgs: msgs, cats: cats, tmpl: tmpl}
+}
+
+// nodeScreenTitles — названия экранов узлов: «Детские фото → Мальчик · запрос фото»
+// вместо «Раздел №57». Номер узла админ нигде не видит, поэтому по одному
+// ключу отличить семь одинаковых копий друг от друга невозможно.
+func (h *MessagesHandler) nodeScreenTitles(r *http.Request) map[int]string {
+	if h.cats == nil {
+		return nil
+	}
+	cats, err := h.cats.List(r.Context())
+	if err != nil {
+		log.Error().Err(err).Msg("не удалось получить дерево разделов для названий экранов узлов")
+		return nil
+	}
+
+	byID := make(map[int]*repository.Category, len(cats))
+	for _, cat := range cats {
+		byID[cat.ID] = cat
+	}
+
+	titles := make(map[int]string, len(cats))
+	for _, cat := range cats {
+		path := cat.Name
+		// Одно имя мало: «Мальчик» есть и в детском разделе, и потенциально
+		// в поздравлениях. Путь до корня отвечает на вопрос «чей это экран».
+		for parent := cat.ParentID; parent != nil; {
+			node, ok := byID[*parent]
+			if !ok {
+				break
+			}
+			path = node.Name + " → " + path
+			parent = node.ParentID
+		}
+		titles[cat.ID] = path
+	}
+	return titles
 }
 
 func (h *MessagesHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +107,7 @@ func (h *MessagesHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := buildMessagesPageData(list, GetAdminBase(r))
+	data := buildMessagesPageData(list, GetAdminBase(r), h.nodeScreenTitles(r))
 	if err := h.tmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		log.Error().Err(err).Msg("ошибка рендеринга шаблона messages")
 	}
@@ -119,7 +156,7 @@ func (h *MessagesHandler) Upsert(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
-func buildMessagesPageData(list []*repository.Message, base string) messagesPageData {
+func buildMessagesPageData(list []*repository.Message, base string, nodeTitles map[int]string) messagesPageData {
 	sectionCatalog := make(map[string]content.ScreenSection, len(content.ScreenSections()))
 	for _, section := range content.ScreenSections() {
 		sectionCatalog[section.ID] = section
@@ -128,7 +165,7 @@ func buildMessagesPageData(list []*repository.Message, base string) messagesPage
 	screens := make([]messageScreenView, 0, len(list))
 	sectionCounts := make(map[string]int, len(sectionCatalog))
 	for _, msg := range list {
-		view := buildMessageScreenView(msg, sectionCatalog)
+		view := buildMessageScreenView(msg, sectionCatalog, nodeTitles)
 		screens = append(screens, view)
 		sectionCounts[view.SectionID]++
 	}
@@ -181,8 +218,15 @@ func buildMessagesPageData(list []*repository.Message, base string) messagesPage
 	}
 }
 
-func buildMessageScreenView(msg *repository.Message, sectionCatalog map[string]content.ScreenSection) messageScreenView {
+func buildMessageScreenView(msg *repository.Message, sectionCatalog map[string]content.ScreenSection, nodeTitles map[int]string) messageScreenView {
 	meta := content.ScreenMeta(msg.Key)
+	if nodeID, step, ok := content.ParseNodeScreenKey(msg.Key); ok {
+		if title := nodeTitles[nodeID]; title != "" {
+			meta.Title = title + " · " + step
+			meta.Description = "Экран раздела «" + title + "» на шаге «" + step + "». Привязка задаётся в карточке раздела на странице «Разделы и промты»."
+			meta.Keywords = append(meta.Keywords, title)
+		}
+	}
 	section, ok := sectionCatalog[meta.SectionID]
 	if !ok {
 		section, _ = content.ScreenSectionByID("other")
