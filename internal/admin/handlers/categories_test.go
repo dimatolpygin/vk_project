@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"html/template"
 	"strings"
@@ -140,5 +141,45 @@ func TestVideoCostViewFallsBackWhenNoPackMarked(t *testing.T) {
 	}
 	if !strings.Contains(hint, "запасное значение") {
 		t.Fatalf("подсказка не предупреждает о запасном значении: %q", hint)
+	}
+}
+
+// Карточка промта: поля «Порядок» и «Раздел промта» были спрятаны при создании,
+// и второй промт в категории заводился другими полями, чем первый. Тест держит
+// разметку: оба поля есть в форме, и создание уходит в выбранный раздел.
+func TestPromptFormKeepsSortAndCategoryFields(t *testing.T) {
+	data := map[string]any{
+		"Title":          "Категории и промты",
+		"Active":         "prompts",
+		"AdminBase":      "/admin",
+		"CategoriesJSON": template.JS("[]"),
+		"PromptsJSON":    template.JS("[]"),
+	}
+
+	tmpl := template.Must(template.New("").Funcs(tmplFuncs).ParseFiles("../../../templates/layout.html", "../../../templates/prompts.html"))
+
+	var buf bytes.Buffer
+	if err := tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {
+		t.Fatalf("render prompts template: %v", err)
+	}
+
+	page := buf.String()
+	for _, needle := range []string{`id="promptSort"`, `id="promptCategory"`, `id="promptCategoryHint"`} {
+		if !strings.Contains(page, needle) {
+			t.Fatalf("prompt form must contain %s", needle)
+		}
+	}
+	// Скрытие полей при создании жило именно в этих двух строках.
+	for _, forbidden := range []string{
+		`document.getElementById('promptSortWrap').style.display = isEdit ? '' : 'none';`,
+		`moveWrap.style.display = isEdit ? '' : 'none';`,
+	} {
+		if strings.Contains(page, forbidden) {
+			t.Fatalf("prompt form still hides fields on create: %s", forbidden)
+		}
+	}
+	// Создание идёт в выбранный раздел, а не в открытый.
+	if !strings.Contains(page, "categories/${targetCategoryID}/prompts") {
+		t.Fatal("new prompt must be created in the selected category")
 	}
 }

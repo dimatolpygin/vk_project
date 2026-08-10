@@ -236,6 +236,23 @@ func TestScreenMetaCoversDefaultScreens(t *testing.T) {
 	}
 }
 
+// Экраны про баланс лежат вместе: отказ по видео искали рядом с «Закончились
+// генерации», а он был среди технических ошибок в «Системе» — и админ его
+// не находил, хотя текст правится.
+func TestBalanceRefusalScreensLiveInBillingSection(t *testing.T) {
+	for _, key := range []string{"no_gens_left", "no_gens_for_video"} {
+		if section := ScreenMeta(key).SectionID; section != "billing" {
+			t.Fatalf("screen %q must live in billing section, got %q", key, section)
+		}
+	}
+	// Ошибки видео-цепочки — это поломки, им место в «Системе».
+	for _, key := range []string{"video_scene_failed", "video_generation_failed"} {
+		if section := ScreenMeta(key).SectionID; section != "system" {
+			t.Fatalf("screen %q must stay in system section, got %q", key, section)
+		}
+	}
+}
+
 func TestScreenMetaFallbackUsesHumanizedTitle(t *testing.T) {
 	meta := ScreenMeta("unknown_screen_key")
 

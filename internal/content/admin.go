@@ -436,12 +436,14 @@ var screenAdminMeta = map[string]ScreenAdminMeta{
 		Order:       21,
 		Keywords:    []string{"скоро", "пусто", "заглушка", "раздел"},
 	},
+	// Экран про баланс, а не про поломку: ищут его рядом с «Закончились
+	// генерации», а не среди технических ошибок, где он лежал до этапа 11.
 	"no_gens_for_video": {
-		SectionID:   "system",
+		SectionID:   "billing",
 		Title:       "Не хватает генераций на видео",
-		Description: "Отказ до запуска видео. Доступны {{.CostGens}}, {{.UserGens}} и {{.MissingGens}} — цена, баланс и нехватка.",
-		Order:       22,
-		Keywords:    []string{"видео", "баланс", "не хватает", "генерации"},
+		Description: "Отказ до запуска видео-тренда: у пользователя есть генерации, но меньше цены видео. Доступны {{.CostGens}}, {{.UserGens}} и {{.MissingGens}} — цена, баланс и нехватка.",
+		Order:       45,
+		Keywords:    []string{"видео", "видео тренд", "баланс", "не хватает", "генерации", "оживить фото"},
 	},
 	"video_scene_failed": {
 		SectionID:   "system",

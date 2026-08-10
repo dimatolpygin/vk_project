@@ -923,12 +923,13 @@
                     <div class="col-md-6" id="promptSortWrap">
                         <label class="form-label" for="promptSort">Порядок</label>
                         <input type="number" class="form-control" id="promptSort" value="0">
+                        <div class="text-muted small mt-1">Меньше — выше в списке у пользователя.</div>
                     </div>
                 </div>
                 <div class="mt-3" id="promptMoveWrap">
                     <label class="form-label" for="promptCategory">Раздел промта</label>
                     <select class="form-select" id="promptCategory"></select>
-                    <div class="text-muted small mt-1">Смена раздела переносит промт: пользователь увидит его в новом месте.</div>
+                    <div class="text-muted small mt-1" id="promptCategoryHint">Смена раздела переносит промт: пользователь увидит его в новом месте.</div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1062,6 +1063,17 @@ function sortPrompts(a, b) {
         return a.sort_order - b.sort_order;
     }
     return a.name.localeCompare(b.name, 'ru');
+}
+
+// nextSortOrder — что подставить в «Порядок» новому промту. Ноль по умолчанию
+// сваливал все новые промты в одну кучу, где очередь решал id; шаг за последним
+// ставит промт в конец списка предсказуемо и оставляет место для правки руками.
+function nextSortOrder(categoryID) {
+    const prompts = promptCache.get(categoryID) || [];
+    if (prompts.length === 0) {
+        return 0;
+    }
+    return Math.max(...prompts.map(prompt => Number(prompt.sort_order) || 0)) + 1;
 }
 
 // Порядок категорий больше не считается на клиенте: сервер отдаёт дерево уже
@@ -1579,22 +1591,21 @@ function openPromptModal(prompt = null) {
     document.getElementById('promptVideoText').value = isEdit ? prompt.video_prompt : '';
     syncPromptMediaKind();
     document.getElementById('promptGender').value = isEdit ? prompt.gender : 'any';
-    document.getElementById('promptSort').value = isEdit ? String(prompt.sort_order) : '0';
-    document.getElementById('promptSortWrap').style.display = isEdit ? '' : 'none';
-    document.getElementById('promptGenderWrap').className = isEdit ? 'col-md-6' : 'col-md-12';
+    document.getElementById('promptSort').value = isEdit ? String(prompt.sort_order) : String(nextSortOrder(currentCatId));
     document.getElementById('promptCategoryLabel').textContent = category ? category.name : 'Не выбрана';
 
-    // Перенос доступен только при правке: новый промт всегда создаётся в открытом разделе.
-    const moveWrap = document.getElementById('promptMoveWrap');
-    moveWrap.style.display = isEdit ? '' : 'none';
-    if (isEdit) {
-        const select = document.getElementById('promptCategory');
-        select.innerHTML = categories.map(item => {
-            const indent = '&nbsp;'.repeat(item.depth * 4);
-            return `<option value="${item.id}">${indent}${escapeHtml(item.name)} · ${escapeHtml(getSectionLabel(item.section))}</option>`;
-        }).join('');
-        select.value = String(prompt.category_id);
-    }
+    // Порядок и раздел показываются и при создании: без порядка новый промт
+    // ложится нулём и встаёт по id, а раздел удобнее выбрать сразу, чем
+    // создавать промт не там и переносить второй правкой.
+    const select = document.getElementById('promptCategory');
+    select.innerHTML = categories.map(item => {
+        const indent = '&nbsp;'.repeat(item.depth * 4);
+        return `<option value="${item.id}">${indent}${escapeHtml(item.name)} · ${escapeHtml(getSectionLabel(item.section))}</option>`;
+    }).join('');
+    select.value = String(isEdit ? prompt.category_id : currentCatId);
+    document.getElementById('promptCategoryHint').textContent = isEdit
+        ? 'Смена раздела переносит промт: пользователь увидит его в новом месте.'
+        : 'Предзаполнен открытым разделом — промт создастся в нём, если не выбрать другой.';
 
     document.getElementById('promptModalTitle').textContent = isEdit ? 'Редактировать промт' : 'Новый промт';
     document.getElementById('promptModalSubtitle').textContent = isEdit
@@ -1703,7 +1714,7 @@ async function savePrompt() {
     }
 
     const existingPrompt = getPromptByID(id);
-    const targetCategoryID = id ? Number(document.getElementById('promptCategory').value) || currentCatId : currentCatId;
+    const targetCategoryID = Number(document.getElementById('promptCategory').value) || currentCatId;
     const body = {
         category_id: targetCategoryID,
         name,
@@ -1717,7 +1728,9 @@ async function savePrompt() {
 
     togglePending(saveButton, true, id ? 'Сохраняем...' : 'Создаём...');
     try {
-        const resp = await fetch(id ? `{{.AdminBase}}/prompts/${id}` : `{{.AdminBase}}/categories/${currentCatId}/prompts`, {
+        // Создание идёт в выбранный раздел, а не в открытый: раздел теперь виден
+        // и правится в форме до сохранения.
+        const resp = await fetch(id ? `{{.AdminBase}}/prompts/${id}` : `{{.AdminBase}}/categories/${targetCategoryID}/prompts`, {
             method: id ? 'PUT' : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
