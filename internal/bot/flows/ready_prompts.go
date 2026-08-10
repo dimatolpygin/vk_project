@@ -81,12 +81,15 @@ func HandleSelectPrompt(ctx context.Context, fc *Context, d *Deps) {
 	if promptType == "couple" {
 		couplePhotos := normalizeGenerationInputPhotos(fc.State.CouplePhotoURLs)
 		if len(couplePhotos) == 0 {
-			state := copyPrefs(&State{Step: StepCoupleAwaitingPhoto, PromptType: "couple"}, fc.State)
-			state.CouplePhotoURLs = nil
-			state.InputPhotoURLs = nil
-			state.PhotoBatchID = ""
-			_ = d.State.Set(ctx, fc.VkID, state)
-			_ = sendScreen(ctx, d, fc.VkID, "couple_intro", ScreenOptions{})
+			// Страховка: фото просят на входе в режим, но клавиатура из старой
+			// переписки может привести сюда в обход этого шага.
+			cat, err := d.CatRepo.GetByID(ctx, fc.State.CategoryID)
+			if err != nil || cat == nil {
+				cat = &repository.Category{ID: fc.State.CategoryID, Section: repository.SectionCouple}
+			}
+			if err := askCouplePhoto(ctx, fc, d, cat); err != nil {
+				log.Error().Err(err).Int64("vk_id", fc.VkID).Msg("ошибка запроса парного фото")
+			}
 			return
 		}
 		if !fc.User.HasGens() {

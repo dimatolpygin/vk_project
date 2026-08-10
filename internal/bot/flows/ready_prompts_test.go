@@ -346,15 +346,19 @@ func TestHandleBackFromPromptListReturnsToStoredCategoryPage(t *testing.T) {
 	}
 }
 
-func TestHandleCoupleStartAwaitsPhotoBeforeCategories(t *testing.T) {
+// С этапа 13 порядок обратный прежнему: вход в раздел показывает режимы съёмки,
+// фото просят после выбора режима. Раньше бот требовал фото первым сообщением,
+// не показав, ради чего.
+func TestHandleCoupleStartShowsModesBeforePhoto(t *testing.T) {
 	sender := &fakeSender{}
 	stateMgr := newFakeStateMgr()
 	deps := &Deps{
 		Sender: sender,
 		State:  stateMgr,
 		CatRepo: &fakeCategoryRepo{
-			couple: makeCategories(6),
+			couple: makeCategories(3),
 		},
+		PromptRepo: &fakePromptRepo{},
 	}
 	fc := &Context{
 		VkID:  104,
@@ -368,28 +372,29 @@ func TestHandleCoupleStartAwaitsPhotoBeforeCategories(t *testing.T) {
 	if state == nil {
 		t.Fatal("expected state to be saved")
 	}
-	if state.Step != StepCoupleAwaitingPhoto {
-		t.Fatalf("expected %q step, got %q", StepCoupleAwaitingPhoto, state.Step)
+	if state.Step != StepCoupleCategories {
+		t.Fatalf("expected %q step, got %q", StepCoupleCategories, state.Step)
 	}
-	if state.PromptType != "couple" {
-		t.Fatalf("expected prompt type couple, got %q", state.PromptType)
+	if len(state.CouplePhotoURLs) != 0 {
+		t.Fatalf("expected photos of the previous run to be dropped, got %v", state.CouplePhotoURLs)
 	}
 
-	if len(sender.screens) == 0 {
-		t.Fatal("expected a screen to be sent")
-	}
 	last := sender.screens[len(sender.screens)-1]
-	if last.Key != "couple_intro" {
-		t.Fatalf("expected couple_intro screen, got %q", last.Key)
+	if last.Key != "couple_submenu" {
+		t.Fatalf("expected the mode submenu, got %q", last.Key)
 	}
-	// На шаге ожидания фото категории показываться не должны.
+	// Кнопки режимов должны быть на месте: именно их пользователь и не видел.
 	keyboard := decodeKeyboard(t, last.Keyboard)
+	var hasModeButton bool
 	for _, row := range keyboard.Buttons {
 		for _, btn := range row {
 			if strings.HasPrefix(btn.Action.Label, "Category ") {
-				t.Fatalf("did not expect category buttons before photo upload, got %q", btn.Action.Label)
+				hasModeButton = true
 			}
 		}
+	}
+	if !hasModeButton {
+		t.Fatal("expected the shooting modes to be shown right away")
 	}
 }
 

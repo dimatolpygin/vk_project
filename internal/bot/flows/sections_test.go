@@ -9,7 +9,11 @@ import (
 )
 
 func strptr(v string) *string { return &v }
-func intptr(v int) *int       { return &v }
+
+// couplePhotos — фото, загруженные на входе в режим съёмки. С этапа 13 без них
+// раздел до дерева не доходит: сначала режим, потом фото, потом шаблоны.
+func couplePhotos() []string { return []string{"https://cdn.example/couple-1.jpg"} }
+func intptr(v int) *int      { return &v }
 
 // treeRepo — раздел «Парное фото» с подменю: корень 10 с двумя детьми,
 // у первого ребёнка есть промты.
@@ -32,9 +36,10 @@ func TestOpenCategoryShowsChildrenWhenNodeHasThem(t *testing.T) {
 	stateMgr := newFakeStateMgr()
 	deps := &Deps{Sender: sender, State: stateMgr, CatRepo: treeRepo(), PromptRepo: &fakePromptRepo{}}
 	fc := &Context{
-		VkID:     201,
-		User:     &User{Gender: "male", FreeGens: 1},
-		State:    &State{Step: StepCoupleCategories, PromptType: "couple"},
+		VkID: 201,
+		User: &User{Gender: "male", FreeGens: 1},
+		// Фото загружено на входе в режим — навигация по дереву идёт после него.
+		State:    &State{Step: StepCoupleCategories, PromptType: "couple", CouplePhotoURLs: couplePhotos()},
 		Callback: &CallbackData{CategoryID: 10},
 	}
 
@@ -80,7 +85,7 @@ func TestOpenCategoryShowsPromptsWhenNodeIsLeaf(t *testing.T) {
 	fc := &Context{
 		VkID:     202,
 		User:     &User{Gender: "male", FreeGens: 1},
-		State:    &State{Step: StepCoupleCategories, PromptType: "couple", CategoryPage: 1},
+		State:    &State{Step: StepCoupleCategories, PromptType: "couple", CategoryPage: 1, CouplePhotoURLs: couplePhotos()},
 		Callback: &CallbackData{CategoryID: 11},
 	}
 
@@ -109,11 +114,12 @@ func TestBackFromNestedPromptsReturnsToParentNode(t *testing.T) {
 		VkID: 203,
 		User: &User{Gender: "male", FreeGens: 1},
 		State: &State{
-			Step:       StepCouplePrompts,
-			PromptType: "couple",
-			Section:    repository.SectionCouple,
-			SectionID:  10,
-			CategoryID: 11,
+			Step:            StepCouplePrompts,
+			PromptType:      "couple",
+			Section:         repository.SectionCouple,
+			SectionID:       10,
+			CategoryID:      11,
+			CouplePhotoURLs: couplePhotos(),
 		},
 	}
 
@@ -176,7 +182,7 @@ func TestSubmenuPagerCarriesParentID(t *testing.T) {
 	fc := &Context{
 		VkID:     205,
 		User:     &User{Gender: "male", FreeGens: 1},
-		State:    &State{Step: StepCoupleCategories, PromptType: "couple"},
+		State:    &State{Step: StepCoupleCategories, PromptType: "couple", CouplePhotoURLs: couplePhotos()},
 		Callback: &CallbackData{CategoryID: 10},
 	}
 
@@ -244,7 +250,7 @@ func TestEmptyNodeShowsSoonScreenInsteadOfEmptyKeyboard(t *testing.T) {
 	fc := &Context{
 		VkID:     206,
 		User:     &User{Gender: "male", FreeGens: 1},
-		State:    &State{Step: StepCoupleCategories, PromptType: "couple", Section: repository.SectionCouple},
+		State:    &State{Step: StepCoupleCategories, PromptType: "couple", Section: repository.SectionCouple, CouplePhotoURLs: couplePhotos()},
 		Callback: &CallbackData{CategoryID: 20},
 	}
 
@@ -274,7 +280,7 @@ func TestBackFromEmptyNodeReturnsToSubmenu(t *testing.T) {
 	fc := &Context{
 		VkID:     207,
 		User:     &User{Gender: "male", FreeGens: 1},
-		State:    &State{Step: StepCoupleCategories, PromptType: "couple", Section: repository.SectionCouple},
+		State:    &State{Step: StepCoupleCategories, PromptType: "couple", Section: repository.SectionCouple, CouplePhotoURLs: couplePhotos()},
 		Callback: &CallbackData{CategoryID: 20},
 	}
 

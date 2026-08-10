@@ -127,3 +127,113 @@ func TestPhotoRequestScreenFallsBackToShared(t *testing.T) {
 		t.Fatalf("expected the shared photo screen, got %q", last.Key)
 	}
 }
+
+// coupleTreeRepo — раздел как на проде: три режима корнями, у «Парного»
+// подкатегории с промтами. У «Семейного» задан свой экран запроса фото.
+func coupleTreeRepo() *fakeCategoryRepo {
+	return &fakeCategoryRepo{
+		couple: []*repository.Category{
+			{ID: 40, Name: "Парное фото", Section: repository.SectionCouple},
+			{ID: 41, Name: "Семейное фото", Section: repository.SectionCouple, PhotoScreenKey: strptr("node_41_photo")},
+		},
+		children: map[int][]*repository.Category{
+			40: {{ID: 42, Name: "Классика", Section: repository.SectionCouple, ParentID: intptr(40)}},
+		},
+	}
+}
+
+// Тап по режиму просит фото — и просит его экраном самого режима, чтобы
+// пользователь видел картинку и описание того, что выбрал.
+func TestCoupleModeAsksPhotoWithItsOwnScreen(t *testing.T) {
+	sender := &fakeSender{}
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{Sender: sender, State: stateMgr, CatRepo: coupleTreeRepo(), PromptRepo: &fakePromptRepo{}}
+	fc := &Context{
+		VkID:     601,
+		User:     &User{Gender: "male", FreeGens: 5},
+		State:    &State{Step: StepCoupleCategories, PromptType: "couple", Section: repository.SectionCouple},
+		Callback: &CallbackData{Type: "open_category", CategoryID: 41},
+	}
+
+	HandleOpenCategory(context.Background(), fc, deps)
+
+	last := sender.screens[len(sender.screens)-1]
+	if last.Key != "node_41_photo" {
+		t.Fatalf("expected the mode photo screen, got %q", last.Key)
+	}
+	state := stateMgr.states[601]
+	if state.Step != StepCoupleAwaitingPhoto {
+		t.Fatalf("expected the bot to wait for a photo, got %q", state.Step)
+	}
+	if state.CategoryID != 41 {
+		t.Fatalf("expected the chosen mode to be remembered, got %d", state.CategoryID)
+	}
+}
+
+// Режим без своего экрана просит фото прежним общим текстом.
+func TestCoupleModeFallsBackToSharedPhotoScreen(t *testing.T) {
+	sender := &fakeSender{}
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{Sender: sender, State: stateMgr, CatRepo: coupleTreeRepo(), PromptRepo: &fakePromptRepo{}}
+	fc := &Context{
+		VkID:     602,
+		User:     &User{Gender: "male", FreeGens: 5},
+		State:    &State{Step: StepCoupleCategories, PromptType: "couple", Section: repository.SectionCouple},
+		Callback: &CallbackData{Type: "open_category", CategoryID: 40},
+	}
+
+	HandleOpenCategory(context.Background(), fc, deps)
+
+	if got := sender.screens[len(sender.screens)-1].Key; got != "couple_intro" {
+		t.Fatalf("expected the shared couple screen, got %q", got)
+	}
+}
+
+// Фото уже загружено — ворота пропускают, и режим показывает своё содержимое.
+func TestCoupleModeShowsContentOncePhotoUploaded(t *testing.T) {
+	sender := &fakeSender{}
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{Sender: sender, State: stateMgr, CatRepo: coupleTreeRepo(), PromptRepo: &fakePromptRepo{}}
+	fc := &Context{
+		VkID: 603,
+		User: &User{Gender: "male", FreeGens: 5},
+		State: &State{Step: StepCoupleCategories, PromptType: "couple", Section: repository.SectionCouple,
+			CouplePhotoURLs: couplePhotos()},
+		Callback: &CallbackData{Type: "open_category", CategoryID: 40},
+	}
+
+	HandleOpenCategory(context.Background(), fc, deps)
+
+	last := sender.screens[len(sender.screens)-1]
+	if last.Key != "couple_submenu" {
+		t.Fatalf("expected the node content after the photo, got %q", last.Key)
+	}
+	keyboard := decodeKeyboard(t, last.Keyboard)
+	if got := keyboard.Buttons[0][0].Action.Label; got != "Классика" {
+		t.Fatalf("expected the subcategories of the mode, got %q", got)
+	}
+}
+
+// «Назад» с запроса фото возвращает к выбору режима, а не в главное меню.
+func TestBackFromCouplePhotoReturnsToModes(t *testing.T) {
+	sender := &fakeSender{}
+	stateMgr := newFakeStateMgr()
+	deps := &Deps{Sender: sender, State: stateMgr, CatRepo: coupleTreeRepo(), PromptRepo: &fakePromptRepo{}}
+	fc := &Context{
+		VkID: 604,
+		User: &User{Gender: "male", FreeGens: 5},
+		State: &State{Step: StepCoupleAwaitingPhoto, PromptType: "couple",
+			Section: repository.SectionCouple, CategoryID: 41},
+		Callback: &CallbackData{Type: "back"},
+	}
+
+	HandleBack(context.Background(), fc, deps)
+
+	last := sender.screens[len(sender.screens)-1]
+	if last.Key != "couple_submenu" {
+		t.Fatalf("expected to return to the mode list, got %q", last.Key)
+	}
+	if state := stateMgr.states[604]; state == nil || state.Step != StepCoupleCategories {
+		t.Fatalf("expected the mode list step, got %#v", state)
+	}
+}

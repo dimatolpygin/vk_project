@@ -165,6 +165,13 @@ func openCategoryNode(ctx context.Context, fc *Context, d *Deps, categoryID, pag
 		return sendScreen(ctx, d, fc.VkID, "prompts_empty", ScreenOptions{})
 	}
 
+	// Парный раздел просит фото на входе в режим: показывать список шаблонов
+	// раньше, чем есть фото, бессмысленно — генерация всё равно стартует только
+	// по нему. Фото уже загружено — ворота пропускают.
+	if cat.Section == repository.SectionCouple && len(normalizeGenerationInputPhotos(fc.State.CouplePhotoURLs)) == 0 {
+		return askCouplePhoto(ctx, fc, d, cat)
+	}
+
 	spec := specForSection(cat.Section)
 	children, err := d.CatRepo.ListChildren(ctx, categoryID, repository.CategoryFilter{
 		Gender:         resolveNodeGender(ctx, d, cat, fc),
@@ -229,7 +236,19 @@ func showSectionRoots(ctx context.Context, fc *Context, d *Deps, spec sectionSpe
 // Правило одно: с промтов — к родителю категории, с подменю — на уровень выше,
 // с корня раздела — наружу, в главное меню.
 func sectionBack(ctx context.Context, fc *Context, d *Deps) bool {
-	if fc.State == nil || !IsSectionStep(fc.State.Step) {
+	if fc.State == nil {
+		return false
+	}
+	// Запрос фото в парном разделе — это шаг внутри дерева, хотя формально
+	// не «шаг раздела»: «Назад» с него обязано вернуть к выбору режима, а не
+	// выкинуть в главное меню.
+	if fc.State.Step == StepCoupleAwaitingPhoto && fc.State.CategoryID != 0 {
+		if err := showParentOfCategory(ctx, fc, d, fc.State.CategoryID); err != nil {
+			log.Error().Err(err).Int64("vk_id", fc.VkID).Int("category_id", fc.State.CategoryID).Msg("ошибка возврата с запроса парного фото")
+		}
+		return true
+	}
+	if !IsSectionStep(fc.State.Step) {
 		return false
 	}
 	if isPromptsStep(fc.State.Step) {
