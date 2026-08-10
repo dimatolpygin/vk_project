@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"vk_neuro_bot/internal/content"
 	"vk_neuro_bot/internal/repository"
 )
 
@@ -181,5 +182,46 @@ func TestPromptFormKeepsSortAndCategoryFields(t *testing.T) {
 	// Создание идёт в выбранный раздел, а не в открытый.
 	if !strings.Contains(page, "categories/${targetCategoryID}/prompts") {
 		t.Fatal("new prompt must be created in the selected category")
+	}
+}
+
+// Экран узла заводится копией того, что узел показывает сейчас: пустой экран
+// ВК отбивает ошибкой, а без кнопок пользователь теряет «Назад».
+func TestNodeScreenDonorDependsOnStep(t *testing.T) {
+	kids := &repository.Category{ID: 70, Section: repository.SectionKids}
+	if got := screenDonor(kids, "prompts"); got != "prompts_list" {
+		t.Fatalf("expected the prompt list as donor, got %q", got)
+	}
+	if got := screenDonor(kids, "photo"); got != "photo_requirements" {
+		t.Fatalf("expected the photo requirements as donor, got %q", got)
+	}
+	if got := screenDonor(kids, "menu"); got != "kids_intro" {
+		t.Fatalf("expected the section root screen as donor, got %q", got)
+	}
+
+	// У узла со своим экраном входа копируется именно он, а не экран раздела.
+	custom := "couple_categories"
+	couple := &repository.Category{ID: 40, Section: repository.SectionCouple, ScreenKey: &custom}
+	if got := screenDonor(couple, "menu"); got != custom {
+		t.Fatalf("expected the node screen as donor, got %q", got)
+	}
+}
+
+// Ключ экрана придумывает сервер: по ключу видно, чей это экран, и админка
+// показывает его человеческим названием, а не «Node 70 Photo».
+func TestNodeScreenKeyIsSelfDescribing(t *testing.T) {
+	key := content.NodeScreenKey(70, "photo")
+	if key != "node_70_photo" {
+		t.Fatalf("unexpected node screen key %q", key)
+	}
+	meta := content.ScreenMeta(key)
+	if meta.SectionID != "nodes" {
+		t.Fatalf("node screen must live in the nodes section, got %q", meta.SectionID)
+	}
+	if !strings.Contains(meta.Title, "70") || !strings.Contains(meta.Title, "запрос фото") {
+		t.Fatalf("node screen title must name the node and the step, got %q", meta.Title)
+	}
+	if content.NodeScreenStepKnown("bogus") {
+		t.Fatal("unknown step must be rejected")
 	}
 }

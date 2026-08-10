@@ -10,33 +10,94 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog/log"
+	"vk_neuro_bot/internal/bot/flows"
+	"vk_neuro_bot/internal/content"
 	"vk_neuro_bot/internal/repository"
 )
 
 type CategoriesHandler struct {
-	cats    *repository.CategoryRepo
-	prompts *repository.PromptRepo
-	tmpl    *template.Template
+	cats     *repository.CategoryRepo
+	prompts  *repository.PromptRepo
+	messages *repository.MessageRepo
+	tmpl     *template.Template
 }
 
-func NewCategoriesHandler(cats *repository.CategoryRepo, prompts *repository.PromptRepo) *CategoriesHandler {
+func NewCategoriesHandler(cats *repository.CategoryRepo, prompts *repository.PromptRepo, messages *repository.MessageRepo) *CategoriesHandler {
 	tmpl := parseTemplates("templates/layout.html", "templates/prompts.html")
-	return &CategoriesHandler{cats: cats, prompts: prompts, tmpl: tmpl}
+	return &CategoriesHandler{cats: cats, prompts: prompts, messages: messages, tmpl: tmpl}
+}
+
+// screenDonor — с какого экрана списывается стартовый текст нового экрана узла.
+// Копия, а не пустая заготовка: экран без текста ВК отбивает ошибкой, а без
+// кнопок пользователь теряет «Назад».
+func screenDonor(cat *repository.Category, step string) string {
+	switch step {
+	case "prompts":
+		return "prompts_list"
+	case "photo":
+		return "photo_requirements"
+	default:
+		if cat.ScreenKey != nil && *cat.ScreenKey != "" {
+			return *cat.ScreenKey
+		}
+		return flows.SectionRootScreen(cat.Section)
+	}
+}
+
+// CreateNodeScreen заводит экран узла и возвращает его ключ. Ключ придумывает
+// сервер: ручной ввод означал бы опечатку, которая уезжает пользователю голым
+// текстом ключа.
+func (h *CategoriesHandler) CreateNodeScreen(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", http.StatusBadRequest)
+		return
+	}
+	step := chi.URLParam(r, "step")
+	if !content.NodeScreenStepKnown(step) {
+		http.Error(w, "unknown step", http.StatusBadRequest)
+		return
+	}
+
+	cat, err := h.cats.GetByID(r.Context(), id)
+	if err != nil {
+		log.Error().Err(err).Int("category_id", id).Msg("ошибка получения раздела для экрана узла")
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if cat == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	key := content.NodeScreenKey(id, step)
+	created, err := h.messages.CreateFrom(r.Context(), key, screenDonor(cat, step))
+	if err != nil {
+		log.Error().Err(err).Str("screen_key", key).Msg("ошибка создания экрана узла")
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"key": key, "created": created})
 }
 
 // categoryRequest — тело запроса на создание и правку узла дерева.
 // ParentID приходит нулём, когда узел кладут в корень раздела.
 type categoryRequest struct {
-	Name         string  `json:"name"`
-	Gender       string  `json:"gender"`
-	SortOrder    int     `json:"sort_order"`
-	IsActive     bool    `json:"is_active"`
-	PreviewURL   *string `json:"preview_url"`
-	ParentID     int     `json:"parent_id"`
-	Section      string  `json:"section"`
-	ScreenKey    string  `json:"screen_key"`
-	MediaKind    string  `json:"media_kind"`
-	PromptGender string  `json:"prompt_gender"`
+	Name       string  `json:"name"`
+	Gender     string  `json:"gender"`
+	SortOrder  int     `json:"sort_order"`
+	IsActive   bool    `json:"is_active"`
+	PreviewURL *string `json:"preview_url"`
+	ParentID   int     `json:"parent_id"`
+	Section    string  `json:"section"`
+	ScreenKey  string  `json:"screen_key"`
+	// Экраны отдельных шагов узла: список промтов и запрос фото.
+	PromptsScreenKey string `json:"prompts_screen_key"`
+	PhotoScreenKey   string `json:"photo_screen_key"`
+	MediaKind        string `json:"media_kind"`
+	PromptGender     string `json:"prompt_gender"`
 }
 
 func (req categoryRequest) toInput() repository.CategoryInput {
@@ -53,8 +114,18 @@ func (req categoryRequest) toInput() repository.CategoryInput {
 		parentID := req.ParentID
 		in.ParentID = &parentID
 	}
-	if screenKey := strings.TrimSpace(req.ScreenKey); screenKey != "" {
-		in.ScreenKey = &screenKey
+	for _, pair := range []struct {
+		raw    string
+		target **string
+	}{
+		{req.ScreenKey, &in.ScreenKey},
+		{req.PromptsScreenKey, &in.PromptsScreenKey},
+		{req.PhotoScreenKey, &in.PhotoScreenKey},
+	} {
+		if key := strings.TrimSpace(pair.raw); key != "" {
+			value := key
+			*pair.target = &value
+		}
 	}
 	if promptGender := strings.TrimSpace(req.PromptGender); promptGender != "" {
 		in.PromptGender = &promptGender
@@ -109,17 +180,19 @@ func (h *CategoriesHandler) ListCategories(w http.ResponseWriter, r *http.Reques
 	}
 
 	type categoryView struct {
-		ID           int     `json:"id"`
-		Name         string  `json:"name"`
-		PreviewURL   *string `json:"preview_url"`
-		Gender       string  `json:"gender"`
-		SortOrder    int     `json:"sort_order"`
-		IsActive     bool    `json:"is_active"`
-		ParentID     *int    `json:"parent_id"`
-		Section      string  `json:"section"`
-		ScreenKey    *string `json:"screen_key"`
-		MediaKind    string  `json:"media_kind"`
-		PromptGender *string `json:"prompt_gender"`
+		ID               int     `json:"id"`
+		Name             string  `json:"name"`
+		PreviewURL       *string `json:"preview_url"`
+		Gender           string  `json:"gender"`
+		SortOrder        int     `json:"sort_order"`
+		IsActive         bool    `json:"is_active"`
+		ParentID         *int    `json:"parent_id"`
+		Section          string  `json:"section"`
+		ScreenKey        *string `json:"screen_key"`
+		PromptsScreenKey *string `json:"prompts_screen_key"`
+		PhotoScreenKey   *string `json:"photo_screen_key"`
+		MediaKind        string  `json:"media_kind"`
+		PromptGender     *string `json:"prompt_gender"`
 		// Depth считается на сервере: дерево уже приходит в порядке обхода,
 		// и UI остаётся простым списком с отступами.
 		Depth int `json:"depth"`
@@ -135,18 +208,20 @@ func (h *CategoriesHandler) ListCategories(w http.ResponseWriter, r *http.Reques
 		depths[cat.ID] = depth
 
 		catViews = append(catViews, categoryView{
-			ID:           cat.ID,
-			Name:         cat.Name,
-			PreviewURL:   cat.PreviewURL,
-			Gender:       cat.Gender,
-			SortOrder:    cat.SortOrder,
-			IsActive:     cat.IsActive,
-			ParentID:     cat.ParentID,
-			Section:      cat.Section,
-			ScreenKey:    cat.ScreenKey,
-			MediaKind:    cat.MediaKind,
-			PromptGender: cat.PromptGender,
-			Depth:        depth,
+			ID:               cat.ID,
+			Name:             cat.Name,
+			PreviewURL:       cat.PreviewURL,
+			Gender:           cat.Gender,
+			SortOrder:        cat.SortOrder,
+			IsActive:         cat.IsActive,
+			ParentID:         cat.ParentID,
+			Section:          cat.Section,
+			ScreenKey:        cat.ScreenKey,
+			PromptsScreenKey: cat.PromptsScreenKey,
+			PhotoScreenKey:   cat.PhotoScreenKey,
+			MediaKind:        cat.MediaKind,
+			PromptGender:     cat.PromptGender,
+			Depth:            depth,
 		})
 	}
 

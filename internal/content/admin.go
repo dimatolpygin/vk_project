@@ -1,7 +1,9 @@
 package content
 
 import (
+	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -27,6 +29,7 @@ var screenSections = []ScreenSection{
 	{ID: "navigation", Title: "Навигация", Description: "Главное меню и постоянные точки входа.", Icon: "bi-compass", Order: 20},
 	{ID: "generation", Title: "Сценарии генерации", Description: "Экшены вокруг создания и редактирования фото.", Icon: "bi-magic", Order: 30},
 	{ID: "styles", Title: "Готовые стили", Description: "Экраны выбора категорий и шаблонов.", Icon: "bi-grid-1x2", Order: 40},
+	{ID: "nodes", Title: "Экраны разделов", Description: "Свои тексты и картинки отдельных узлов дерева. Создаются кнопкой в карточке раздела и живут только пока узел на них ссылается.", Icon: "bi-diagram-3", Order: 45},
 	{ID: "saved_photo", Title: "Сохранённое фото", Description: "Сохранение базового фото и его использование.", Icon: "bi-bookmark-heart", Order: 50},
 	{ID: "settings", Title: "Настройки", Description: "Баланс, модель, качество и формат генерации.", Icon: "bi-sliders2", Order: 60},
 	{ID: "billing", Title: "Оплата", Description: "Тарифы, покупка генераций и успешная оплата.", Icon: "bi-credit-card-2-front", Order: 70},
@@ -586,6 +589,9 @@ func ScreenSectionByID(id string) (ScreenSection, bool) {
 func ScreenMeta(key string) ScreenAdminMeta {
 	meta, ok := screenAdminMeta[key]
 	if !ok {
+		if nodeMeta, ok := nodeScreenMeta(key); ok {
+			return nodeMeta
+		}
 		return ScreenAdminMeta{
 			SectionID: "other",
 			Title:     humanizeScreenKey(key),
@@ -602,6 +608,52 @@ func ScreenMeta(key string) ScreenAdminMeta {
 	}
 	meta.Keywords = cloneKeywords(meta.Keywords)
 	return meta
+}
+
+// NodeScreenKey — ключ экрана узла для шага. Формат общий для админки и бота:
+// по ключу видно, к какому узлу и шагу относится экран, и его не спутать
+// с экраном из кода.
+func NodeScreenKey(categoryID int, step string) string {
+	return fmt.Sprintf("node_%d_%s", categoryID, step)
+}
+
+// nodeScreenSteps — шаги узла и их человеческие названия. Ключ шага уезжает
+// в ключ экрана, поэтому список один на весь проект.
+var nodeScreenSteps = map[string]string{
+	"menu":    "подменю",
+	"prompts": "список шаблонов",
+	"photo":   "запрос фото",
+}
+
+// NodeScreenStepKnown отвечает, бывает ли такой шаг у узла.
+func NodeScreenStepKnown(step string) bool {
+	_, ok := nodeScreenSteps[step]
+	return ok
+}
+
+// nodeScreenMeta разбирает ключ node_<id>_<шаг>: без этого экраны узлов падали бы
+// в «Прочее» с названием вроде «Node 42 Photo», и админ не понимал бы, чей это
+// экран.
+func nodeScreenMeta(key string) (ScreenAdminMeta, bool) {
+	parts := strings.SplitN(key, "_", 3)
+	if len(parts) != 3 || parts[0] != "node" {
+		return ScreenAdminMeta{}, false
+	}
+	categoryID, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return ScreenAdminMeta{}, false
+	}
+	stepTitle, ok := nodeScreenSteps[parts[2]]
+	if !ok {
+		return ScreenAdminMeta{}, false
+	}
+	return ScreenAdminMeta{
+		SectionID:   "nodes",
+		Title:       fmt.Sprintf("Раздел №%d — %s", categoryID, stepTitle),
+		Description: "Свой экран узла дерева. Какому разделу он принадлежит, видно в карточке раздела на странице «Разделы и промты».",
+		Order:       categoryID,
+		Keywords:    []string{"раздел", "узел", stepTitle},
+	}, true
 }
 
 func cloneKeywords(in []string) []string {

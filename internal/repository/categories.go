@@ -19,10 +19,16 @@ type Category struct {
 	// Дерево разделов (миграция 00029).
 	ParentID *int
 	Section  string
-	// ScreenKey — экран (текст + картинка), который показывается при входе в узел.
-	// Пустой означает «взять экран раздела по умолчанию».
+	// ScreenKey — экран (текст + картинка), который показывается при входе в узел,
+	// когда у узла есть подменю. Пустой означает «взять экран раздела».
 	ScreenKey *string
-	MediaKind string
+	// PromptsScreenKey — экран над списком промтов узла, PhotoScreenKey — экран
+	// запроса фото после выбора промта (миграция 00039). Оба наследуются вниз по
+	// дереву, как PromptGender: текст задают на «Мальчике», а промты лежат
+	// в его подкатегориях. NULL — экран раздела по умолчанию.
+	PromptsScreenKey *string
+	PhotoScreenKey   *string
+	MediaKind        string
 	// PromptGender — пол, которым фильтруются промты узла, вместо пола пользователя.
 	// NULL наследуется от ближайшего предка, у которого он задан.
 	PromptGender *string
@@ -39,7 +45,7 @@ type CategoryFilter struct {
 }
 
 const categoryColumns = `id, name, group_id, preview_url, gender, sort_order, is_active,
-	parent_id, section, screen_key, media_kind, prompt_gender`
+	parent_id, section, screen_key, prompts_screen_key, photo_screen_key, media_kind, prompt_gender`
 
 // contentPredicate — «в узле есть что показать»: подходящие промты или активные дети.
 // Плейсхолдеры фиксированы: $2 — флаг RequireContent, $3 — пол. Обе выборки уровня
@@ -203,16 +209,18 @@ func (r *CategoryRepo) GetByID(ctx context.Context, id int) (*Category, error) {
 
 // CategoryInput — поля, которыми админка создаёт и правит узел дерева.
 type CategoryInput struct {
-	Name         string
-	Gender       string
-	SortOrder    int
-	IsActive     bool
-	PreviewURL   *string
-	ParentID     *int
-	Section      string
-	ScreenKey    *string
-	MediaKind    string
-	PromptGender *string
+	Name             string
+	Gender           string
+	SortOrder        int
+	IsActive         bool
+	PreviewURL       *string
+	ParentID         *int
+	Section          string
+	ScreenKey        *string
+	PromptsScreenKey *string
+	PhotoScreenKey   *string
+	MediaKind        string
+	PromptGender     *string
 }
 
 func (in *CategoryInput) normalize() {
@@ -225,8 +233,10 @@ func (in *CategoryInput) normalize() {
 	if in.MediaKind == "" {
 		in.MediaKind = MediaKindPhoto
 	}
-	if in.ScreenKey != nil && *in.ScreenKey == "" {
-		in.ScreenKey = nil
+	for _, key := range []**string{&in.ScreenKey, &in.PromptsScreenKey, &in.PhotoScreenKey} {
+		if *key != nil && **key == "" {
+			*key = nil
+		}
 	}
 	if in.PromptGender != nil && *in.PromptGender == "" {
 		in.PromptGender = nil
@@ -250,10 +260,12 @@ func (r *CategoryRepo) Create(ctx context.Context, in CategoryInput) (*Category,
 
 	c := &Category{}
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO categories (name, gender, sort_order, parent_id, section, screen_key, media_kind, prompt_gender)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO categories (name, gender, sort_order, parent_id, section, screen_key,
+		    prompts_screen_key, photo_screen_key, media_kind, prompt_gender)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING `+categoryColumns,
-		in.Name, in.Gender, in.SortOrder, in.ParentID, in.Section, in.ScreenKey, in.MediaKind, in.PromptGender).
+		in.Name, in.Gender, in.SortOrder, in.ParentID, in.Section, in.ScreenKey,
+		in.PromptsScreenKey, in.PhotoScreenKey, in.MediaKind, in.PromptGender).
 		Scan(categoryScanTargets(c)...)
 	return c, err
 }
@@ -288,10 +300,12 @@ func (r *CategoryRepo) Update(ctx context.Context, id int, in CategoryInput) err
 	_, err := r.db.Exec(ctx, `
 		UPDATE categories
 		SET name = $2, gender = $3, sort_order = $4, is_active = $5, preview_url = $6,
-		    parent_id = $7, section = $8, screen_key = $9, media_kind = $10, prompt_gender = $11
+		    parent_id = $7, section = $8, screen_key = $9, media_kind = $10, prompt_gender = $11,
+		    prompts_screen_key = $12, photo_screen_key = $13
 		WHERE id = $1`,
 		id, in.Name, in.Gender, in.SortOrder, in.IsActive, in.PreviewURL,
-		in.ParentID, in.Section, in.ScreenKey, in.MediaKind, in.PromptGender)
+		in.ParentID, in.Section, in.ScreenKey, in.MediaKind, in.PromptGender,
+		in.PromptsScreenKey, in.PhotoScreenKey)
 	if err != nil {
 		return err
 	}
@@ -316,7 +330,8 @@ func (r *CategoryRepo) Delete(ctx context.Context, id int) error {
 func categoryScanTargets(c *Category) []any {
 	return []any{
 		&c.ID, &c.Name, &c.GroupID, &c.PreviewURL, &c.Gender, &c.SortOrder, &c.IsActive,
-		&c.ParentID, &c.Section, &c.ScreenKey, &c.MediaKind, &c.PromptGender,
+		&c.ParentID, &c.Section, &c.ScreenKey, &c.PromptsScreenKey, &c.PhotoScreenKey,
+		&c.MediaKind, &c.PromptGender,
 	}
 }
 

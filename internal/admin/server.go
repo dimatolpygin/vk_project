@@ -1,4 +1,4 @@
-﻿package admin
+package admin
 
 import (
 	"context"
@@ -51,7 +51,7 @@ func NewServer(
 	th := handlers.NewTariffsHandler(tariffs)
 	mh := handlers.NewMessagesHandler(msgs)
 	bh := handlers.NewBroadcastsHandler(broadcasts, asynqClient)
-	ch := handlers.NewCategoriesHandler(cats, prompts)
+	ch := handlers.NewCategoriesHandler(cats, prompts, msgs)
 	sh := handlers.NewStatsHandler(stats)
 	uploadH := handlers.NewUploadHandler(storage)
 	ah := handlers.NewAuthHandler(db, login, password, sessions)
@@ -97,6 +97,7 @@ func NewServer(
 			r.Post("/categories", ch.CreateCategory)
 			r.Put("/categories/{id}", ch.UpdateCategory)
 			r.Delete("/categories/{id}", ch.DeleteCategory)
+			r.Post("/categories/{id}/screens/{step}", ch.CreateNodeScreen)
 			r.Get("/categories/{id}/prompts", ch.ListPrompts)
 			r.Post("/categories/{id}/prompts", ch.CreatePrompt)
 			r.Put("/prompts/{id}", ch.UpdatePrompt)
@@ -138,6 +139,7 @@ func NewServer(
 			r.Post("/categories", ch.CreateCategory)
 			r.Put("/categories/{id}", ch.UpdateCategory)
 			r.Delete("/categories/{id}", ch.DeleteCategory)
+			r.Post("/categories/{id}/screens/{step}", ch.CreateNodeScreen)
 			r.Get("/categories/{id}/prompts", ch.ListPrompts)
 			r.Post("/categories/{id}/prompts", ch.CreatePrompt)
 			r.Put("/prompts/{id}", ch.UpdatePrompt)

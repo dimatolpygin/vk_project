@@ -91,6 +91,30 @@ func (r *MessageRepo) Upsert(ctx context.Context, key, text string, imageURL *st
 	return err
 }
 
+// CreateFrom заводит экран под новым ключом, скопировав текст, картинку и кнопки
+// с экрана-донора. Уже существующий экран не трогается: кнопка «Создать экран»
+// в карточке узла нажимается повторно, и перезапись стёрла бы правки админа.
+// Возвращает, была ли запись создана.
+func (r *MessageRepo) CreateFrom(ctx context.Context, key, donorKey string) (bool, error) {
+	donor, err := r.Get(ctx, donorKey)
+	if err != nil {
+		return false, err
+	}
+	keyboardJSON, err := json.Marshal(donor.Keyboard)
+	if err != nil {
+		return false, err
+	}
+	tag, err := r.db.Exec(ctx, `
+		INSERT INTO messages (key, text, image_url, keyboard, updated_at)
+		VALUES ($1, $2, $3, $4, now())
+		ON CONFLICT (key) DO NOTHING`,
+		key, donor.Text, donor.ImageURL, keyboardJSON)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
 func (r *MessageRepo) SetVkAttachment(ctx context.Context, key, attachment string) error {
 	_, err := r.db.Exec(ctx,
 		`UPDATE messages SET vk_attachment = $2 WHERE key = $1`,

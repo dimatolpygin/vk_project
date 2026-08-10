@@ -829,9 +829,34 @@
                     <div class="text-muted small mt-1">Нужно там, где пол выбирается кнопкой — например, адресат поздравления. Наследуется подразделами.</div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label" for="catScreenKey">Экран при входе</label>
-                    <input type="text" class="form-control" id="catScreenKey" placeholder="Например, kids_intro">
-                    <div class="text-muted small mt-1">Ключ экрана из раздела «Сообщения» — оттуда берутся текст и картинка. Пусто — экран раздела по умолчанию.</div>
+                    <div class="fw-semibold mb-1">Свои экраны раздела</div>
+                    <div class="text-muted small mb-2">
+                        Три шага — три экрана: подменю, список шаблонов и запрос фото.
+                        Пусто в поле означает общий экран раздела. Кнопка «Создать» заводит
+                        экран копией текущего и открывает его в «Сообщениях» — там правятся
+                        текст и картинка.
+                    </div>
+                    <label class="form-label" for="catScreenKey">Экран при входе (подменю)</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="catScreenKey" placeholder="Например, kids_intro">
+                        <button type="button" class="btn btn-outline-secondary" data-node-screen-step="menu">Создать</button>
+                    </div>
+                    <div class="text-muted small mt-1">Показывается, когда у раздела есть подразделы.</div>
+
+                    <label class="form-label mt-3" for="catPromptsScreenKey">Экран со списком шаблонов</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="catPromptsScreenKey" placeholder="Пусто — общий текст">
+                        <button type="button" class="btn btn-outline-secondary" data-node-screen-step="prompts">Создать</button>
+                    </div>
+                    <div class="text-muted small mt-1">Своя картинка и описание над кнопками шаблонов — например, у подраздела трендов.</div>
+
+                    <label class="form-label mt-3" for="catPhotoScreenKey">Экран запроса фото</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="catPhotoScreenKey" placeholder="Пусто — общий текст">
+                        <button type="button" class="btn btn-outline-secondary" data-node-screen-step="photo">Создать</button>
+                    </div>
+                    <div class="text-muted small mt-1">Что бот пишет после выбора шаблона. Наследуется подразделами — задайте на «Мальчике», и он сработает во всех его подкатегориях.</div>
+                    <div class="small mt-2" id="catScreenHint"></div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="catPreviewURL">Превью раздела</label>
@@ -971,6 +996,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('openCategoryCreateBtn').addEventListener('click', () => openCategoryModal());
     document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
     document.getElementById('catParent').addEventListener('change', syncSectionAvailability);
+    document.querySelectorAll('[data-node-screen-step]').forEach(button => {
+        button.addEventListener('click', () => createNodeScreen(button.dataset.nodeScreenStep, button));
+    });
     document.getElementById('savePromptBtn').addEventListener('click', savePrompt);
     document.getElementById('promptMediaKind').addEventListener('change', syncPromptMediaKind);
     document.getElementById('categoryList').addEventListener('click', handleCategoryListClick);
@@ -1012,6 +1040,8 @@ function normalizeCategory(category) {
         parent_id: category.parent_id ?? null,
         section: category.section ?? 'self',
         screen_key: category.screen_key ?? null,
+        prompts_screen_key: category.prompts_screen_key ?? null,
+        photo_screen_key: category.photo_screen_key ?? null,
         media_kind: category.media_kind ?? 'photo',
         prompt_gender: category.prompt_gender ?? null,
         depth: Number(category.depth ?? 0)
@@ -1104,6 +1134,8 @@ function categoryPayload(category, overrides = {}) {
         parent_id: category.parent_id ?? 0,
         section: category.section,
         screen_key: category.screen_key ?? '',
+        prompts_screen_key: category.prompts_screen_key ?? '',
+        photo_screen_key: category.photo_screen_key ?? '',
         media_kind: category.media_kind,
         prompt_gender: category.prompt_gender ?? '',
         ...overrides
@@ -1500,6 +1532,53 @@ function handleCategoryFilterInput() {
     renderSidebar();
 }
 
+// Кнопки «Создать» заводят экран узла на сервере: ключ придумывает сервер,
+// потому что вручную набранный ключ без записи в «Сообщениях» бот отправляет
+// пользователю как голый текст.
+const nodeScreenFields = {
+    menu: 'catScreenKey',
+    prompts: 'catPromptsScreenKey',
+    photo: 'catPhotoScreenKey'
+};
+
+function syncNodeScreenButtons(isEdit) {
+    document.querySelectorAll('[data-node-screen-step]').forEach(button => {
+        button.disabled = !isEdit;
+    });
+    const hint = document.getElementById('catScreenHint');
+    hint.className = 'small mt-2 text-muted';
+    hint.textContent = isEdit
+        ? ''
+        : 'Свои экраны создаются после сохранения раздела — ключ экрана привязан к его номеру.';
+}
+
+async function createNodeScreen(step, button) {
+    const id = Number(document.getElementById('catId').value);
+    if (!id) {
+        return;
+    }
+
+    const hint = document.getElementById('catScreenHint');
+    togglePending(button, true, 'Создаём...');
+    try {
+        const resp = await fetch(`{{.AdminBase}}/categories/${id}/screens/${step}`, { method: 'POST' });
+        if (!resp.ok) {
+            hint.className = 'small mt-2 text-danger';
+            hint.textContent = 'Не удалось создать экран.';
+            return;
+        }
+
+        const result = await resp.json();
+        document.getElementById(nodeScreenFields[step]).value = result.key;
+        hint.className = 'small mt-2 text-success';
+        hint.innerHTML = result.created
+            ? `Экран <code>${escapeHtml(result.key)}</code> создан копией текущего. Сохраните раздел, затем правьте текст и картинку в <a href="{{.AdminBase}}/messages" target="_blank">Сообщениях</a>.`
+            : `Экран <code>${escapeHtml(result.key)}</code> уже был заведён — правки в нём сохранены. Он в <a href="{{.AdminBase}}/messages" target="_blank">Сообщениях</a>.`;
+    } finally {
+        togglePending(button, false);
+    }
+}
+
 function openCategoryModal(category = null, parentID = 0) {
     const isEdit = Boolean(category);
     const parentValue = isEdit ? (category.parent_id ?? 0) : parentID;
@@ -1511,6 +1590,11 @@ function openCategoryModal(category = null, parentID = 0) {
     document.getElementById('catIsActive').checked = isEdit ? category.is_active : true;
     document.getElementById('catActiveWrap').style.display = isEdit ? '' : 'none';
     document.getElementById('catScreenKey').value = isEdit ? (category.screen_key ?? '') : '';
+    document.getElementById('catPromptsScreenKey').value = isEdit ? (category.prompts_screen_key ?? '') : '';
+    document.getElementById('catPhotoScreenKey').value = isEdit ? (category.photo_screen_key ?? '') : '';
+    // Экран создаётся под конкретный id раздела, поэтому у несохранённого
+    // раздела кнопки бессмысленны: сначала сохранить, потом заводить экраны.
+    syncNodeScreenButtons(isEdit);
     document.getElementById('catPreviewURL').value = isEdit ? (category.preview_url ?? '') : '';
     document.getElementById('catMediaKind').value = isEdit ? category.media_kind : 'photo';
     document.getElementById('catPromptGender').value = isEdit ? (category.prompt_gender ?? '') : '';
@@ -1635,6 +1719,8 @@ async function saveCategory() {
         parent_id: Number(document.getElementById('catParent').value) || 0,
         section: document.getElementById('catSection').value,
         screen_key: document.getElementById('catScreenKey').value.trim(),
+        prompts_screen_key: document.getElementById('catPromptsScreenKey').value.trim(),
+        photo_screen_key: document.getElementById('catPhotoScreenKey').value.trim(),
         media_kind: document.getElementById('catMediaKind').value,
         prompt_gender: document.getElementById('catPromptGender').value,
         preview_url: previewURL || null

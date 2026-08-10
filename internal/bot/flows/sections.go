@@ -108,6 +108,13 @@ func isPromptsStep(step string) bool {
 	return ok && spec.promptsStep == step
 }
 
+// SectionRootScreen — экран верхнего уровня раздела. Нужен админке: экран узла
+// создаётся копией того, что узел показывает сейчас, и для шага «подменю» это
+// экран раздела.
+func SectionRootScreen(section string) string {
+	return specForSection(section).rootScreen
+}
+
 func specForSection(section string) sectionSpec {
 	if spec, ok := sectionSpecs[section]; ok {
 		return spec
@@ -283,6 +290,52 @@ func nodeScreenKey(cat *repository.Category, spec sectionSpec) string {
 		return *cat.ScreenKey
 	}
 	return spec.rootScreen
+}
+
+// nodeStepScreen — экран конкретного шага узла (список промтов, запрос фото).
+// Наследуется вверх по дереву так же, как prompt_gender: текст задают на узле
+// «Мальчик», а промты лежат в его подкатегориях, и без наследования настройка
+// не доехала бы до шага, на котором нужна.
+func nodeStepScreen(ctx context.Context, d *Deps, cat *repository.Category, pick func(*repository.Category) *string, fallback string) string {
+	if cat == nil {
+		return fallback
+	}
+	if key := pick(cat); key != nil && *key != "" {
+		return *key
+	}
+	if cat.ParentID == nil || d.CatRepo == nil {
+		return fallback
+	}
+	path, err := d.CatRepo.Path(ctx, cat.ID)
+	if err != nil {
+		log.Error().Err(err).Int("category_id", cat.ID).Msg("ошибка получения пути узла для экрана шага")
+		return fallback
+	}
+	for i := len(path) - 1; i >= 0; i-- {
+		if key := pick(path[i]); key != nil && *key != "" {
+			return *key
+		}
+	}
+	return fallback
+}
+
+func promptsScreenOf(c *repository.Category) *string { return c.PromptsScreenKey }
+func photoScreenOf(c *repository.Category) *string   { return c.PhotoScreenKey }
+
+// photoRequestScreen — каким экраном просить фото после выбора промта. Узел
+// пользователя берётся из состояния: к этому моменту он уже записан списком
+// промтов.
+func photoRequestScreen(ctx context.Context, fc *Context, d *Deps) string {
+	const fallback = "photo_requirements"
+	if d.CatRepo == nil || fc.State == nil || fc.State.CategoryID == 0 {
+		return fallback
+	}
+	cat, err := d.CatRepo.GetByID(ctx, fc.State.CategoryID)
+	if err != nil {
+		log.Error().Err(err).Int("category_id", fc.State.CategoryID).Msg("ошибка получения узла для экрана запроса фото")
+		return fallback
+	}
+	return nodeStepScreen(ctx, d, cat, photoScreenOf, fallback)
 }
 
 // resolveNodeGender определяет, каким полом фильтровать промты узла: заданным

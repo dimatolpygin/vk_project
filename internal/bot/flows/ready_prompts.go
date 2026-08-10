@@ -132,7 +132,9 @@ func HandleSelectPrompt(ctx context.Context, fc *Context, d *Deps) {
 		return
 	}
 
-	_ = sendScreen(ctx, d, fc.VkID, "photo_requirements", ScreenOptions{})
+	// Детский раздел просит фото ребёнка, а не пользователя, и текст у «Мальчика»
+	// и «Девочки» разный — экран берётся с узла, если админ его задал.
+	_ = sendScreen(ctx, d, fc.VkID, photoRequestScreen(ctx, fc, d), ScreenOptions{})
 }
 
 func HandleReadyPromptsBrowse(ctx context.Context, fc *Context, d *Deps) {
@@ -223,7 +225,9 @@ func showPromptPage(ctx context.Context, fc *Context, d *Deps, categoryID, categ
 	}, fc.State)
 	fc.State = state
 	_ = d.State.Set(ctx, fc.VkID, state)
-	return sendScreen(ctx, d, fc.VkID, "prompts_list", ScreenOptions{PrefixRows: rows})
+	// У подраздела трендов детей нет, промты показываются сразу — и до этапа 12
+	// это был единственный шаг, где узел не мог сказать ничего своего.
+	return sendScreen(ctx, d, fc.VkID, nodeStepScreen(ctx, d, cat, promptsScreenOf, "prompts_list"), ScreenOptions{PrefixRows: rows})
 }
 
 // parentNodeID — уровень, с которого пользователь пришёл в категорию: 0 означает

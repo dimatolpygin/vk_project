@@ -86,7 +86,7 @@ func handleVideoPromptSelected(ctx context.Context, fc *Context, d *Deps, prompt
 		return
 	}
 
-	_ = sendScreen(ctx, d, fc.VkID, "photo_requirements", ScreenOptions{})
+	_ = sendScreen(ctx, d, fc.VkID, photoRequestScreen(ctx, fc, d), ScreenOptions{})
 }
 
 // startVideoGeneration списывает цену промта и ставит задачу в очередь.
